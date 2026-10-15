@@ -1,13 +1,16 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
-const HTML_MAPA = `
+const mapaHTML = `
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-  <meta name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+  />
 
   <link
     rel="stylesheet"
@@ -21,33 +24,45 @@ const HTML_MAPA = `
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background: #111318;
     }
 
     body {
-      touch-action: none;
+      background: #f2f5f8;
     }
 
-    .leaflet-container {
-      background: #111318;
-      font-family: Arial, sans-serif;
-      touch-action: none;
+    #mapa {
+      position: absolute;
+      inset: 0;
     }
 
     .leaflet-control-attribution {
-      background: rgba(3, 15, 31, 0.75) !important;
-      color: #b5d9e8 !important;
+      position: absolute !important;
+      top: 0 !important;
+      right: 0 !important;
+      bottom: auto !important;
+      left: 0 !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+      margin: 0 !important;
+      padding: 3px 10px !important;
+      border-radius: 0 !important;
+      background: rgba(255, 255, 255, 0.75) !important;
+      color: #526170 !important;
       font-size: 9px !important;
+      line-height: 1.4 !important;
+      text-align: right !important;
+      box-shadow: none !important;
     }
 
     .leaflet-control-attribution a {
-      color: #00d4ff !important;
+      color: #1769aa !important;
+      text-decoration: none !important;
     }
 
-    .leaflet-control-zoom a {
-      background: #09213b !important;
-      color: #00d4ff !important;
-      border-color: #174666 !important;
+
+    /* Oculta los botones de zoom */
+    .leaflet-control-zoom {
+      display: none !important;
     }
   </style>
 </head>
@@ -59,63 +74,65 @@ const HTML_MAPA = `
 
   <script>
     const mapa = L.map('mapa', {
-      center: [6.2442, -75.5812],
-      zoom: 13,
       zoomControl: false,
-      dragging: true,
-      touchZoom: true,
-      doubleClickZoom: true,
-      scrollWheelZoom: true,
-      boxZoom: false,
-      keyboard: true,
-      tap: true
-    });
+      attributionControl: false,
+      maxZoom: 18
+    }).setView([6.2442, -75.5812], 13);
 
     L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_4ltt_1_cf9d541803ae070b75ff17f2',
       {
-        attribution: '&copy; OpenStreetMap &copy; CARTO',
-        subdomains: 'abcd',
-        maxZoom: 20
+        maxZoom: 18,
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
       }
     ).addTo(mapa);
 
-    L.control.zoom({
-      position: 'bottomright'
+    // Atribución personalizada en la esquina superior derecha
+    L.control.attribution({
+      position: 'topright',
+      prefix: false
     }).addTo(mapa);
 
-    L.circleMarker([6.2442, -75.5812], {
-      radius: 6,
-      color: '#00D4FF',
-      weight: 2,
-      fillColor: '#00D4FF',
-      fillOpacity: 1
-    }).addTo(mapa);
+    // Marcador de Medellín
+    L.marker([6.2442, -75.5812])
+      .addTo(mapa)
+      .bindPopup('Medellín, Colombia');
 
-    setTimeout(() => {
+    setTimeout(function () {
       mapa.invalidateSize();
-    }, 300);
+    }, 250);
   </script>
 </body>
 </html>
 `;
 
 export default function MapaPrincipal() {
+  if (Platform.OS === 'web') {
+    return (
+      <View style={styles.contenedor}>
+        <iframe
+          title="Mapa de Medellín"
+          srcDoc={mapaHTML}
+          style={{
+            width: '100%',
+            height: '100%',
+            border: 'none',
+          }}
+          allowFullScreen
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.contenedor}>
       <WebView
-        source={{ html: HTML_MAPA }}
-        style={styles.mapa}
         originWhitelist={['*']}
+        source={{ html: mapaHTML }}
         javaScriptEnabled={true}
         domStorageEnabled={true}
-        scrollEnabled={false}
-        nestedScrollEnabled={true}
-        bounces={false}
-        overScrollMode="never"
-        setSupportMultipleWindows={false}
-        allowsInlineMediaPlayback={true}
-        mixedContentMode="compatibility"
+        style={styles.mapa}
       />
     </View>
   );
@@ -128,11 +145,10 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: '#111318',
-   },
-
+    overflow: 'hidden',
+  },
   mapa: {
     flex: 1,
-    backgroundColor: '#111318',
+    backgroundColor: '#f2f5f8',
   },
 });

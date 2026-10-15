@@ -12,7 +12,6 @@ import MapaPrincipal from '../components/ui/MapaPrincipal';
 
 const CIAN = '#00D4FF';
 const FONDO = '#111318';
-const TEXTO_SECUNDARIO = '#A4A9B4';
 
 type Pestaña = 'Inicio' | 'Servicios' | 'Solicitudes' | 'Perfil';
 
@@ -42,7 +41,7 @@ export default function HomeScreen() {
       <View style={styles.contenedor}>
         <MapaPrincipal />
 
-        {/* Encabezado */}
+        {/* Encabezado: únicamente logo y nombre */}
         <View style={styles.encabezado}>
           <View style={styles.marca}>
             <View style={styles.logo}>
@@ -53,29 +52,6 @@ export default function HomeScreen() {
               Muévelo <Text style={styles.nombreCian}>Ya</Text>
             </Text>
           </View>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.botonPerfil,
-              pressed && styles.presionado,
-            ]}
-            onPress={() => manejarPestaña('Perfil')}
-            accessibilityRole="button"
-            accessibilityLabel="Abrir perfil"
-          >
-            <LinearGradient
-              colors={[
-                'rgba(35,75,112,0.82)',
-                'rgba(14,43,73,0.90)',
-                'rgba(5,23,44,0.96)',
-              ]}
-              locations={[0, 0.35, 1]}
-              style={styles.cristalPerfil}
-            >
-              <View style={styles.reflejoPerfil} />
-              <Text style={styles.iconoPerfil}>👤</Text>
-            </LinearGradient>
-          </Pressable>
         </View>
 
         {/* Panel de ubicación */}
@@ -272,40 +248,6 @@ const styles = StyleSheet.create({
 
   nombreCian: {
     color: CIAN,
-  },
-
-  botonPerfil: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    borderWidth: 2,
-    borderColor: CIAN,
-    backgroundColor: 'rgba(5,23,44,0.50)',
-    overflow: 'hidden',
-  },
-
-  cristalPerfil: {
-    flex: 1,
-    borderRadius: 23,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-
-  reflejoPerfil: {
-    position: 'absolute',
-    top: 1,
-    left: 5,
-    right: 5,
-    height: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.38)',
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-  },
-
-  iconoPerfil: {
-    fontSize: 18,
   },
 
   ubicacion: {
