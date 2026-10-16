@@ -12,10 +12,20 @@ export default function AppTabs() {
       backgroundColor={colors.background}
       indicatorColor={colors.backgroundElement}
       labelStyle={{ selected: { color: colors.text } }}>
+      
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
           src={require('@/assets/images/tabIcons/home.png')}
+          renderingMode="template"
+        />
+      </NativeTabs.Trigger>
+
+      {/* Nueva Pestaña de Servicio */}
+      <NativeTabs.Trigger name="servicio">
+        <NativeTabs.Trigger.Label>Servicios</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          src={require('@/assets/images/tabIcons/explore.png')} // Puedes usar un ícono propio si tienen uno de servicios
           renderingMode="template"
         />
       </NativeTabs.Trigger>
