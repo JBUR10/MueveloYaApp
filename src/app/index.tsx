@@ -1,21 +1,22 @@
-import React, { useState } from 'react';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useState } from 'react';
 import {
-  View,
-  Text,
   Pressable,
-  StyleSheet,
   StatusBar,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import MapaPrincipal from '../components/ui/MapaPrincipal';
 
-const CIAN = '#00D4FF';
+const CIAN = '#2969e9';
 const FONDO = '#111318';
 
 type Pestaña = 'Inicio' | 'Servicios' | 'Solicitudes' | 'Perfil';
 
-const pestañas: { id: Pestaña; icono: string }[] = [
+const pestañas: { id: Pestaña; icono: string }[] = [  
   { id: 'Inicio', icono: '⌂' },
   { id: 'Servicios', icono: '◇' },
   { id: 'Solicitudes', icono: '▤' },
@@ -41,7 +42,7 @@ export default function HomeScreen() {
       <View style={styles.contenedor}>
         <MapaPrincipal />
 
-        {/* Encabezado: únicamente logo y nombre */}
+        {/* Encabezado */}
         <View style={styles.encabezado}>
           <View style={styles.marca}>
             <View style={styles.logo}>
@@ -54,29 +55,35 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Panel de ubicación */}
+        {/* Panel de ubicación con cristal y fondo difuminado */}
         <View style={styles.ubicacion}>
+          <BlurView
+            intensity={18}
+            tint="dark"
+            experimentalBlurMethod="dimezisBlurView"
+            style={styles.fondoBlurUbicacion}
+          />
+
+          <View style={styles.sombraCristalUbicacion} />
+
           <LinearGradient
             colors={[
-              'rgba(42,83,120,0.78)',
-              'rgba(18,49,80,0.88)',
-              'rgba(9,33,59,0.94)',
-              'rgba(4,20,39,0.97)',
+              'rgba(255,255,255,0.20)',
+              'rgba(255,255,255,0.09)',
+              'rgba(255,255,255,0.04)',
             ]}
-            locations={[0, 0.18, 0.58, 1]}
+            locations={[0, 0.45, 1]}
             style={styles.cristalUbicacion}
           >
             <LinearGradient
               colors={[
-                'rgba(255,255,255,0.24)',
+                'rgba(255,255,255,0.28)',
                 'rgba(255,255,255,0.06)',
                 'rgba(255,255,255,0)',
               ]}
-              locations={[0, 0.3, 1]}
+              locations={[0, 0.45, 1]}
               style={styles.reflejoSuperior}
             />
-
-            <View style={styles.reflejoDiagonal} />
 
             <View style={styles.contenidoUbicacion}>
               <View style={styles.puntoUbicacionExterior}>
@@ -98,25 +105,33 @@ export default function HomeScreen() {
           </LinearGradient>
         </View>
 
-        {/* Barra de navegación */}
+        {/* Barra de navegación con cristal y fondo difuminado */}
         <View style={styles.barraNavegacion}>
+          <BlurView
+            intensity={24}
+            tint="dark"
+            experimentalBlurMethod="dimezisBlurView"
+            style={styles.fondoBlurBarra}
+          />
+
+          <View style={styles.sombraCristalBarra} />
+
           <LinearGradient
             colors={[
-              'rgba(18,45,73,0.92)',
-              'rgba(8,29,52,0.96)',
-              'rgba(3,15,31,0.99)',
-              'rgba(2,11,24,0.99)',
+              'rgba(255,255,255,0.18)',
+              'rgba(235,242,248,0.08)',
+              'rgba(215,226,238,0.04)',
             ]}
-            locations={[0, 0.35, 0.72, 1]}
+            locations={[0, 0.45, 1]}
             style={styles.cristalBarra}
           >
             <LinearGradient
               colors={[
-                'rgba(255,255,255,0.20)',
-                'rgba(255,255,255,0.05)',
+                'rgba(255,255,255,0.28)',
+                'rgba(255,255,255,0.06)',
                 'rgba(255,255,255,0)',
               ]}
-              locations={[0, 0.22, 1]}
+              locations={[0, 0.5, 1]}
               style={styles.reflejoBarra}
             />
 
@@ -139,14 +154,16 @@ export default function HomeScreen() {
                     accessibilityLabel={pestaña.id}
                   >
                     {activa && (
-                      <LinearGradient
-                        colors={[
-                          'rgba(0,212,255,0.20)',
-                          'rgba(0,212,255,0.07)',
-                          'rgba(0,212,255,0.01)',
-                        ]}
-                        style={styles.cristalActivo}
-                      />
+                      <View style={styles.cristalActivo}>
+                        <LinearGradient
+                          colors={[
+                            'rgba(255,255,255,0.30)',
+                            'rgba(255,255,255,0.11)',
+                            'rgba(255,255,255,0.04)',
+                          ]}
+                          style={StyleSheet.absoluteFill}
+                        />
+                      </View>
                     )}
 
                     <Text
@@ -168,14 +185,7 @@ export default function HomeScreen() {
                     </Text>
 
                     {activa && (
-                      <View style={styles.indicadorActivo}>
-                        <LinearGradient
-                          colors={['#FFFFFF', CIAN, '#008DB8']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 0 }}
-                          style={styles.brilloIndicador}
-                        />
-                      </View>
+                      <View style={styles.indicadorActivo} />
                     )}
                   </Pressable>
                 );
@@ -220,24 +230,24 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 13,
-    backgroundColor: CIAN,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: CIAN,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.38,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.20,
+    shadowRadius: 6,
+    elevation: 4,
   },
 
   logoIcono: {
     fontSize: 27,
     fontWeight: '900',
-    color: FONDO,
+    color: '#26333C',
   },
 
   nombreApp: {
-    color: '#FFFFFF',
+    color: '#eeecec',
     fontSize: 20,
     fontWeight: '800',
     letterSpacing: -0.5,
@@ -257,10 +267,25 @@ const styles = StyleSheet.create({
     right: 20,
     zIndex: 2,
     borderRadius: 19,
-    borderWidth: 2,
-    borderColor: CIAN,
-    backgroundColor: 'rgba(4,20,39,0.75)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+    backgroundColor: 'rgba(17,19,24,0.30)',
     overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+
+  fondoBlurUbicacion: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 19,
+  },
+
+  sombraCristalUbicacion: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(17,19,24,0.24)',
   },
 
   cristalUbicacion: {
@@ -268,6 +293,7 @@ const styles = StyleSheet.create({
     borderRadius: 19,
     overflow: 'hidden',
     justifyContent: 'center',
+    backgroundColor: 'rgba(17,19,24,0.08)',
   },
 
   reflejoSuperior: {
@@ -275,17 +301,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 24,
-  },
-
-  reflejoDiagonal: {
-    position: 'absolute',
-    top: -24,
-    left: '36%',
-    width: 52,
-    height: 125,
-    backgroundColor: 'rgba(255,255,255,0.035)',
-    transform: [{ rotate: '24deg' }],
+    height: 25,
   },
 
   contenidoUbicacion: {
@@ -303,21 +319,16 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,212,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.24)',
   },
 
   puntoUbicacion: {
-    width: 7,
-    height: 7,
+    width: 8,
+    height: 8,
     borderRadius: 4,
-    backgroundColor: '#BDF8FF',
-    borderWidth: 2,
-    borderColor: CIAN,
-    shadowColor: CIAN,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 5,
-    elevation: 3,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#72BFCB',
   },
 
   textoUbicacion: {
@@ -325,10 +336,13 @@ const styles = StyleSheet.create({
   },
 
   etiquetaUbicacion: {
-    color: '#B5D9E8',
+    color: '#E7F0F4',
     fontSize: 9,
-    letterSpacing: 1.5,
-    fontWeight: '800',
+    letterSpacing: 1.2,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 
   nombreUbicacion: {
@@ -336,18 +350,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     marginTop: 4,
-    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowColor: 'rgba(0,0,0,0.55)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
 
   flechaUbicacion: {
-    color: '#C8F8FF',
+    color: '#FFFFFF',
     fontSize: 27,
     fontWeight: '300',
-    textShadowColor: CIAN,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 5,
   },
 
   barraNavegacion: {
@@ -358,16 +369,32 @@ const styles = StyleSheet.create({
     zIndex: 5,
     height: 76,
     borderRadius: 27,
-    borderWidth: 2,
-    borderColor: CIAN,
-    backgroundColor: '#030F1F',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(17,19,24,0.36)',
     overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+
+  fondoBlurBarra: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 27,
+  },
+
+  sombraCristalBarra: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(17,19,24,0.30)',
   },
 
   cristalBarra: {
     flex: 1,
     borderRadius: 27,
     overflow: 'hidden',
+    backgroundColor: 'rgba(17,19,24,0.08)',
   },
 
   reflejoBarra: {
@@ -375,7 +402,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 30,
+    height: 31,
   },
 
   lineaLuzBarra: {
@@ -384,7 +411,7 @@ const styles = StyleSheet.create({
     left: 22,
     right: 22,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.30)',
+    backgroundColor: 'rgba(255,255,255,0.28)',
   },
 
   elementosBarra: {
@@ -411,10 +438,13 @@ const styles = StyleSheet.create({
     left: 4,
     right: 4,
     borderRadius: 17,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+    overflow: 'hidden',
   },
 
   simboloNavegacion: {
-    color: '#C0CEDB',
+    color: '#F0F3F5',
     fontSize: 23,
     lineHeight: 27,
     textShadowColor: 'rgba(0,0,0,0.45)',
@@ -424,47 +454,33 @@ const styles = StyleSheet.create({
 
   simboloNavegacionActivo: {
     color: '#FFFFFF',
-    textShadowColor: CIAN,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 8,
   },
 
   textoNavegacion: {
-    color: '#B3C0CE',
+    color: '#E5E9EC',
     fontSize: 10,
     fontWeight: '600',
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 
   textoNavegacionActivo: {
     color: '#FFFFFF',
     fontWeight: '800',
-    textShadowColor: 'rgba(0,212,255,0.75)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 5,
   },
 
   indicadorActivo: {
     position: 'absolute',
-    bottom: 3,
+    bottom: 4,
     width: 18,
     height: 3,
     borderRadius: 2,
-    overflow: 'hidden',
-    backgroundColor: CIAN,
-    shadowColor: CIAN,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-
-  brilloIndicador: {
-    flex: 1,
-    borderRadius: 2,
+    backgroundColor: '#FFFFFF',
   },
 
   presionado: {
-    opacity: 0.78,
+    opacity: 0.75,
     transform: [{ scale: 0.98 }],
   },
 });
