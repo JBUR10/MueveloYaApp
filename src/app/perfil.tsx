@@ -1,6 +1,5 @@
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { usePathname, useRouter } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
@@ -13,17 +12,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import BarraNavegacion from "../components/ui/BarraNavegacion";
+
 const AZUL = "#2969e9";
 const FONDO = "#111318";
-
-type Pestaña = "Inicio" | "Servicios" | "Solicitudes" | "Perfil";
-
-const pestañas: { id: Pestaña; icono: string; ruta: string }[] = [
-  { id: "Inicio", icono: "⌂", ruta: "/" },
-  { id: "Servicios", icono: "◇", ruta: "/servicios" },
-  { id: "Solicitudes", icono: "▤", ruta: "/solicitudes" },
-  { id: "Perfil", icono: "○", ruta: "/perfil" },
-];
 
 const opciones = [
   {
@@ -54,15 +46,7 @@ const opciones = [
 ];
 
 export default function PerfilScreen() {
-  const router = useRouter();
-  const rutaActual = usePathname();
   const [notificacionesActivas, setNotificacionesActivas] = useState(true);
-
-  const navegar = (ruta: string) => {
-    if (ruta !== rutaActual) {
-      router.push(ruta as "/");
-    }
-  };
 
   const mostrarOpcion = (titulo: string) => {
     Alert.alert(
@@ -84,6 +68,7 @@ export default function PerfilScreen() {
           <View style={styles.encabezado}>
             <View>
               <Text style={styles.etiquetaSuperior}>TU ESPACIO PERSONAL</Text>
+
               <Text style={styles.titulo}>
                 Mi <Text style={styles.textoAzul}>perfil</Text>
               </Text>
@@ -144,7 +129,7 @@ export default function PerfilScreen() {
                   styles.botonEditar,
                   pressed && styles.presionado,
                 ]}>
-                <Text style={styles.iconoEditar}>↗</Text>
+                <Text style={styles.iconoEditar}>✎</Text>
               </Pressable>
             </View>
 
@@ -237,7 +222,7 @@ export default function PerfilScreen() {
             </View>
 
             <Pressable
-              onPress={() => setNotificacionesActivas(!notificacionesActivas)}
+              onPress={() => setNotificacionesActivas((activas) => !activas)}
               accessibilityRole="switch"
               accessibilityState={{
                 checked: notificacionesActivas,
@@ -265,6 +250,7 @@ export default function PerfilScreen() {
                 [{ text: "Entendido" }],
               )
             }
+            accessibilityRole="button"
             style={({ pressed }) => [
               styles.botonCerrarSesion,
               pressed && styles.presionado,
@@ -278,77 +264,8 @@ export default function PerfilScreen() {
           </Text>
         </ScrollView>
 
-        {/* Navegación inferior */}
-        <View style={styles.barraNavegacion}>
-          <BlurView
-            intensity={24}
-            tint="dark"
-            experimentalBlurMethod="dimezisBlurView"
-            style={StyleSheet.absoluteFill}
-          />
-
-          <LinearGradient
-            colors={[
-              "rgba(255,255,255,0.15)",
-              "rgba(235,242,248,0.06)",
-              "rgba(17,19,24,0.18)",
-            ]}
-            locations={[0, 0.45, 1]}
-            style={StyleSheet.absoluteFill}
-          />
-
-          <View style={styles.lineaLuz} />
-
-          <View style={styles.elementosBarra}>
-            {pestañas.map((pestaña) => {
-              const activa = rutaActual === pestaña.ruta;
-
-              return (
-                <Pressable
-                  key={pestaña.id}
-                  onPress={() => navegar(pestaña.ruta)}
-                  accessibilityRole="button"
-                  accessibilityLabel={pestaña.id}
-                  accessibilityState={{ selected: activa }}
-                  style={({ pressed }) => [
-                    styles.elementoNavegacion,
-                    pressed && styles.presionado,
-                  ]}>
-                  {activa && (
-                    <View style={styles.cristalActivo}>
-                      <LinearGradient
-                        colors={[
-                          "rgba(41,105,233,0.36)",
-                          "rgba(41,105,233,0.10)",
-                          "rgba(255,255,255,0.03)",
-                        ]}
-                        style={StyleSheet.absoluteFill}
-                      />
-                    </View>
-                  )}
-
-                  <Text
-                    style={[
-                      styles.simboloNavegacion,
-                      activa && styles.navegacionActiva,
-                    ]}>
-                    {pestaña.icono}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.textoNavegacion,
-                      activa && styles.navegacionActiva,
-                    ]}>
-                    {pestaña.id}
-                  </Text>
-
-                  {activa && <View style={styles.indicadorActivo} />}
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
+        {/* Barra de navegación compartida */}
+        <BarraNavegacion />
       </View>
     </SafeAreaView>
   );
@@ -434,7 +351,7 @@ const styles = StyleSheet.create({
     left: 22,
     right: 22,
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.40)",
+    backgroundColor: "rgba(255,255,255,0.00)",
   },
 
   perfilSuperior: {
@@ -726,87 +643,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     textAlign: "center",
     marginTop: 1,
-  },
-
-  barraNavegacion: {
-    position: "absolute",
-    bottom: 8,
-    left: 20,
-    right: 20,
-    height: 76,
-    borderRadius: 27,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
-    backgroundColor: "rgba(17,19,24,0.72)",
-    overflow: "hidden",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-
-  lineaLuz: {
-    position: "absolute",
-    top: 1,
-    left: 22,
-    right: 22,
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.28)",
-  },
-
-  elementosBarra: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingHorizontal: 4,
-  },
-
-  elementoNavegacion: {
-    flex: 1,
-    height: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 3,
-  },
-
-  cristalActivo: {
-    position: "absolute",
-    top: 7,
-    bottom: 7,
-    left: 4,
-    right: 4,
-    borderRadius: 17,
-    borderWidth: 1,
-    borderColor: "rgba(141,178,255,0.35)",
-    overflow: "hidden",
-  },
-
-  simboloNavegacion: {
-    color: "#D9E0EA",
-    fontSize: 23,
-    lineHeight: 27,
-  },
-
-  textoNavegacion: {
-    color: "#C3CCD9",
-    fontSize: 10,
-    fontWeight: "600",
-  },
-
-  navegacionActiva: {
-    color: "#FFFFFF",
-    fontWeight: "800",
-  },
-
-  indicadorActivo: {
-    position: "absolute",
-    bottom: 4,
-    width: 18,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: "#FFFFFF",
   },
 
   presionado: {
