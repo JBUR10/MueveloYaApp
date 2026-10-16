@@ -1,4 +1,3 @@
-
 import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -144,8 +143,8 @@ const mapaHTML = `
 
     let marcadorUbicacion = null;
 
-    // Recibe coordenadas desde React Native o desde el navegador.
-    function mostrarUbicacion(lat, lng) {
+    // Muestra (o mueve) el punto azul del cliente y centra el mapa.
+    window.mostrarUbicacion = function (lat, lng) {
       const posicion = [lat, lng];
 
       if (!marcadorUbicacion) {
@@ -167,54 +166,24 @@ const mapaHTML = `
       }
 
       mapa.flyTo(posicion, 16, { duration: 1.2 });
-    }
+    };
 
-    // Permite recibir la ubicación del componente nativo.
-    window.addEventListener('message', function(event) {
+    // Solo se usa en web: el componente padre envía la ubicación por postMessage al iframe.
+    window.addEventListener('message', function (event) {
       try {
-        const datos = JSON.parse(event.data);
+        const d = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         if (
-          datos.tipo === 'UBICACION' &&
-          Number.isFinite(datos.lat) &&
-          Number.isFinite(datos.lng)
+          d &&
+          d.tipo === 'UBICACION' &&
+          Number.isFinite(d.lat) &&
+          Number.isFinite(d.lng)
         ) {
-          mostrarUbicacion(datos.lat, datos.lng);
+          window.mostrarUbicacion(d.lat, d.lng);
         }
       } catch (_) {}
     });
 
-    // Compatibilidad adicional con mensajes de WebView en Android.
-    document.addEventListener('message', function(event) {
-      try {
-        const datos = JSON.parse(event.data);
-        if (
-          datos.tipo === 'UBICACION' &&
-          Number.isFinite(datos.lat) &&
-          Number.isFinite(datos.lng)
-        ) {
-          mostrarUbicacion(datos.lat, datos.lng);
-        }
-      } catch (_) {}
-    });
-
-    // En navegador web, solicita la ubicación al navegador.
-    if (window.location.protocol !== 'about:' &&
-        navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        function(posicion) {
-          mostrarUbicacion(
-            posicion.coords.latitude,
-            posicion.coords.longitude
-          );
-        },
-        function() {
-          // Si no hay permiso, conserva Medellín como vista inicial.
-        },
-        { enableHighAccuracy: true, timeout: 15000 }
-      );
-    }
-
-    setTimeout(function() {
+    setTimeout(function () {
       mapa.invalidateSize();
     }, 400);
   </script>
@@ -222,30 +191,35 @@ const mapaHTML = `
 </html>
 `;
 
-export default function MapaPrincipal() {
+export type Coordenadas = { lat: number; lng: number };
+
+type Props = {
+  /** Se llama cuando se obtiene la ubicación del cliente. */
+  onUbicacion?: (coords: Coordenadas) => void;
+};
+
+export default function MapaPrincipal({ onUbicacion }: Props) {
   const webViewRef = useRef<WebView>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const [coords, setCoords] = useState<Coordenadas | null>(null);
+  const [mapaListo, setMapaListo] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [errorUbicacion, setErrorUbicacion] = useState('');
 
+  // 1) Obtener la ubicación del cliente (Android, iOS y web).
   useEffect(() => {
     let activo = true;
 
-    async function obtenerUbicacion() {
+    (async () => {
       try {
-        if (Platform.OS === 'web') {
-          setCargando(false);
-          return;
-        }
-
-        const permiso =
-          await Location.requestForegroundPermissionsAsync();
+        const permiso = await Location.requestForegroundPermissionsAsync();
 
         if (!permiso.granted) {
           if (activo) {
             setErrorUbicacion(
               'Activa el permiso de ubicación para mostrar tu posición.'
             );
-            setCargando(false);
           }
           return;
         }
@@ -256,61 +230,64 @@ export default function MapaPrincipal() {
 
         if (!activo) return;
 
-        const mensaje = JSON.stringify({
-          tipo: 'UBICACION',
+        const nuevas = {
           lat: posicion.coords.latitude,
           lng: posicion.coords.longitude,
-        });
+        };
 
-        webViewRef.current?.postMessage(mensaje);
+        setCoords(nuevas);
         setErrorUbicacion('');
-        setCargando(false);
+        onUbicacion?.(nuevas);
       } catch {
         if (activo) {
           setErrorUbicacion(
             'No pudimos obtener tu ubicación. Comprueba el GPS e inténtalo de nuevo.'
           );
-          setCargando(false);
         }
+      } finally {
+        if (activo) setCargando(false);
       }
-    }
-
-    obtenerUbicacion();
+    })();
 
     return () => {
       activo = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const enviarUbicacionWeb = `
-    (function() {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(pos) {
-          window.dispatchEvent(new MessageEvent('message', {
-            data: JSON.stringify({
-              tipo: 'UBICACION',
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude
-            })
-          }));
-        });
-      }
-    })();
-    true;
-  `;
+  // 2) Enviar la ubicación al mapa cuando AMBAS cosas estén listas:
+  //    las coordenadas y la página del mapa ya cargada.
+  useEffect(() => {
+    if (!coords || !mapaListo) return;
+
+    if (Platform.OS === 'web') {
+      iframeRef.current?.contentWindow?.postMessage(
+        JSON.stringify({ tipo: 'UBICACION', lat: coords.lat, lng: coords.lng }),
+        '*'
+      );
+    } else {
+      webViewRef.current?.injectJavaScript(`
+        if (window.mostrarUbicacion) {
+          window.mostrarUbicacion(${coords.lat}, ${coords.lng});
+        }
+        true;
+      `);
+    }
+  }, [coords, mapaListo]);
 
   return (
     <View style={styles.contenedor}>
       {Platform.OS === 'web' ? (
         <iframe
+          ref={iframeRef}
           title="Mapa de Muévelo Ya"
           srcDoc={mapaHTML}
+          onLoad={() => setMapaListo(true)}
           style={{
             width: '100%',
             height: '100%',
             border: 'none',
           }}
-          allow="geolocation; fullscreen"
         />
       ) : (
         <WebView
@@ -319,26 +296,18 @@ export default function MapaPrincipal() {
           source={{ html: mapaHTML }}
           javaScriptEnabled
           domStorageEnabled
-          geolocationEnabled
-          onLoadEnd={() => {
-            setTimeout(() => {
-              webViewRef.current?.injectJavaScript(enviarUbicacionWeb);
-            }, 300);
-          }}
+          onLoadEnd={() => setMapaListo(true)}
           style={styles.mapa}
         />
       )}
 
-      {cargando && Platform.OS !== 'web' && (
+      {cargando && (
         <View style={styles.estado}>
-          <ActivityIndicator color="#facc00" />
-          <Text style={styles.textoEstado}>
-            Obteniendo tu ubicación...
-          </Text>
+          <ActivityIndicator color="#FFFFFF" />
         </View>
       )}
 
-      {!!errorUbicacion && Platform.OS !== 'web' && (
+      {!!errorUbicacion && (
         <View style={styles.aviso}>
           <Text style={styles.textoAviso}>{errorUbicacion}</Text>
         </View>
@@ -363,23 +332,18 @@ const styles = StyleSheet.create({
   },
   estado: {
     position: 'absolute',
-    top: 55,
+    top: 140,
     alignSelf: 'center',
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: 'rgba(17,17,17,0.92)',
-  },
-  textoEstado: {
-    color: '#ffffff',
-    fontSize: 13,
+    justifyContent: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(17,17,17,0.85)',
   },
   aviso: {
     position: 'absolute',
-    top: 55,
+    top: 140,
     left: 16,
     right: 16,
     padding: 12,

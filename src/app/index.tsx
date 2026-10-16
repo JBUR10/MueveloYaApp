@@ -1,5 +1,6 @@
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from 'expo-location';
 import { useState } from 'react';
 import {
   Pressable,
@@ -9,23 +10,77 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapaPrincipal from '../components/ui/MapaPrincipal';
+import MapaPrincipal, { Coordenadas } from '../components/ui/MapaPrincipal';
 
-const CIAN = '#2969e9';
+const AZUL = '#2969e9';
 const FONDO = '#111318';
 
 type Pestaña = 'Inicio' | 'Servicios' | 'Solicitudes' | 'Perfil';
 
-const pestañas: { id: Pestaña; icono: string }[] = [  
+const pestañas: { id: Pestaña; icono: string }[] = [
   { id: 'Inicio', icono: '⌂' },
   { id: 'Servicios', icono: '◇' },
   { id: 'Solicitudes', icono: '▤' },
   { id: 'Perfil', icono: '○' },
 ];
 
+/** Une calle, número y barrio en un texto corto: "Cra 43A 10-50, El Poblado". */
+function armarDireccion(
+  calle?: string | null,
+  numero?: string | null,
+  barrio?: string | null,
+  ciudad?: string | null
+) {
+  const via = [calle, numero].filter(Boolean).join(' ');
+  const zona = barrio || ciudad;
+  return [via, zona].filter(Boolean).join(', ');
+}
+
+/** Obtiene la dirección de unas coordenadas. Primero expo-location; si no hay resultado
+ *  (por ejemplo en web), usa OpenStreetMap (Nominatim). */
+async function obtenerDireccion({ lat, lng }: Coordenadas): Promise<string> {
+  try {
+    const [lugar] = await Location.reverseGeocodeAsync({
+      latitude: lat,
+      longitude: lng,
+    });
+
+    if (lugar) {
+      const texto = armarDireccion(
+        lugar.street || lugar.name,
+        lugar.streetNumber,
+        lugar.district || lugar.subregion,
+        lugar.city
+      );
+      if (texto) return texto;
+    }
+  } catch {
+    // Se intenta con el servicio alterno.
+  }
+
+  try {
+    const respuesta = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=es`
+    );
+    const datos = await respuesta.json();
+    const a = datos?.address ?? {};
+
+    return armarDireccion(
+      a.road || a.pedestrian || a.footway,
+      a.house_number,
+      a.suburb || a.neighbourhood || a.quarter,
+      a.city || a.town || a.village
+    );
+  } catch {
+    return '';
+  }
+}
+
 export default function HomeScreen() {
-  const [pestañaActiva, setPestañaActiva] =
-    useState<Pestaña>('Inicio');
+  const [pestañaActiva, setPestañaActiva] = useState<Pestaña>('Inicio');
+  const [nombreUbicacion, setNombreUbicacion] = useState(
+    'Medellín y Valle de Aburrá'
+  );
 
   const manejarPestaña = (pestaña: Pestaña) => {
     setPestañaActiva(pestaña);
@@ -35,12 +90,27 @@ export default function HomeScreen() {
     }
   };
 
+  // Cuando el mapa obtiene la ubicación, busca la dirección y la muestra en el panel.
+  const manejarUbicacion = async (coords: Coordenadas) => {
+    console.log('Ubicación del cliente:', coords);
+
+    // Aquí puedes enviar coords a tu backend, por ejemplo:
+    // await fetch('https://tu-api.com/clientes/ubicacion', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify(coords),
+    // });
+
+    const direccion = await obtenerDireccion(coords);
+    if (direccion) setNombreUbicacion(direccion);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar barStyle="light-content" backgroundColor={FONDO} />
 
       <View style={styles.contenedor}>
-        <MapaPrincipal />
+        <MapaPrincipal onUbicacion={manejarUbicacion} />
 
         {/* Encabezado */}
         <View style={styles.encabezado}>
@@ -91,12 +161,10 @@ export default function HomeScreen() {
               </View>
 
               <View style={styles.textoUbicacion}>
-                <Text style={styles.etiquetaUbicacion}>
-                  TU UBICACIÓN
-                </Text>
+                <Text style={styles.etiquetaUbicacion}>TU UBICACIÓN</Text>
 
-                <Text style={styles.nombreUbicacion}>
-                  Medellín y Valle de Aburrá
+                <Text style={styles.nombreUbicacion} numberOfLines={2}>
+                  {nombreUbicacion}
                 </Text>
               </View>
 
@@ -184,9 +252,7 @@ export default function HomeScreen() {
                       {pestaña.id}
                     </Text>
 
-                    {activa && (
-                      <View style={styles.indicadorActivo} />
-                    )}
+                    {activa && <View style={styles.indicadorActivo} />}
                   </Pressable>
                 );
               })}
@@ -235,7 +301,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.20,
+    shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 4,
   },
@@ -257,7 +323,7 @@ const styles = StyleSheet.create({
   },
 
   nombreCian: {
-    color: CIAN,
+    color: AZUL,
   },
 
   ubicacion: {
