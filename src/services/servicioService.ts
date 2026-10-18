@@ -1,9 +1,13 @@
 // src/services/servicioService.ts
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export interface SolicitudServicioDTO {
+  id?: string;
   tipoServicio: string;
   origen: string;
   destino: string;
+  tipoProgramacion?: "inmediato" | "programado";
+  fechaProgramada?: string;
   descripcion: string;
   ayudantes: number;
   pisosEscaleras: number;
@@ -12,34 +16,51 @@ export interface SolicitudServicioDTO {
   fecha?: string;
 }
 
-// Reemplaza esta URL por la IP o dominio de tu servidor backend en desarrollo o producción
-// Si estás probando localmente desde tu celular Android, usa la IP de tu PC (ej: http://192.168.1.50:8000/api)
-const API_URL = 'https://tu-backend-api.com/api';
+const STORAGE_KEY = "@mueveloya_servicios_local";
 
 export const registrarServicio = async (
   datos: SolicitudServicioDTO,
-  token: string
+  token: string,
 ) => {
   try {
-    const response = await fetch(`${API_URL}/servicios`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(datos),
-    });
+    // Simulamos una base de datos local guardando en AsyncStorage
+    const serviciosActualesStr = await AsyncStorage.getItem(STORAGE_KEY);
+    const serviciosActuales: SolicitudServicioDTO[] = serviciosActualesStr
+      ? JSON.parse(serviciosActualesStr)
+      : [];
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.detail || 'Error al registrar la solicitud de servicio en el servidor'
-      );
-    }
+    const nuevoServicio: SolicitudServicioDTO = {
+      ...datos,
+      id: Date.now().toString(),
+      fecha: datos.fecha || new Date().toISOString(),
+    };
 
-    return await response.json();
+    const serviciosActualizados = [nuevoServicio, ...serviciosActuales];
+    await AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(serviciosActualizados),
+    );
+
+    return {
+      success: true,
+      message: "Servicio registrado con éxito",
+      data: nuevoServicio,
+    };
   } catch (error: any) {
-    console.error('Error en servicioService:', error);
-    throw error;
+    console.error("Error en servicioService (local):", error);
+    throw new Error("No se pudo guardar la solicitud localmente.");
+  }
+};
+
+export const obtenerMisServicios = async (
+  token: string,
+): Promise<SolicitudServicioDTO[]> => {
+  try {
+    const serviciosStr = await AsyncStorage.getItem(STORAGE_KEY);
+    if (!serviciosStr) return [];
+    return JSON.parse(serviciosStr);
+  } catch (error: any) {
+    console.error("Error al obtener servicios:", error);
+    return [];
   }
 };
