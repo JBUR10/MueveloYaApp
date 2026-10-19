@@ -1,11 +1,24 @@
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
-import { useState } from "react";
-import { Image, StatusBar, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
-import MapaPrincipal, { Coordenadas } from "../components/ui/MapaPrincipal";
+import BuscadorDestino from "../components/ui/BuscadorDestino";
+import MapaPrincipal, {
+  Coordenadas,
+  Destino,
+  InfoRuta,
+} from "../components/ui/MapaPrincipal";
 
 const AZUL = "#2969e9";
 const FONDO = "#111318";
@@ -64,6 +77,16 @@ async function obtenerDireccion({ lat, lng }: Coordenadas): Promise<string> {
 
 export default function HomeScreen() {
   const [nombreUbicacion, setNombreUbicacion] = useState("");
+  const [destino, setDestino] = useState<Destino | null>(null);
+  const [infoRuta, setInfoRuta] = useState<InfoRuta | null>(null);
+
+  // Modo "ubicar punto manualmente"
+  const [seleccionando, setSeleccionando] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
+  const [direccionPunto, setDireccionPunto] = useState("");
+  const centroRef = useRef<Coordenadas | null>(null);
+  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const peticion = useRef(0);
 
   // Cuando el mapa obtiene la ubicación, busca la dirección y la muestra en el panel.
   const manejarUbicacion = async (coords: Coordenadas) => {
@@ -80,12 +103,63 @@ export default function HomeScreen() {
     if (direccion) setNombreUbicacion(direccion);
   };
 
+  // Cada vez que el usuario suelta el mapa, se espera un momento y se busca la dirección.
+  // El debounce evita saturar Nominatim (límite ~1 petición/segundo).
+  const manejarCentro = (c: Coordenadas) => {
+    centroRef.current = c;
+    if (temporizador.current) clearTimeout(temporizador.current);
+
+    temporizador.current = setTimeout(async () => {
+      const id = ++peticion.current;
+      const texto = await obtenerDireccion(c);
+      if (id === peticion.current) setDireccionPunto(texto);
+    }, 600);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (temporizador.current) clearTimeout(temporizador.current);
+    };
+  }, []);
+
+  const iniciarSeleccion = () => {
+    centroRef.current = null;
+    setDireccionPunto("");
+    setSeleccionando(true);
+  };
+
+  const cancelarSeleccion = () => {
+    peticion.current++;
+    if (temporizador.current) clearTimeout(temporizador.current);
+    setSeleccionando(false);
+  };
+
+  const confirmarPunto = async () => {
+    const c = centroRef.current;
+    if (!c || confirmando) return;
+
+    setConfirmando(true);
+    peticion.current++; // descarta cualquier búsqueda pendiente
+    if (temporizador.current) clearTimeout(temporizador.current);
+
+    const nombre = (await obtenerDireccion(c)) || "Punto en el mapa";
+    setDestino({ lat: c.lat, lng: c.lng, nombre });
+    setSeleccionando(false);
+    setConfirmando(false);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
       <StatusBar barStyle="light-content" backgroundColor={FONDO} />
 
       <View style={styles.contenedor}>
-        <MapaPrincipal onUbicacion={manejarUbicacion} />
+        <MapaPrincipal
+          onUbicacion={manejarUbicacion}
+          destino={destino}
+          onRuta={setInfoRuta}
+          seleccionando={seleccionando}
+          onCentro={manejarCentro}
+        />
 
         {/* Encabezado */}
         <View style={styles.encabezado}>
@@ -99,7 +173,7 @@ export default function HomeScreen() {
             </View>
 
             <Text style={styles.nombreApp}>
-              Muévelo <Text style={styles.nombreCian}>Ya</Text>
+              Muévelo <Text style={styles.nombreAzul}>Ya</Text>
             </Text>
           </View>
         </View>
@@ -145,14 +219,52 @@ export default function HomeScreen() {
                   {nombreUbicacion}
                 </Text>
               </View>
-
-              <Text style={styles.flechaUbicacion}>›</Text>
             </View>
           </LinearGradient>
         </View>
 
-        {/* Barra de navegación con cristal y fondo difuminado */}
-        <BarraNavegacion />
+        {/* Buscador de destino: al elegir un resultado se traza la ruta en el mapa */}
+        <BuscadorDestino
+          destino={destino}
+          info={infoRuta}
+          oculto={seleccionando}
+          onSeleccionar={setDestino}
+          onUbicarManual={iniciarSeleccion}
+          onLimpiar={() => {
+            setDestino(null);
+            setInfoRuta(null);
+          }}
+        />
+
+        {/* Modo selección manual: panel de confirmar. Si no, barra de navegación. */}
+        {seleccionando ? (
+          <View style={styles.panelPunto}>
+            <Text style={styles.tituloPunto}>
+              Mueve el mapa para ubicar el punto exacto
+            </Text>
+            <Text style={styles.direccionPunto} numberOfLines={2}>
+              {direccionPunto || "Buscando dirección…"}
+            </Text>
+
+            <View style={styles.botonesPunto}>
+              <Pressable
+                style={styles.botonCancelar}
+                onPress={cancelarSeleccion}>
+                <Text style={styles.textoCancelar}>Cancelar</Text>
+              </Pressable>
+
+              <Pressable style={styles.botonConfirmar} onPress={confirmarPunto}>
+                {confirmando ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.textoConfirmar}>Confirmar punto</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <BarraNavegacion />
+        )}
       </View>
     </SafeAreaView>
   );
@@ -217,7 +329,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 5,
   },
 
-  nombreCian: {
+  nombreAzul: {
     color: AZUL,
   },
 
@@ -316,9 +428,72 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
 
-  flechaUbicacion: {
+  panelPunto: {
+    position: "absolute",
+    left: 20,
+    right: 20,
+    bottom: 24,
+    zIndex: 4,
+    padding: 16,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(17,19,24,0.94)",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+
+  tituloPunto: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+
+  direccionPunto: {
     color: "#FFFFFF",
-    fontSize: 27,
-    fontWeight: "300",
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 6,
+    minHeight: 20,
+  },
+
+  botonesPunto: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+  },
+
+  botonCancelar: {
+    flex: 1,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+
+  textoCancelar: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+
+  botonConfirmar: {
+    flex: 2,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: AZUL,
+  },
+
+  textoConfirmar: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 14,
   },
 });

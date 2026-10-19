@@ -7,7 +7,7 @@ type Pestaña = "Inicio" | "Servicios" | "Solicitudes" | "Perfil";
 
 const PESTAÑAS = [
   { id: "Inicio", icono: "⌂", ruta: "/" },
-  { id: "Servicios", icono: "◇", ruta: "/servicio" },
+  { id: "Servicios", icono: "◇", ruta: "/servicios" },
   { id: "Solicitudes", icono: "▤", ruta: "/solicitudes" },
   { id: "Perfil", icono: "○", ruta: "/perfil" },
 ] as const;

@@ -1,5 +1,5 @@
 import * as Location from 'expo-location';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -71,7 +71,7 @@ const mapaHTML = `
     }
 
     .leaflet-control-attribution a {
-      color: #facc00 !important;
+      color: #fa0000 !important;
       text-decoration: none !important;
     }
 
@@ -90,7 +90,7 @@ const mapaHTML = `
     }
 
     .leaflet-container a.leaflet-popup-close-button {
-      color: #facc00;
+      color: #ff0800;
     }
 
     .ubicacion-punto {
@@ -100,6 +100,15 @@ const mapaHTML = `
       border: 3px solid #ffffff;
       border-radius: 50%;
       box-shadow: 0 0 0 8px rgba(41, 151, 255, 0.2);
+    }
+
+    .destino-punto {
+      width: 20px;
+      height: 20px;
+      background: #fa0000;
+      border: 3px solid #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 0 0 8px rgba(252, 252, 252, 0.22);
     }
   </style>
 </head>
@@ -142,6 +151,9 @@ const mapaHTML = `
     }).addTo(mapa);
 
     let marcadorUbicacion = null;
+    let marcadorDestino = null;
+    let lineaBorde = null;
+    let lineaRuta = null;
 
     // Muestra (o mueve) el punto azul del cliente y centra el mapa.
     window.mostrarUbicacion = function (lat, lng) {
@@ -168,18 +180,119 @@ const mapaHTML = `
       mapa.flyTo(posicion, 16, { duration: 1.2 });
     };
 
-    // Solo se usa en web: el componente padre envía la ubicación por postMessage al iframe.
+    function borrarRuta() {
+      if (lineaBorde) { mapa.removeLayer(lineaBorde); lineaBorde = null; }
+      if (lineaRuta) { mapa.removeLayer(lineaRuta); lineaRuta = null; }
+      if (marcadorDestino) { mapa.removeLayer(marcadorDestino); marcadorDestino = null; }
+    }
+
+    // Dibuja la ruta (lista de [lat, lng]) y el marcador del destino.
+    window.mostrarRuta = function (puntos, destino) {
+      borrarRuta();
+
+      lineaBorde = L.polyline(puntos, {
+        color: '#ffffff',
+        weight: 9,
+        opacity: 0.85,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(mapa);
+
+      lineaRuta = L.polyline(puntos, {
+        color: '#2969e9',
+        weight: 5,
+        opacity: 1,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(mapa);
+
+      const icono = L.divIcon({
+        className: '',
+        html: '<div class="destino-punto"></div>',
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      });
+
+      marcadorDestino = L.marker([destino.lat, destino.lng], {
+        icon: icono,
+        title: destino.nombre
+      }).addTo(mapa);
+
+      // textContent evita insertar HTML proveniente del texto del destino.
+      const contenido = document.createElement('div');
+      contenido.textContent = destino.nombre;
+      marcadorDestino.bindPopup(contenido);
+
+      // Márgenes para que la ruta no quede detrás de los paneles superior e inferior.
+      mapa.fitBounds(lineaRuta.getBounds(), {
+        paddingTopLeft: [40, 230],
+        paddingBottomRight: [40, 130]
+      });
+    };
+
+    // Quita la ruta y vuelve a centrar en el cliente.
+    window.quitarRuta = function () {
+      borrarRuta();
+      if (marcadorUbicacion) {
+        mapa.flyTo(marcadorUbicacion.getLatLng(), 16, { duration: 1 });
+      }
+    };
+
+    // Envía mensajes a React Native (móvil) o al padre (web).
+    function emitir(d) {
+      const s = JSON.stringify(d);
+      if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(s);
+      else window.parent.postMessage(s, '*');
+    }
+
+    let seleccionando = false;
+
+    function emitirCentro() {
+      const c = mapa.getCenter();
+      emitir({ tipo: 'CENTRO', lat: c.lat, lng: c.lng });
+    }
+
+    // En modo selección, cada vez que el mapa termina de moverse se informa el centro.
+    mapa.on('moveend', function () {
+      if (seleccionando) emitirCentro();
+    });
+
+    // Activa/desactiva el modo selección. Si llegan lat/lng, centra el mapa ahí.
+    window.modoSeleccion = function (activo, lat, lng) {
+      seleccionando = !!activo;
+      if (!activo) return;
+
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        mapa.setView([lat, lng], Math.max(mapa.getZoom(), 17), { animate: false });
+      }
+      emitirCentro();
+    };
+
+    // Punto único de entrada de mensajes desde React Native (o desde el padre en web).
+    window.recibir = function (d) {
+      if (!d) return;
+
+      if (d.tipo === 'UBICACION' && Number.isFinite(d.lat) && Number.isFinite(d.lng)) {
+        window.mostrarUbicacion(d.lat, d.lng);
+      } else if (
+        d.tipo === 'RUTA' &&
+        Array.isArray(d.puntos) &&
+        d.puntos.length > 1 &&
+        d.destino
+      ) {
+        window.mostrarRuta(d.puntos, d.destino);
+      } else if (d.tipo === 'LIMPIAR_RUTA') {
+        window.quitarRuta();
+      } else if (d.tipo === 'MODO_SELECCION') {
+        window.modoSeleccion(d.activo, d.lat, d.lng);
+      }
+    };
+
+    // Solo se usa en web: el componente padre envía los mensajes por postMessage al iframe.
     window.addEventListener('message', function (event) {
       try {
         const d = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        if (
-          d &&
-          d.tipo === 'UBICACION' &&
-          Number.isFinite(d.lat) &&
-          Number.isFinite(d.lng)
-        ) {
-          window.mostrarUbicacion(d.lat, d.lng);
-        }
+        window.recibir(d);
       } catch (_) {}
     });
 
@@ -192,20 +305,84 @@ const mapaHTML = `
 `;
 
 export type Coordenadas = { lat: number; lng: number };
+export type Destino = { lat: number; lng: number; nombre: string };
+export type InfoRuta = { distanciaKm: number; duracionMin: number };
 
 type Props = {
   /** Se llama cuando se obtiene la ubicación del cliente. */
   onUbicacion?: (coords: Coordenadas) => void;
+  /** Si hay destino, se traza la ruta desde la ubicación del cliente hasta él. */
+  destino?: Destino | null;
+  /** Devuelve distancia y duración de la ruta, o null si se quitó o falló. */
+  onRuta?: (info: InfoRuta | null) => void;
+  /** true = muestra el pin central para elegir un punto manualmente. */
+  seleccionando?: boolean;
+  /** Se llama cada vez que el usuario termina de mover el mapa en modo selección. */
+  onCentro?: (coords: Coordenadas) => void;
 };
 
-export default function MapaPrincipal({ onUbicacion }: Props) {
+export default function MapaPrincipal({
+  onUbicacion,
+  destino,
+  onRuta,
+  seleccionando = false,
+  onCentro,
+}: Props) {
   const webViewRef = useRef<WebView>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const habiaRuta = useRef(false);
+
+  // Se guarda el callback en una ref para que cambiar su identidad no vuelva a pedir la ruta.
+  const onRutaRef = useRef(onRuta);
+  onRutaRef.current = onRuta;
+
+  const onCentroRef = useRef(onCentro);
+  onCentroRef.current = onCentro;
 
   const [coords, setCoords] = useState<Coordenadas | null>(null);
   const [mapaListo, setMapaListo] = useState(false);
   const [cargando, setCargando] = useState(true);
+  const [calculandoRuta, setCalculandoRuta] = useState(false);
   const [errorUbicacion, setErrorUbicacion] = useState('');
+  const [errorRuta, setErrorRuta] = useState('');
+
+  // Envía un mensaje al mapa (iframe en web, WebView en móvil).
+  const enviarAlMapa = useCallback((mensaje: object) => {
+    if (Platform.OS === 'web') {
+      iframeRef.current?.contentWindow?.postMessage(
+        JSON.stringify(mensaje),
+        '*'
+      );
+    } else {
+      webViewRef.current?.injectJavaScript(`
+        window.recibir && window.recibir(${JSON.stringify(mensaje)});
+        true;
+      `);
+    }
+  }, []);
+
+  // Procesa los mensajes que llegan desde el mapa.
+  const procesarMensaje = useCallback((raw: any) => {
+    try {
+      const d = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (d?.tipo === 'CENTRO') {
+        onCentroRef.current?.({ lat: d.lat, lng: d.lng });
+      }
+    } catch {}
+  }, []);
+
+  // Web: escucha los mensajes que el iframe envía al padre.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
+    const handler = (e: MessageEvent) => {
+      if (e.source !== iframeRef.current?.contentWindow) return;
+      procesarMensaje(e.data);
+    };
+
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [procesarMensaje]);
 
   // 1) Obtener la ubicación del cliente (Android, iOS y web).
   useEffect(() => {
@@ -259,21 +436,97 @@ export default function MapaPrincipal({ onUbicacion }: Props) {
   //    las coordenadas y la página del mapa ya cargada.
   useEffect(() => {
     if (!coords || !mapaListo) return;
+    enviarAlMapa({ tipo: 'UBICACION', lat: coords.lat, lng: coords.lng });
+  }, [coords, mapaListo, enviarAlMapa]);
 
-    if (Platform.OS === 'web') {
-      iframeRef.current?.contentWindow?.postMessage(
-        JSON.stringify({ tipo: 'UBICACION', lat: coords.lat, lng: coords.lng }),
-        '*'
-      );
-    } else {
-      webViewRef.current?.injectJavaScript(`
-        if (window.mostrarUbicacion) {
-          window.mostrarUbicacion(${coords.lat}, ${coords.lng});
-        }
-        true;
-      `);
+  // 3) Trazar (o quitar) la ruta cuando cambia el destino.
+  useEffect(() => {
+    if (!mapaListo) return;
+
+    // Sin destino: limpiar la ruta si había una.
+    if (!destino) {
+      if (habiaRuta.current) {
+        enviarAlMapa({ tipo: 'LIMPIAR_RUTA' });
+        habiaRuta.current = false;
+      }
+      setErrorRuta('');
+      setCalculandoRuta(false);
+      onRutaRef.current?.(null);
+      return;
     }
-  }, [coords, mapaListo]);
+
+    // Aún se está obteniendo la ubicación: se espera a que termine.
+    if (!coords) {
+      if (!cargando) {
+        setErrorRuta('Necesitamos tu ubicación para trazar la ruta.');
+      }
+      return;
+    }
+
+    let activo = true;
+    setCalculandoRuta(true);
+    setErrorRuta('');
+
+    (async () => {
+      try {
+        const url =
+          'https://router.project-osrm.org/route/v1/driving/' +
+          `${coords.lng},${coords.lat};${destino.lng},${destino.lat}` +
+          '?overview=full&geometries=geojson';
+
+        const respuesta = await fetch(url);
+        const datos = await respuesta.json();
+        const ruta = datos?.routes?.[0];
+
+        if (!ruta) throw new Error('Sin ruta');
+        if (!activo) return;
+
+        // OSRM devuelve [lng, lat]; Leaflet usa [lat, lng].
+        const puntos = ruta.geometry.coordinates.map(
+          ([lng, lat]: [number, number]) => [lat, lng]
+        );
+
+        enviarAlMapa({ tipo: 'RUTA', puntos, destino });
+        habiaRuta.current = true;
+
+        onRutaRef.current?.({
+          distanciaKm: ruta.distance / 1000,
+          duracionMin: Math.max(1, Math.round(ruta.duration / 60)),
+        });
+      } catch {
+        if (activo) {
+          setErrorRuta(
+            'No pudimos trazar la ruta. Revisa tu conexión e inténtalo de nuevo.'
+          );
+          onRutaRef.current?.(null);
+        }
+      } finally {
+        if (activo) setCalculandoRuta(false);
+      }
+    })();
+
+    return () => {
+      activo = false;
+    };
+  }, [destino, coords, mapaListo, cargando, enviarAlMapa]);
+
+  // 4) Activa/desactiva el modo selección en el mapa.
+  //    Arranca en el destino actual si existe; si no, en la ubicación del cliente.
+  const inicioRef = useRef<Coordenadas | null>(null);
+  inicioRef.current = destino ?? coords;
+
+  useEffect(() => {
+    if (!mapaListo) return;
+    const i = inicioRef.current;
+    enviarAlMapa({
+      tipo: 'MODO_SELECCION',
+      activo: seleccionando,
+      lat: i?.lat,
+      lng: i?.lng,
+    });
+  }, [seleccionando, mapaListo, enviarAlMapa]);
+
+  const mensajeError = errorUbicacion || errorRuta;
 
   return (
     <View style={styles.contenedor}>
@@ -297,19 +550,28 @@ export default function MapaPrincipal({ onUbicacion }: Props) {
           javaScriptEnabled
           domStorageEnabled
           onLoadEnd={() => setMapaListo(true)}
+          onMessage={(e) => procesarMensaje(e.nativeEvent.data)}
           style={styles.mapa}
         />
       )}
 
-      {cargando && (
+      {/* Pin fijo en el centro: el usuario mueve el mapa debajo de él */}
+      {seleccionando && (
+        <View pointerEvents="none" style={styles.mira}>
+          <View style={styles.pinAro} />
+          <View style={styles.pin} />
+        </View>
+      )}
+
+      {(cargando || calculandoRuta) && (
         <View style={styles.estado}>
           <ActivityIndicator color="#FFFFFF" />
         </View>
       )}
 
-      {!!errorUbicacion && (
+      {!!mensajeError && (
         <View style={styles.aviso}>
-          <Text style={styles.textoAviso}>{errorUbicacion}</Text>
+          <Text style={styles.textoAviso}>{mensajeError}</Text>
         </View>
       )}
     </View>
@@ -330,9 +592,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#111111',
   },
+  mira: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinAro: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(250,0,0,0.2)',
+  },
+  pin: {
+    width: 22,
+    height: 22,
+    borderRadius: 8,
+    backgroundColor: '#fa0000',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
   estado: {
     position: 'absolute',
-    top: 140,
+    top: 215,
     alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
@@ -343,7 +625,7 @@ const styles = StyleSheet.create({
   },
   aviso: {
     position: 'absolute',
-    top: 140,
+    top: 215,
     left: 16,
     right: 16,
     padding: 12,
