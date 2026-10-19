@@ -18,27 +18,53 @@ export interface SolicitudServicioDTO {
 
 const STORAGE_KEY = "@mueveloya_servicios_local";
 
+const generarId = (extra = "") =>
+  `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${extra}`;
+
+// Lee la lista y garantiza que todos los servicios tengan un id
+const leerServicios = async (): Promise<SolicitudServicioDTO[]> => {
+  const str = await AsyncStorage.getItem(STORAGE_KEY);
+  if (!str) return [];
+
+  let lista: SolicitudServicioDTO[] = [];
+  try {
+    const parsed = JSON.parse(str);
+    lista = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+
+  let huboCambios = false;
+  const normalizada = lista.map((item, index) => {
+    if (item.id === undefined || item.id === null || item.id === "") {
+      huboCambios = true;
+      return { ...item, id: generarId(`-${index}`) };
+    }
+    return { ...item, id: String(item.id) };
+  });
+
+  if (huboCambios) {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalizada));
+  }
+  return normalizada;
+};
+
 export const registrarServicio = async (
   datos: SolicitudServicioDTO,
   token: string,
 ) => {
   try {
-    // Simulamos una base de datos local guardando en AsyncStorage
-    const serviciosActualesStr = await AsyncStorage.getItem(STORAGE_KEY);
-    const serviciosActuales: SolicitudServicioDTO[] = serviciosActualesStr
-      ? JSON.parse(serviciosActualesStr)
-      : [];
+    const serviciosActuales = await leerServicios();
 
     const nuevoServicio: SolicitudServicioDTO = {
       ...datos,
-      id: Date.now().toString(),
+      id: generarId(),
       fecha: datos.fecha || new Date().toISOString(),
     };
 
-    const serviciosActualizados = [nuevoServicio, ...serviciosActuales];
     await AsyncStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify(serviciosActualizados),
+      JSON.stringify([nuevoServicio, ...serviciosActuales]),
     );
 
     return {
@@ -56,9 +82,7 @@ export const obtenerMisServicios = async (
   token: string,
 ): Promise<SolicitudServicioDTO[]> => {
   try {
-    const serviciosStr = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!serviciosStr) return [];
-    return JSON.parse(serviciosStr);
+    return await leerServicios();
   } catch (error: any) {
     console.error("Error al obtener servicios:", error);
     return [];
@@ -67,11 +91,11 @@ export const obtenerMisServicios = async (
 
 export const eliminarServicio = async (id: string, token: string) => {
   try {
-    const serviciosStr = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!serviciosStr) return;
-    const servicios: SolicitudServicioDTO[] = JSON.parse(serviciosStr);
-    const serviciosFiltrados = servicios.filter((item) => item.id !== id);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(serviciosFiltrados));
+    const servicios = await leerServicios();
+    const filtrados = servicios.filter(
+      (item) => String(item.id) !== String(id),
+    );
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtrados));
     return { success: true };
   } catch (error: any) {
     console.error("Error al eliminar servicio:", error);

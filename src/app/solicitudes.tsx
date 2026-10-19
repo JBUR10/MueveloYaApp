@@ -1,10 +1,11 @@
 // src/app/solicitudes.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -12,21 +13,64 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import BarraNavegacion from "../components/ui/BarraNavegacion";
 import {
   eliminarServicio,
   obtenerMisServicios,
   SolicitudServicioDTO,
 } from "../services/servicioService";
-// Importa tu barra de navegación (ajusta la ruta si es necesario según tu estructura de carpetas)
-import BarraNavegacion from "../components/ui/BarraNavegacion";
+
+// ---------- Helpers multiplataforma (Alert con botones no funciona en web) ----------
+const confirmar = (titulo: string, mensaje: string): Promise<boolean> => {
+  if (Platform.OS === "web") {
+    return Promise.resolve(window.confirm(`${titulo}\n\n${mensaje}`));
+  }
+  return new Promise((resolve) => {
+    Alert.alert(
+      titulo,
+      mensaje,
+      [
+        { text: "Cancelar", style: "cancel", onPress: () => resolve(false) },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: () => resolve(true),
+        },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) },
+    );
+  });
+};
+
+const aviso = (titulo: string, mensaje: string) => {
+  if (Platform.OS === "web") {
+    window.alert(`${titulo}\n\n${mensaje}`);
+  } else {
+    Alert.alert(titulo, mensaje);
+  }
+};
+
+const formatearFecha = (iso?: string) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("es-CO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
 
 export default function SolicitudesScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [servicios, setServicios] = useState<SolicitudServicioDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
 
-  const cargarServicios = async () => {
+  const cargarServicios = useCallback(async () => {
     try {
       const token = (await AsyncStorage.getItem("token")) || "TOKEN_DEMO";
       const data = await obtenerMisServicios(token);
@@ -37,53 +81,62 @@ export default function SolicitudesScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    cargarServicios();
   }, []);
+
+  // Recarga cada vez que la pantalla gana foco (p. ej. al volver de crear un servicio)
+  useFocusEffect(
+    useCallback(() => {
+      cargarServicios();
+    }, [cargarServicios]),
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     cargarServicios();
-  }, []);
+  }, [cargarServicios]);
 
-  const handleEliminar = (id?: string) => {
+  const handleEliminar = async (id?: string) => {
     if (!id) {
-      Alert.alert(
-        "Atención",
-        "Este servicio no cuenta con un identificador válido.",
-      );
+      aviso("Atención", "Este servicio no cuenta con un identificador válido.");
       return;
     }
-    Alert.alert(
-      "Eliminar Solicitud",
-      "¿Estás seguro de que deseas eliminar este servicio?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Eliminar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const token =
-                (await AsyncStorage.getItem("token")) || "TOKEN_DEMO";
-              await eliminarServicio(id, token);
-              await cargarServicios();
-            } catch (error: any) {
-              Alert.alert("Error", error.message || "No se pudo eliminar");
-            }
-          },
-        },
-      ],
+
+    const ok = await confirmar(
+      "Eliminar solicitud",
+      "¿Estás seguro de que deseas eliminar este servicio? Esta acción no se puede deshacer.",
     );
+    if (!ok) return;
+
+    try {
+      setEliminandoId(id);
+      const token = (await AsyncStorage.getItem("token")) || "TOKEN_DEMO";
+      await eliminarServicio(id, token);
+      // Actualización inmediata en pantalla
+      setServicios((prev) => prev.filter((s) => String(s.id) !== String(id)));
+    } catch (error: any) {
+      aviso("Error", error?.message || "No se pudo eliminar");
+    } finally {
+      setEliminandoId(null);
+    }
   };
+
+  const esInmediato = (item: SolicitudServicioDTO) =>
+    item.tipoProgramacion === "inmediato" ||
+    item.fechaProgramada === "Inmediato" ||
+    !item.fechaProgramada;
 
   return (
     <View style={styles.mainContainer}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[
+          styles.contentContainer,
+          {
+            paddingTop: insets.top + 16,
+            paddingBottom: 90 + insets.bottom,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -92,19 +145,21 @@ export default function SolicitudesScreen() {
           />
         }
       >
-        {/* Barra superior de acciones */}
+        {/* Barra superior */}
         <View style={styles.topBar}>
           <TouchableOpacity
             onPress={() => router.push("/")}
             style={styles.btnBack}
+            activeOpacity={0.8}
           >
             <Text style={styles.btnBackText}>← Inicio</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => router.push("/servicios")}
             style={styles.btnNew}
+            activeOpacity={0.8}
           >
-            <Text style={styles.btnNewText}>+ Nuevo Servicio</Text>
+            <Text style={styles.btnNewText}>+ Nuevo servicio</Text>
           </TouchableOpacity>
         </View>
 
@@ -114,6 +169,14 @@ export default function SolicitudesScreen() {
           <Text style={styles.titleHeader}>
             Mis <Text style={styles.titleHighlight}>Solicitudes</Text>
           </Text>
+          {!loading && servicios.length > 0 && (
+            <Text style={styles.counterText}>
+              {servicios.length}{" "}
+              {servicios.length === 1
+                ? "solicitud registrada"
+                : "solicitudes registradas"}
+            </Text>
+          )}
         </View>
 
         {loading ? (
@@ -122,12 +185,16 @@ export default function SolicitudesScreen() {
           </View>
         ) : servicios.length === 0 ? (
           <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>📦</Text>
+            <Text style={styles.emptyTitle}>Aún no tienes solicitudes</Text>
             <Text style={styles.emptyText}>
-              No tienes solicitudes registradas aún.
+              Cuando solicites un servicio aparecerá aquí con todos sus
+              detalles.
             </Text>
             <TouchableOpacity
               style={styles.btnCreateEmpty}
               onPress={() => router.push("/servicios")}
+              activeOpacity={0.8}
             >
               <Text style={styles.btnCreateEmptyText}>
                 Solicitar un servicio
@@ -135,112 +202,165 @@ export default function SolicitudesScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          servicios.map((item, index) => (
-            <View key={item.id || index} style={styles.cardService}>
-              <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardTypeBadge}>{item.tipoServicio}</Text>
-                <View style={styles.headerRight}>
-                  <Text style={styles.cardDate}>
-                    {item.fechaProgramada === "Inmediato" ||
-                    !item.fechaProgramada
-                      ? "⚡ Inmediato"
-                      : `📅 ${item.fechaProgramada}`}
+          servicios.map((item, index) => {
+            const inmediato = esInmediato(item);
+            const borrando = eliminandoId === item.id;
+
+            return (
+              <View
+                key={item.id || String(index)}
+                style={[styles.cardService, borrando && { opacity: 0.5 }]}
+              >
+                {/* Encabezado de la tarjeta */}
+                <View style={styles.cardHeaderRow}>
+                  <Text style={styles.cardTypeBadge} numberOfLines={1}>
+                    {item.tipoServicio}
                   </Text>
+                  <View
+                    style={[
+                      styles.statusChip,
+                      inmediato ? styles.chipImmediate : styles.chipScheduled,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusChipText,
+                        { color: inmediato ? "#fbbf24" : "#60a5fa" },
+                      ]}
+                    >
+                      {inmediato
+                        ? "⚡ Inmediato"
+                        : `📅 ${item.fechaProgramada}`}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Ruta tipo línea de tiempo */}
+                <View style={styles.routeContainer}>
+                  <View style={styles.timelineCol}>
+                    <View
+                      style={[styles.dot, { backgroundColor: "#3b82f6" }]}
+                    />
+                    <View style={styles.timelineLine} />
+                    <View
+                      style={[styles.dot, { backgroundColor: "#10b981" }]}
+                    />
+                  </View>
+                  <View style={styles.routeTexts}>
+                    <View style={styles.routeBlock}>
+                      <Text style={styles.routeLabel}>RECOGIDA</Text>
+                      <Text style={styles.routeValue} numberOfLines={2}>
+                        {item.origen}
+                      </Text>
+                    </View>
+                    <View style={styles.routeBlock}>
+                      <Text style={styles.routeLabel}>ENTREGA</Text>
+                      <Text style={styles.routeValue} numberOfLines={2}>
+                        {item.destino}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Detalle */}
+                {item.descripcion ? (
+                  <View style={styles.descBox}>
+                    <Text style={styles.descLabel}>DETALLE</Text>
+                    <Text style={styles.cardDesc} numberOfLines={3}>
+                      {item.descripcion}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {/* Métricas */}
+                <View style={styles.metricsRow}>
+                  <View style={styles.metricBox}>
+                    <Text style={styles.metricValue}>{item.ayudantes}</Text>
+                    <Text style={styles.metricLabel}>Ayudantes</Text>
+                  </View>
+                  <View style={styles.metricDivider} />
+                  <View style={styles.metricBox}>
+                    <Text style={styles.metricValue}>
+                      {item.pisosEscaleras}
+                    </Text>
+                    <Text style={styles.metricLabel}>Pisos</Text>
+                  </View>
+                </View>
+
+                {/* Pie: contacto + eliminar */}
+                <View style={styles.cardFooter}>
+                  <View style={styles.contactInfo}>
+                    <Text style={styles.contactName} numberOfLines={1}>
+                      👤 {item.nombreContacto}
+                    </Text>
+                    {item.telefonoContacto ? (
+                      <Text style={styles.contactPhone} numberOfLines={1}>
+                        📞 {item.telefonoContacto}
+                      </Text>
+                    ) : null}
+                    {item.fecha ? (
+                      <Text style={styles.createdAt}>
+                        Creada el {formatearFecha(item.fecha)}
+                      </Text>
+                    ) : null}
+                  </View>
+
                   <TouchableOpacity
                     onPress={() => handleEliminar(item.id)}
                     style={styles.btnDelete}
                     activeOpacity={0.7}
+                    disabled={borrando}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Text style={styles.btnDeleteText}>✕</Text>
+                    {borrando ? (
+                      <ActivityIndicator size="small" color="#fca5a5" />
+                    ) : (
+                      <Text style={styles.btnDeleteText}>🗑 Eliminar</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
-
-              <View style={styles.routeContainer}>
-                <Text style={styles.labelPointBlue} numberOfLines={1}>
-                  ● Recogida: {item.origen}
-                </Text>
-                <Text style={styles.labelPointGreen} numberOfLines={1}>
-                  ● Entrega: {item.destino}
-                </Text>
-              </View>
-
-              {item.descripcion ? (
-                <Text style={styles.cardDesc} numberOfLines={2}>
-                  <Text style={{ fontWeight: "700", color: "#d1d5db" }}>
-                    Detalle:{" "}
-                  </Text>
-                  {item.descripcion}
-                </Text>
-              ) : null}
-
-              <View style={styles.cardFooter}>
-                <Text style={styles.footerInfo}>
-                  Ayudantes: {item.ayudantes}
-                </Text>
-                <Text style={styles.footerInfo}>
-                  Pisos: {item.pisosEscaleras}
-                </Text>
-                <Text style={styles.footerContact}>{item.nombreContacto}</Text>
-              </View>
-            </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
 
-      {/* Barra de Navegación fija en la parte inferior */}
       <BarraNavegacion />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  mainContainer: {
-    flex: 1,
-    backgroundColor: "#0b0e14",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#0b0e14",
-  },
-  contentContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 30,
-    paddingBottom: 90, // Espacio extra para que la barra inferior no tape el contenido final
-  },
+  mainContainer: { flex: 1, backgroundColor: "#0b0e14" },
+  container: { flex: 1, backgroundColor: "#0b0e14" },
+  contentContainer: { paddingHorizontal: 16 },
+
+  // Barra superior
   topBar: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
+    marginBottom: 20,
   },
   btnBack: {
     backgroundColor: "#161b22",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "#374151",
   },
-  btnBackText: {
-    color: "#9ca3af",
-    fontWeight: "600",
-    fontSize: 12,
-  },
+  btnBackText: { color: "#9ca3af", fontWeight: "600", fontSize: 13 },
   btnNew: {
     backgroundColor: "#2563eb",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
-  btnNewText: {
-    color: "#ffffff",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  headerContainer: {
-    marginBottom: 20,
-  },
+  btnNewText: { color: "#ffffff", fontWeight: "700", fontSize: 13 },
+
+  // Encabezado
+  headerContainer: { marginBottom: 20 },
   subtitleHeader: {
     color: "#60a5fa",
     fontSize: 11,
@@ -249,46 +369,51 @@ const styles = StyleSheet.create({
   },
   titleHeader: {
     color: "#ffffff",
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "900",
     marginTop: 2,
   },
-  titleHighlight: {
-    color: "#3b82f6",
-  },
-  loaderContainer: {
-    marginTop: 50,
-    alignItems: "center",
-  },
+  titleHighlight: { color: "#3b82f6" },
+  counterText: { color: "#6b7280", fontSize: 13, marginTop: 4 },
+
+  loaderContainer: { marginTop: 50, alignItems: "center" },
+
+  // Estado vacío
   emptyContainer: {
-    marginTop: 40,
+    marginTop: 30,
     alignItems: "center",
     backgroundColor: "#161b22",
-    padding: 24,
-    borderRadius: 16,
+    padding: 28,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: "#1f2937",
   },
+  emptyIcon: { fontSize: 40, marginBottom: 10 },
+  emptyTitle: {
+    color: "#ffffff",
+    fontSize: 17,
+    fontWeight: "800",
+    marginBottom: 6,
+  },
   emptyText: {
     color: "#9ca3af",
-    fontSize: 14,
+    fontSize: 13,
     textAlign: "center",
-    marginBottom: 16,
+    marginBottom: 18,
+    lineHeight: 19,
   },
   btnCreateEmpty: {
     backgroundColor: "#2563eb",
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 22,
     borderRadius: 12,
   },
-  btnCreateEmptyText: {
-    color: "#ffffff",
-    fontWeight: "700",
-    fontSize: 14,
-  },
+  btnCreateEmptyText: { color: "#ffffff", fontWeight: "700", fontSize: 14 },
+
+  // Tarjeta
   cardService: {
     backgroundColor: "#161b22",
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: "#1f2937",
     padding: 16,
@@ -298,85 +423,122 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 14,
+    gap: 8,
   },
   cardTypeBadge: {
+    flexShrink: 1,
     color: "#ffffff",
     backgroundColor: "#1e293b",
     overflow: "hidden",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: 8,
     fontWeight: "700",
     fontSize: 12,
     borderWidth: 1,
     borderColor: "#3b82f6",
   },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    zIndex: 10,
-  },
-  cardDate: {
-    color: "#9ca3af",
-    fontSize: 12,
-    fontWeight: "600",
-    marginRight: 8,
-  },
-  btnDelete: {
-    backgroundColor: "#7f1d1d",
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
+  statusChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#ef4444",
   },
-  btnDeleteText: {
-    color: "#fca5a5",
-    fontSize: 14,
-    fontWeight: "800",
+  chipImmediate: {
+    backgroundColor: "rgba(251,191,36,0.12)",
+    borderColor: "rgba(251,191,36,0.4)",
   },
+  chipScheduled: {
+    backgroundColor: "rgba(96,165,250,0.12)",
+    borderColor: "rgba(96,165,250,0.4)",
+  },
+  statusChipText: { fontSize: 11, fontWeight: "700" },
+
+  // Ruta
   routeContainer: {
+    flexDirection: "row",
     backgroundColor: "#0b0e14",
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 10,
+    padding: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#1f2937",
-  },
-  labelPointBlue: {
-    color: "#60a5fa",
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  labelPointGreen: {
-    color: "#34d399",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  cardDesc: {
-    color: "#9ca3af",
-    fontSize: 12,
     marginBottom: 12,
   },
+  timelineCol: { alignItems: "center", marginRight: 12, paddingVertical: 4 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  timelineLine: {
+    flex: 1,
+    width: 2,
+    backgroundColor: "#374151",
+    marginVertical: 4,
+  },
+  routeTexts: { flex: 1 },
+  routeBlock: { marginBottom: 10 },
+  routeLabel: {
+    color: "#6b7280",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  routeValue: { color: "#e5e7eb", fontSize: 14, fontWeight: "600" },
+
+  // Detalle
+  descBox: { marginBottom: 12 },
+  descLabel: {
+    color: "#6b7280",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginBottom: 3,
+  },
+  cardDesc: { color: "#9ca3af", fontSize: 13, lineHeight: 18 },
+
+  // Métricas
+  metricsRow: {
+    flexDirection: "row",
+    backgroundColor: "#0f1420",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#1f2937",
+    paddingVertical: 10,
+    marginBottom: 14,
+  },
+  metricBox: { flex: 1, alignItems: "center" },
+  metricValue: { color: "#ffffff", fontSize: 18, fontWeight: "800" },
+  metricLabel: { color: "#6b7280", fontSize: 11, marginTop: 1 },
+  metricDivider: { width: 1, backgroundColor: "#1f2937" },
+
+  // Pie
   cardFooter: {
     flexDirection: "row",
+    alignItems: "flex-end",
     justifyContent: "space-between",
     borderTopWidth: 1,
     borderTopColor: "#1f2937",
-    paddingTop: 10,
+    paddingTop: 12,
+    gap: 10,
   },
-  footerInfo: {
-    color: "#d1d5db",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  footerContact: {
+  contactInfo: { flex: 1 },
+  contactName: { color: "#e5e7eb", fontSize: 13, fontWeight: "700" },
+  contactPhone: {
     color: "#60a5fa",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
+    marginTop: 2,
   },
+  createdAt: { color: "#6b7280", fontSize: 11, marginTop: 4 },
+  btnDelete: {
+    backgroundColor: "rgba(239,68,68,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.5)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    minWidth: 92,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnDeleteText: { color: "#fca5a5", fontSize: 12, fontWeight: "700" },
 });
