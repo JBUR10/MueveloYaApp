@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
 import {
   eliminarServicio,
@@ -64,7 +64,6 @@ const formatearFecha = (iso?: string) => {
 
 export default function SolicitudesScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [servicios, setServicios] = useState<SolicitudServicioDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -126,214 +125,215 @@ export default function SolicitudesScreen() {
     !item.fechaProgramada;
 
   return (
-    <View style={styles.mainContainer}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={[
-          styles.contentContainer,
-          {
-            paddingTop: insets.top + 16,
-            paddingBottom: 90 + insets.bottom,
-          },
-        ]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#60a5fa"
-          />
-        }
-      >
-        {/* Barra superior */}
-        <View style={styles.topBar}>
-          <TouchableOpacity
-            onPress={() => router.push("/")}
-            style={styles.btnBack}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.btnBackText}>← Inicio</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => router.push("/servicios")}
-            style={styles.btnNew}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.btnNewText}>+ Nuevo servicio</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Encabezado */}
-        <View style={styles.headerContainer}>
-          <Text style={styles.subtitleHeader}>HISTORIAL</Text>
-          <Text style={styles.titleHeader}>
-            Mis <Text style={styles.titleHighlight}>Solicitudes</Text>
-          </Text>
-          {!loading && servicios.length > 0 && (
-            <Text style={styles.counterText}>
-              {servicios.length}{" "}
-              {servicios.length === 1
-                ? "solicitud registrada"
-                : "solicitudes registradas"}
-            </Text>
-          )}
-        </View>
-
-        {loading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color="#3b82f6" />
-          </View>
-        ) : servicios.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📦</Text>
-            <Text style={styles.emptyTitle}>Aún no tienes solicitudes</Text>
-            <Text style={styles.emptyText}>
-              Cuando solicites un servicio aparecerá aquí con todos sus
-              detalles.
-            </Text>
+    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+      <View style={styles.mainContainer}>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#60a5fa"
+            />
+          }
+        >
+          {/* Barra superior */}
+          <View style={styles.topBar}>
             <TouchableOpacity
-              style={styles.btnCreateEmpty}
-              onPress={() => router.push("/servicios")}
+              onPress={() => router.push("/")}
+              style={styles.btnBack}
               activeOpacity={0.8}
             >
-              <Text style={styles.btnCreateEmptyText}>
-                Solicitar un servicio
-              </Text>
+              <Text style={styles.btnBackText}>← Inicio</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push("/servicios")}
+              style={styles.btnNew}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.btnNewText}>+ Nuevo servicio</Text>
             </TouchableOpacity>
           </View>
-        ) : (
-          servicios.map((item, index) => {
-            const inmediato = esInmediato(item);
-            const borrando = eliminandoId === item.id;
 
-            return (
-              <View
-                key={item.id || String(index)}
-                style={[styles.cardService, borrando && { opacity: 0.5 }]}
+          {/* Encabezado */}
+          <View style={styles.headerContainer}>
+            <Text style={styles.subtitleHeader}>HISTORIAL</Text>
+            <Text style={styles.titleHeader}>
+              Mis <Text style={styles.titleHighlight}>Solicitudes</Text>
+            </Text>
+            {!loading && servicios.length > 0 && (
+              <Text style={styles.counterText}>
+                {servicios.length}{" "}
+                {servicios.length === 1
+                  ? "solicitud registrada"
+                  : "solicitudes registradas"}
+              </Text>
+            )}
+          </View>
+
+          {loading ? (
+            <View style={styles.loaderContainer}>
+              <ActivityIndicator size="large" color="#3b82f6" />
+            </View>
+          ) : servicios.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>📦</Text>
+              <Text style={styles.emptyTitle}>Aún no tienes solicitudes</Text>
+              <Text style={styles.emptyText}>
+                Cuando solicites un servicio aparecerá aquí con todos sus
+                detalles.
+              </Text>
+              <TouchableOpacity
+                style={styles.btnCreateEmpty}
+                onPress={() => router.push("/servicios")}
+                activeOpacity={0.8}
               >
-                {/* Encabezado de la tarjeta */}
-                <View style={styles.cardHeaderRow}>
-                  <Text style={styles.cardTypeBadge} numberOfLines={1}>
-                    {item.tipoServicio}
-                  </Text>
-                  <View
-                    style={[
-                      styles.statusChip,
-                      inmediato ? styles.chipImmediate : styles.chipScheduled,
-                    ]}
-                  >
-                    <Text
+                <Text style={styles.btnCreateEmptyText}>
+                  Solicitar un servicio
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            servicios.map((item, index) => {
+              const inmediato = esInmediato(item);
+              const borrando = eliminandoId === item.id;
+
+              return (
+                <View
+                  key={item.id || String(index)}
+                  style={[styles.cardService, borrando && { opacity: 0.5 }]}
+                >
+                  {/* Encabezado de la tarjeta */}
+                  <View style={styles.cardHeaderRow}>
+                    <Text style={styles.cardTypeBadge} numberOfLines={1}>
+                      {item.tipoServicio}
+                    </Text>
+                    <View
                       style={[
-                        styles.statusChipText,
-                        { color: inmediato ? "#fbbf24" : "#60a5fa" },
+                        styles.statusChip,
+                        inmediato ? styles.chipImmediate : styles.chipScheduled,
                       ]}
                     >
-                      {inmediato
-                        ? "⚡ Inmediato"
-                        : `📅 ${item.fechaProgramada}`}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Ruta tipo línea de tiempo */}
-                <View style={styles.routeContainer}>
-                  <View style={styles.timelineCol}>
-                    <View
-                      style={[styles.dot, { backgroundColor: "#3b82f6" }]}
-                    />
-                    <View style={styles.timelineLine} />
-                    <View
-                      style={[styles.dot, { backgroundColor: "#10b981" }]}
-                    />
-                  </View>
-                  <View style={styles.routeTexts}>
-                    <View style={styles.routeBlock}>
-                      <Text style={styles.routeLabel}>RECOGIDA</Text>
-                      <Text style={styles.routeValue} numberOfLines={2}>
-                        {item.origen}
-                      </Text>
-                    </View>
-                    <View style={styles.routeBlock}>
-                      <Text style={styles.routeLabel}>ENTREGA</Text>
-                      <Text style={styles.routeValue} numberOfLines={2}>
-                        {item.destino}
+                      <Text
+                        style={[
+                          styles.statusChipText,
+                          { color: inmediato ? "#fbbf24" : "#60a5fa" },
+                        ]}
+                      >
+                        {inmediato
+                          ? "⚡ Inmediato"
+                          : `📅 ${item.fechaProgramada}`}
                       </Text>
                     </View>
                   </View>
-                </View>
 
-                {/* Detalle */}
-                {item.descripcion ? (
-                  <View style={styles.descBox}>
-                    <Text style={styles.descLabel}>DETALLE</Text>
-                    <Text style={styles.cardDesc} numberOfLines={3}>
-                      {item.descripcion}
-                    </Text>
+                  {/* Ruta tipo línea de tiempo */}
+                  <View style={styles.routeContainer}>
+                    <View style={styles.timelineCol}>
+                      <View
+                        style={[styles.dot, { backgroundColor: "#3b82f6" }]}
+                      />
+                      <View style={styles.timelineLine} />
+                      <View
+                        style={[styles.dot, { backgroundColor: "#10b981" }]}
+                      />
+                    </View>
+                    <View style={styles.routeTexts}>
+                      <View style={styles.routeBlock}>
+                        <Text style={styles.routeLabel}>RECOGIDA</Text>
+                        <Text style={styles.routeValue} numberOfLines={2}>
+                          {item.origen}
+                        </Text>
+                      </View>
+                      <View style={styles.routeBlock}>
+                        <Text style={styles.routeLabel}>ENTREGA</Text>
+                        <Text style={styles.routeValue} numberOfLines={2}>
+                          {item.destino}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                ) : null}
 
-                {/* Métricas */}
-                <View style={styles.metricsRow}>
-                  <View style={styles.metricBox}>
-                    <Text style={styles.metricValue}>{item.ayudantes}</Text>
-                    <Text style={styles.metricLabel}>Ayudantes</Text>
-                  </View>
-                  <View style={styles.metricDivider} />
-                  <View style={styles.metricBox}>
-                    <Text style={styles.metricValue}>
-                      {item.pisosEscaleras}
-                    </Text>
-                    <Text style={styles.metricLabel}>Pisos</Text>
-                  </View>
-                </View>
-
-                {/* Pie: contacto + eliminar */}
-                <View style={styles.cardFooter}>
-                  <View style={styles.contactInfo}>
-                    <Text style={styles.contactName} numberOfLines={1}>
-                      👤 {item.nombreContacto}
-                    </Text>
-                    {item.telefonoContacto ? (
-                      <Text style={styles.contactPhone} numberOfLines={1}>
-                        📞 {item.telefonoContacto}
+                  {/* Detalle */}
+                  {item.descripcion ? (
+                    <View style={styles.descBox}>
+                      <Text style={styles.descLabel}>DETALLE</Text>
+                      <Text style={styles.cardDesc} numberOfLines={3}>
+                        {item.descripcion}
                       </Text>
-                    ) : null}
-                    {item.fecha ? (
-                      <Text style={styles.createdAt}>
-                        Creada el {formatearFecha(item.fecha)}
+                    </View>
+                  ) : null}
+
+                  {/* Métricas */}
+                  <View style={styles.metricsRow}>
+                    <View style={styles.metricBox}>
+                      <Text style={styles.metricValue}>{item.ayudantes}</Text>
+                      <Text style={styles.metricLabel}>Ayudantes</Text>
+                    </View>
+                    <View style={styles.metricDivider} />
+                    <View style={styles.metricBox}>
+                      <Text style={styles.metricValue}>
+                        {item.pisosEscaleras}
                       </Text>
-                    ) : null}
+                      <Text style={styles.metricLabel}>Pisos</Text>
+                    </View>
                   </View>
 
-                  <TouchableOpacity
-                    onPress={() => handleEliminar(item.id)}
-                    style={styles.btnDelete}
-                    activeOpacity={0.7}
-                    disabled={borrando}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    {borrando ? (
-                      <ActivityIndicator size="small" color="#fca5a5" />
-                    ) : (
-                      <Text style={styles.btnDeleteText}>🗑 Eliminar</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
+                  {/* Pie: contacto + eliminar */}
+                  <View style={styles.cardFooter}>
+                    <View style={styles.contactInfo}>
+                      <Text style={styles.contactName} numberOfLines={1}>
+                        👤 {item.nombreContacto}
+                      </Text>
+                      {item.telefonoContacto ? (
+                        <Text style={styles.contactPhone} numberOfLines={1}>
+                          📞 {item.telefonoContacto}
+                        </Text>
+                      ) : null}
+                      {item.fecha ? (
+                        <Text style={styles.createdAt}>
+                          Creada el {formatearFecha(item.fecha)}
+                        </Text>
+                      ) : null}
+                    </View>
 
-      <BarraNavegacion />
-    </View>
+                    <TouchableOpacity
+                      onPress={() => handleEliminar(item.id)}
+                      style={styles.btnDelete}
+                      activeOpacity={0.7}
+                      disabled={borrando}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      {borrando ? (
+                        <ActivityIndicator size="small" color="#fca5a5" />
+                      ) : (
+                        <Text style={styles.btnDeleteText}>🗑 Eliminar</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
+
+        <BarraNavegacion />
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: "#0b0e14" },
   mainContainer: { flex: 1, backgroundColor: "#0b0e14" },
   container: { flex: 1, backgroundColor: "#0b0e14" },
-  contentContainer: { paddingHorizontal: 16 },
+  contentContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 90,
+  },
 
   // Barra superior
   topBar: {
