@@ -3,9 +3,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { usePathname, useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+type Pestaña = "Inicio" | "Servicios" | "Solicitudes" | "Perfil";
+
 const PESTAÑAS = [
   { id: "Inicio", icono: "⌂", ruta: "/" },
-  { id: "Servicios", icono: "◇", ruta: "/servicios" },
+  { id: "Servicios", icono: "◇", ruta: "/servicio" },
   { id: "Solicitudes", icono: "▤", ruta: "/solicitudes" },
   { id: "Perfil", icono: "○", ruta: "/perfil" },
 ] as const;
@@ -14,9 +16,27 @@ export default function BarraNavegacion() {
   const router = useRouter();
   const rutaActual = usePathname();
 
+  const pestañaActiva: Pestaña =
+    PESTAÑAS.find((pestaña) => pestaña.ruta === rutaActual)?.id ?? "Inicio";
+
+  const manejarPestaña = (pestaña: Pestaña) => {
+    const seleccionada = PESTAÑAS.find((item) => item.id === pestaña);
+
+    if (seleccionada && seleccionada.ruta !== rutaActual) {
+      router.push(seleccionada.ruta);
+    }
+  };
+
   return (
-    <View style={styles.barra}>
-      <BlurView intensity={24} tint="dark" style={StyleSheet.absoluteFill} />
+    <View style={styles.barraNavegacion}>
+      <BlurView
+        intensity={24}
+        tint="dark"
+        experimentalBlurMethod="dimezisBlurView"
+        style={styles.fondoBlurBarra}
+      />
+
+      <View style={styles.sombraCristalBarra} />
 
       <LinearGradient
         colors={[
@@ -25,81 +45,85 @@ export default function BarraNavegacion() {
           "rgba(215,226,238,0.04)",
         ]}
         locations={[0, 0.45, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+        style={styles.cristalBarra}>
+        <LinearGradient
+          colors={[
+            "rgba(255,255,255,0.28)",
+            "rgba(255,255,255,0.06)",
+            "rgba(255,255,255,0)",
+          ]}
+          locations={[0, 0.5, 1]}
+          style={styles.reflejoBarra}
+        />
 
-      <LinearGradient
-        colors={[
-          "rgba(255,255,255,0.28)",
-          "rgba(255,255,255,0.06)",
-          "rgba(255,255,255,0)",
-        ]}
-        locations={[0, 0.5, 1]}
-        style={styles.reflejo}
-      />
+        <View style={styles.lineaLuzBarra} />
 
-      <View style={styles.lineaLuz} />
+        <View style={styles.elementosBarra}>
+          {PESTAÑAS.map((pestaña) => {
+            const activa = pestañaActiva === pestaña.id;
 
-      <View style={styles.elementos}>
-        {PESTAÑAS.map((pestaña) => {
-          const activa = rutaActual === pestaña.ruta;
+            return (
+              <Pressable
+                key={pestaña.id}
+                style={({ pressed }) => [
+                  styles.elementoNavegacion,
+                  pressed && styles.presionado,
+                ]}
+                onPress={() => manejarPestaña(pestaña.id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: activa }}
+                accessibilityLabel={pestaña.id}>
+                {activa && (
+                  <View style={styles.cristalActivo}>
+                    <LinearGradient
+                      colors={[
+                        "rgba(255,255,255,0.30)",
+                        "rgba(255,255,255,0.11)",
+                        "rgba(255,255,255,0.04)",
+                      ]}
+                      style={StyleSheet.absoluteFill}
+                    />
+                  </View>
+                )}
 
-          return (
-            <Pressable
-              key={pestaña.id}
-              onPress={() => {
-                if (!activa) {
-                  router.push(pestaña.ruta as "/");
-                }
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={pestaña.id}
-              accessibilityState={{ selected: activa }}
-              style={({ pressed }) => [
-                styles.elemento,
-                pressed && styles.presionado,
-              ]}>
-              {activa && (
-                <View style={styles.cristalActivo}>
-                  <LinearGradient
-                    colors={[
-                      "rgba(41,105,233,0.32)",
-                      "rgba(255,255,255,0.11)",
-                      "rgba(255,255,255,0.04)",
-                    ]}
-                    style={StyleSheet.absoluteFill}
-                  />
-                </View>
-              )}
+                <Text
+                  style={[
+                    styles.simboloNavegacion,
+                    activa && styles.simboloNavegacionActivo,
+                  ]}>
+                  {pestaña.icono}
+                </Text>
 
-              <Text style={[styles.simbolo, activa && styles.activo]}>
-                {pestaña.icono}
-              </Text>
+                <Text
+                  style={[
+                    styles.textoNavegacion,
+                    activa && styles.textoNavegacionActivo,
+                  ]}>
+                  {pestaña.id}
+                </Text>
 
-              <Text style={[styles.texto, activa && styles.textoActivo]}>
-                {pestaña.id}
-              </Text>
-
-              {activa && <View style={styles.indicador} />}
-            </Pressable>
-          );
-        })}
-      </View>
+                {activa && <View style={styles.indicadorActivo} />}
+              </Pressable>
+            );
+          })}
+        </View>
+      </LinearGradient>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  barra: {
+  barraNavegacion: {
     position: "absolute",
-    bottom: 8,
     left: 20,
     right: 20,
+    bottom: 8,
+    zIndex: 5,
     height: 76,
     borderRadius: 27,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.25)",
-    backgroundColor: "rgba(17,19,24,0.65)",
+    backgroundColor: "rgba(17,19,24,0.36)",
     overflow: "hidden",
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 6 },
@@ -108,7 +132,24 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
 
-  reflejo: {
+  fondoBlurBarra: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 27,
+  },
+
+  sombraCristalBarra: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(17,19,24,0.30)",
+  },
+
+  cristalBarra: {
+    flex: 1,
+    borderRadius: 27,
+    overflow: "hidden",
+    backgroundColor: "rgba(17,19,24,0.08)",
+  },
+
+  reflejoBarra: {
     position: "absolute",
     top: 0,
     left: 0,
@@ -116,7 +157,7 @@ const styles = StyleSheet.create({
     height: 31,
   },
 
-  lineaLuz: {
+  lineaLuzBarra: {
     position: "absolute",
     top: 1,
     left: 22,
@@ -125,15 +166,16 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.28)",
   },
 
-  elementos: {
+  elementosBarra: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
     paddingHorizontal: 4,
+    zIndex: 1,
   },
 
-  elemento: {
+  elementoNavegacion: {
     flex: 1,
     height: "100%",
     alignItems: "center",
@@ -153,28 +195,34 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
 
-  simbolo: {
+  simboloNavegacion: {
     color: "#F0F3F5",
     fontSize: 23,
     lineHeight: 27,
+    textShadowColor: "rgba(0,0,0,0.45)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 
-  activo: {
+  simboloNavegacionActivo: {
     color: "#FFFFFF",
   },
 
-  texto: {
+  textoNavegacion: {
     color: "#E5E9EC",
     fontSize: 10,
     fontWeight: "600",
+    textShadowColor: "rgba(0,0,0,0.45)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 
-  textoActivo: {
+  textoNavegacionActivo: {
     color: "#FFFFFF",
     fontWeight: "800",
   },
 
-  indicador: {
+  indicadorActivo: {
     position: "absolute",
     bottom: 4,
     width: 18,
