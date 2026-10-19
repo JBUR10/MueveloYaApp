@@ -1,7 +1,8 @@
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { usePathname, useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useRef } from "react";
+import { PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 
 type Pestaña = "Inicio" | "Servicios" | "Solicitudes" | "Perfil";
 
@@ -12,20 +13,63 @@ const PESTAÑAS = [
   { id: "Perfil", icono: "○", ruta: "/perfil" },
 ] as const;
 
+const DISTANCIA_DESLIZAMIENTO = 45;
+
 export default function BarraNavegacion() {
   const router = useRouter();
   const rutaActual = usePathname();
 
-  const pestañaActiva: Pestaña =
-    PESTAÑAS.find((pestaña) => pestaña.ruta === rutaActual)?.id ?? "Inicio";
+  const indiceActivo = Math.max(
+    0,
+    PESTAÑAS.findIndex((pestaña) => pestaña.ruta === rutaActual),
+  );
 
-  const manejarPestaña = (pestaña: Pestaña) => {
-    const seleccionada = PESTAÑAS.find((item) => item.id === pestaña);
+  const pestañaActiva: Pestaña = PESTAÑAS[indiceActivo].id;
 
-    if (seleccionada && seleccionada.ruta !== rutaActual) {
+  // Referencias para evitar que el gesto utilice un índice desactualizado.
+  const indiceActivoRef = useRef(indiceActivo);
+  indiceActivoRef.current = indiceActivo;
+
+  const navegarAIndice = (indice: number) => {
+    if (indice < 0 || indice >= PESTAÑAS.length) return;
+
+    const seleccionada = PESTAÑAS[indice];
+
+    if (seleccionada.ruta !== rutaActual) {
       router.push(seleccionada.ruta);
     }
   };
+
+  const manejarPestaña = (pestaña: Pestaña) => {
+    const indice = PESTAÑAS.findIndex((item) => item.id === pestaña);
+
+    navegarAIndice(indice);
+  };
+
+  // Gesto horizontal para avanzar o retroceder entre pestañas.
+  const responderDeslizamiento = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesto) =>
+        Math.abs(gesto.dx) > 12 &&
+        Math.abs(gesto.dx) > Math.abs(gesto.dy) * 1.2,
+
+      onPanResponderRelease: (_, gesto) => {
+        if (Math.abs(gesto.dx) < DISTANCIA_DESLIZAMIENTO) {
+          return;
+        }
+
+        const indiceActual = indiceActivoRef.current;
+
+        if (gesto.dx < 0) {
+          // Deslizar hacia la izquierda: siguiente pestaña.
+          navegarAIndice(indiceActual + 1);
+        } else {
+          // Deslizar hacia la derecha: pestaña anterior.
+          navegarAIndice(indiceActual - 1);
+        }
+      },
+    }),
+  ).current;
 
   return (
     <View style={styles.barraNavegacion}>
@@ -45,7 +89,8 @@ export default function BarraNavegacion() {
           "rgba(215,226,238,0.04)",
         ]}
         locations={[0, 0.45, 1]}
-        style={styles.cristalBarra}>
+        style={styles.cristalBarra}
+      >
         <LinearGradient
           colors={[
             "rgba(255,255,255,0.28)",
@@ -58,7 +103,10 @@ export default function BarraNavegacion() {
 
         <View style={styles.lineaLuzBarra} />
 
-        <View style={styles.elementosBarra}>
+        <View
+          style={styles.elementosBarra}
+          {...responderDeslizamiento.panHandlers}
+        >
           {PESTAÑAS.map((pestaña) => {
             const activa = pestañaActiva === pestaña.id;
 
@@ -72,7 +120,8 @@ export default function BarraNavegacion() {
                 onPress={() => manejarPestaña(pestaña.id)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: activa }}
-                accessibilityLabel={pestaña.id}>
+                accessibilityLabel={pestaña.id}
+              >
                 {activa && (
                   <View style={styles.cristalActivo}>
                     <LinearGradient
@@ -90,7 +139,8 @@ export default function BarraNavegacion() {
                   style={[
                     styles.simboloNavegacion,
                     activa && styles.simboloNavegacionActivo,
-                  ]}>
+                  ]}
+                >
                   {pestaña.icono}
                 </Text>
 
@@ -98,7 +148,8 @@ export default function BarraNavegacion() {
                   style={[
                     styles.textoNavegacion,
                     activa && styles.textoNavegacionActivo,
-                  ]}>
+                  ]}
+                >
                   {pestaña.id}
                 </Text>
 
