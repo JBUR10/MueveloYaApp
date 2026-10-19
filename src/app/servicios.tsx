@@ -1,10 +1,14 @@
 // src/app/servicios.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -30,12 +34,20 @@ export default function ServiciosScreen() {
   const [destinoDireccion, setDestinoDireccion] = useState("");
   const [destinoBarrio, setDestinoBarrio] = useState("");
 
-  // Nuevo: Tipo de Programación
+  // Tipo de Programación
   const [tipoProgramacion, setTipoProgramacion] = useState<
     "inmediato" | "programado"
   >("inmediato");
-  const [fechaProgramada, setFechaProgramada] = useState("");
-  const [horaProgramada, setHoraProgramada] = useState("");
+
+  // Estados para Fecha y Hora Nativos / Web
+  const [fechaSeleccionada, setFechaSeleccionada] = useState<Date>(new Date());
+  const [horaSeleccionada, setHoraSeleccionada] = useState<Date>(new Date());
+
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+
+  const [fechaEstablecida, setFechaEstablecida] = useState(false);
+  const [horaEstablecida, setHoraEstablecida] = useState(false);
 
   const [descripcion, setDescripcion] = useState("");
   const [ayudantes, setAyudantes] = useState(0);
@@ -45,22 +57,108 @@ export default function ServiciosScreen() {
 
   const [loading, setLoading] = useState(false);
 
+  // Estado para la Alerta Modal Personalizada en Pantalla
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalConfig, setModalConfig] = useState<{
+    titulo: string;
+    mensaje: string;
+    tipo: "exito" | "error" | "advertencia";
+    onConfirm?: () => void;
+  }>({
+    titulo: "",
+    mensaje: "",
+    tipo: "advertencia",
+  });
+
+  const mostrarAlertaPantalla = (
+    titulo: string,
+    mensaje: string,
+    tipo: "exito" | "error" | "advertencia" = "advertencia",
+    onConfirm?: () => void,
+  ) => {
+    setModalConfig({ titulo, mensaje, tipo, onConfirm });
+    setModalVisible(true);
+  };
+
+  const cerrarAlerta = () => {
+    setModalVisible(false);
+    if (modalConfig.onConfirm) {
+      modalConfig.onConfirm();
+    }
+  };
+
+  const resetFormulario = () => {
+    setPaso(1);
+    setTipoServicio("Acarreo");
+    setOrigenDireccion("");
+    setOrigenBarrio("");
+    setDestinoDireccion("");
+    setDestinoBarrio("");
+    setTipoProgramacion("inmediato");
+    setFechaSeleccionada(new Date());
+    setHoraSeleccionada(new Date());
+    setFechaEstablecida(false);
+    setHoraEstablecida(false);
+    setDescripcion("");
+    setAyudantes(0);
+    setPisosEscaleras(0);
+    setNombreContacto("");
+    setTelefonoContacto("");
+  };
+
+  // Formateadores de fecha (DD/MM/AAAA) y hora (12h AM/PM)
+  const formatearFecha = (date: Date) => {
+    const dia = String(date.getDate()).padStart(2, "0");
+    const mes = String(date.getMonth() + 1).padStart(2, "0");
+    const anio = date.getFullYear();
+    return `${dia}/${mes}/${anio}`;
+  };
+
+  const formatearHora = (date: Date) => {
+    let horas = date.getHours();
+    const minutos = String(date.getMinutes()).padStart(2, "0");
+    const ampm = horas >= 12 ? "PM" : "AM";
+    horas = horas % 12;
+    horas = horas ? horas : 12;
+    const horasStr = String(horas).padStart(2, "0");
+    return `${horasStr}:${minutos} ${ampm}`;
+  };
+
+  // Handlers para DateTimePicker Nativo
+  const onChangeFecha = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === "ios");
+    if (selectedDate) {
+      setFechaSeleccionada(selectedDate);
+      setFechaEstablecida(true);
+    }
+  };
+
+  const onChangeHora = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    setShowTimePicker(Platform.OS === "ios");
+    if (selectedDate) {
+      setHoraSeleccionada(selectedDate);
+      setHoraEstablecida(true);
+    }
+  };
+
   const handleSiguiente = () => {
     if (paso === 2 && (!origenDireccion.trim() || !destinoDireccion.trim())) {
-      Alert.alert(
+      mostrarAlertaPantalla(
         "Atención",
         "Por favor ingresa la dirección de recogida y entrega.",
+        "advertencia",
       );
       return;
     }
     if (
       paso === 3 &&
       tipoProgramacion === "programado" &&
-      (!fechaProgramada.trim() || !horaProgramada.trim())
+      (!fechaEstablecida || !horaEstablecida)
     ) {
-      Alert.alert(
+      mostrarAlertaPantalla(
         "Atención",
-        "Por favor ingresa la fecha y hora para programar el servicio.",
+        "Por favor selecciona la fecha y hora para programar el servicio.",
+        "advertencia",
       );
       return;
     }
@@ -76,7 +174,9 @@ export default function ServiciosScreen() {
   };
 
   const handleSolicitar = async () => {
+    if (loading) return;
     setLoading(true);
+
     try {
       const token = (await AsyncStorage.getItem("token")) || "TOKEN_DEMO";
 
@@ -87,7 +187,9 @@ export default function ServiciosScreen() {
         tipoProgramacion,
         fechaProgramada:
           tipoProgramacion === "programado"
-            ? `${fechaProgramada} ${horaProgramada}`
+            ? `${formatearFecha(fechaSeleccionada)} ${formatearHora(
+                horaSeleccionada,
+              )}`
             : "Inmediato",
         descripcion,
         ayudantes,
@@ -99,13 +201,21 @@ export default function ServiciosScreen() {
 
       await registrarServicio(payload, token);
 
-      Alert.alert(
-        "¡Solicitud Enviada!",
-        "Tu servicio ha sido solicitado con éxito.",
-        [{ text: "OK", onPress: () => router.push("/solicitudes") }],
+      mostrarAlertaPantalla(
+        "¡Servicio Solicitado! 🎉",
+        "Tu servicio ha sido registrado con éxito. Puedes consultarlo en tus solicitudes.",
+        "exito",
+        () => {
+          resetFormulario();
+          router.push("/solicitudes" as any);
+        },
       );
     } catch (error: any) {
-      Alert.alert("Error", error.message || "No se pudo enviar la solicitud.");
+      mostrarAlertaPantalla(
+        "Error",
+        error.message || "No se pudo enviar la solicitud.",
+        "error",
+      );
     } finally {
       setLoading(false);
     }
@@ -275,21 +385,106 @@ export default function ServiciosScreen() {
             {tipoProgramacion === "programado" && (
               <View style={styles.cardSection}>
                 <Text style={styles.inputLabel}>Fecha del servicio</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="AAAA-MM-DD (Ej: 2026-10-20)"
-                  placeholderTextColor="#6b7280"
-                  value={fechaProgramada}
-                  onChangeText={setFechaProgramada}
-                />
+                {Platform.OS === "web" ? (
+                  <input
+                    type="date"
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const [yyyy, mm, dd] = e.target.value.split("-");
+                        const d = new Date(
+                          Number(yyyy),
+                          Number(mm) - 1,
+                          Number(dd),
+                        );
+                        setFechaSeleccionada(d);
+                        setFechaEstablecida(true);
+                      }
+                    }}
+                    style={{
+                      backgroundColor: "#0b0e14",
+                      color: "#ffffff",
+                      padding: "12px",
+                      borderRadius: "12px",
+                      border: "1px solid #1f2937",
+                      marginBottom: "12px",
+                      fontSize: "14px",
+                      width: "100%",
+                      boxSizing: "border-box",
+                      colorScheme: "dark",
+                    }}
+                  />
+                ) : (
+                  <TouchableOpacity
+                    style={styles.pickerSelectorButton}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <Text style={styles.pickerSelectorText}>
+                      {fechaEstablecida
+                        ? `📅 ${formatearFecha(fechaSeleccionada)}`
+                        : "📅 Seleccionar fecha en calendario"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
                 <Text style={styles.inputLabel}>Hora estimada</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="HH:MM (Ej: 14:30)"
-                  placeholderTextColor="#6b7280"
-                  value={horaProgramada}
-                  onChangeText={setHoraProgramada}
-                />
+                {Platform.OS === "web" ? (
+                  <input
+                    type="time"
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const [hrs, mins] = e.target.value.split(":");
+                        const d = new Date();
+                        d.setHours(Number(hrs), Number(mins));
+                        setHoraSeleccionada(d);
+                        setHoraEstablecida(true);
+                      }
+                    }}
+                    style={{
+                      backgroundColor: "#0b0e14",
+                      color: "#ffffff",
+                      padding: "12px",
+                      borderRadius: "12px",
+                      border: "1px solid #1f2937",
+                      marginBottom: "12px",
+                      fontSize: "14px",
+                      width: "100%",
+                      boxSizing: "border-box",
+                      colorScheme: "dark",
+                    }}
+                  />
+                ) : (
+                  <TouchableOpacity
+                    style={styles.pickerSelectorButton}
+                    onPress={() => setShowTimePicker(true)}
+                  >
+                    <Text style={styles.pickerSelectorText}>
+                      {horaEstablecida
+                        ? `🕒 ${formatearHora(horaSeleccionada)}`
+                        : "🕒 Seleccionar hora en reloj"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Modales DateTimePicker para Android e iOS */}
+                {showDatePicker && Platform.OS !== "web" && (
+                  <DateTimePicker
+                    value={fechaSeleccionada}
+                    mode="date"
+                    display="default"
+                    minimumDate={new Date()}
+                    onChange={onChangeFecha}
+                  />
+                )}
+
+                {showTimePicker && Platform.OS !== "web" && (
+                  <DateTimePicker
+                    value={horaSeleccionada}
+                    mode="time"
+                    is24Hour={false}
+                    display="default"
+                    onChange={onChangeHora}
+                  />
+                )}
               </View>
             )}
 
@@ -402,6 +597,41 @@ export default function ServiciosScreen() {
         )}
       </ScrollView>
 
+      {/* ================= MODAL DE ALERTA EN PANTALLA ================= */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={cerrarAlerta}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text
+              style={[
+                styles.modalTitle,
+                modalConfig.tipo === "exito" && styles.textExito,
+                modalConfig.tipo === "error" && styles.textError,
+              ]}
+            >
+              {modalConfig.titulo}
+            </Text>
+            <Text style={styles.modalMessage}>{modalConfig.mensaje}</Text>
+
+            <TouchableOpacity
+              style={[
+                styles.modalButton,
+                modalConfig.tipo === "exito"
+                  ? styles.btnModalExito
+                  : styles.btnModalNormal,
+              ]}
+              onPress={cerrarAlerta}
+            >
+              <Text style={styles.modalButtonText}>Aceptar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Barra de Navegación fija abajo */}
       <BarraNavegacion />
     </View>
@@ -420,7 +650,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 16,
     paddingTop: 30,
-    paddingBottom: 90, // Espacio para que la barra inferior no tape el botón final
+    paddingBottom: 90,
   },
   topBar: {
     flexDirection: "row",
@@ -540,6 +770,21 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontSize: 14,
   },
+  pickerSelectorButton: {
+    backgroundColor: "#0b0e14",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#374151",
+    marginBottom: 16,
+    justifyContent: "center",
+  },
+  pickerSelectorText: {
+    color: "#60a5fa",
+    fontSize: 14,
+    fontWeight: "600",
+  },
   textArea: {
     height: 90,
   },
@@ -624,5 +869,59 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
     letterSpacing: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  modalContainer: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#161b22",
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "#374151",
+    alignItems: "center",
+  },
+  modalTitle: {
+    color: "#60a5fa",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  textExito: {
+    color: "#10b981",
+  },
+  textError: {
+    color: "#ef4444",
+  },
+  modalMessage: {
+    color: "#d1d5db",
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  modalButton: {
+    width: "100%",
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  btnModalNormal: {
+    backgroundColor: "#2563eb",
+  },
+  btnModalExito: {
+    backgroundColor: "#10b981",
+  },
+  modalButtonText: {
+    color: "#ffffff",
+    fontWeight: "700",
+    fontSize: 14,
   },
 });
