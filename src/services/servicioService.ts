@@ -64,3 +64,17 @@ export const obtenerMisServicios = async (
     return [];
   }
 };
+
+export const eliminarServicio = async (id: string, token: string) => {
+  try {
+    const serviciosStr = await AsyncStorage.getItem(STORAGE_KEY);
+    if (!serviciosStr) return;
+    const servicios: SolicitudServicioDTO[] = JSON.parse(serviciosStr);
+    const serviciosFiltrados = servicios.filter((item) => item.id !== id);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(serviciosFiltrados));
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error al eliminar servicio:", error);
+    throw new Error("No se pudo eliminar la solicitud.");
+  }
+};
