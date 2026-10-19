@@ -8,6 +8,7 @@ import {
   Platform,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -21,7 +22,10 @@ import {
   SolicitudServicioDTO,
 } from "../services/servicioService";
 
-// ---------- Helpers multiplataforma (Alert con botones no funciona en web) ----------
+const AZUL = "#2969e9";
+const FONDO = "#111318";
+
+// ---------- Helpers multiplataforma ----------
 const confirmar = (titulo: string, mensaje: string): Promise<boolean> => {
   if (Platform.OS === "web") {
     return Promise.resolve(window.confirm(`${titulo}\n\n${mensaje}`));
@@ -82,7 +86,6 @@ export default function SolicitudesScreen() {
     }
   }, []);
 
-  // Recarga cada vez que la pantalla gana foco (p. ej. al volver de crear un servicio)
   useFocusEffect(
     useCallback(() => {
       cargarServicios();
@@ -110,7 +113,6 @@ export default function SolicitudesScreen() {
       setEliminandoId(id);
       const token = (await AsyncStorage.getItem("token")) || "TOKEN_DEMO";
       await eliminarServicio(id, token);
-      // Actualización inmediata en pantalla
       setServicios((prev) => prev.filter((s) => String(s.id) !== String(id)));
     } catch (error: any) {
       aviso("Error", error?.message || "No se pudo eliminar");
@@ -126,6 +128,8 @@ export default function SolicitudesScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+      <StatusBar barStyle="light-content" backgroundColor={FONDO} />
+
       <View style={styles.mainContainer}>
         <ScrollView
           style={styles.container}
@@ -135,7 +139,7 @@ export default function SolicitudesScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#60a5fa"
+              tintColor={AZUL}
             />
           }
         >
@@ -175,7 +179,7 @@ export default function SolicitudesScreen() {
 
           {loading ? (
             <View style={styles.loaderContainer}>
-              <ActivityIndicator size="large" color="#3b82f6" />
+              <ActivityIndicator size="large" color={AZUL} />
             </View>
           ) : servicios.length === 0 ? (
             <View style={styles.emptyContainer}>
@@ -219,7 +223,7 @@ export default function SolicitudesScreen() {
                       <Text
                         style={[
                           styles.statusChipText,
-                          { color: inmediato ? "#fbbf24" : "#60a5fa" },
+                          { color: inmediato ? "#fbbf24" : AZUL },
                         ]}
                       >
                         {inmediato
@@ -232,12 +236,10 @@ export default function SolicitudesScreen() {
                   {/* Ruta tipo línea de tiempo */}
                   <View style={styles.routeContainer}>
                     <View style={styles.timelineCol}>
-                      <View
-                        style={[styles.dot, { backgroundColor: "#3b82f6" }]}
-                      />
+                      <View style={[styles.dot, { backgroundColor: AZUL }]} />
                       <View style={styles.timelineLine} />
                       <View
-                        style={[styles.dot, { backgroundColor: "#10b981" }]}
+                        style={[styles.dot, { backgroundColor: "#72BFCB" }]}
                       />
                     </View>
                     <View style={styles.routeTexts}>
@@ -326,11 +328,11 @@ export default function SolicitudesScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#0b0e14" },
-  mainContainer: { flex: 1, backgroundColor: "#0b0e14" },
-  container: { flex: 1, backgroundColor: "#0b0e14" },
+  safeArea: { flex: 1, backgroundColor: FONDO },
+  mainContainer: { flex: 1, backgroundColor: FONDO },
+  container: { flex: 1, backgroundColor: FONDO },
   contentContainer: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20, // Igualado a los 20 de la pantalla principal
     paddingTop: 16,
     paddingBottom: 90,
   },
@@ -343,38 +345,39 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   btnBack: {
-    backgroundColor: "#161b22",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#374151",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
   },
-  btnBackText: { color: "#9ca3af", fontWeight: "600", fontSize: 13 },
+  btnBackText: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
   btnNew: {
-    backgroundColor: "#2563eb",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
+    backgroundColor: AZUL,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
   },
-  btnNewText: { color: "#ffffff", fontWeight: "700", fontSize: 13 },
+  btnNewText: { color: "#FFFFFF", fontWeight: "800", fontSize: 13 },
 
   // Encabezado
   headerContainer: { marginBottom: 20 },
   subtitleHeader: {
-    color: "#60a5fa",
+    color: "rgba(255,255,255,0.6)",
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.5,
   },
   titleHeader: {
-    color: "#ffffff",
+    color: "#eeecec",
     fontSize: 28,
     fontWeight: "900",
     marginTop: 2,
+    textShadowColor: "rgba(0,0,0,0.65)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 5,
   },
-  titleHighlight: { color: "#3b82f6" },
-  counterText: { color: "#6b7280", fontSize: 13, marginTop: 4 },
+  titleHighlight: { color: AZUL },
+  counterText: { color: "#9ca3af", fontSize: 13, marginTop: 4 },
 
   loaderContainer: { marginTop: 50, alignItems: "center" },
 
@@ -382,42 +385,55 @@ const styles = StyleSheet.create({
   emptyContainer: {
     marginTop: 30,
     alignItems: "center",
-    backgroundColor: "#161b22",
+    backgroundColor: "rgba(17,19,24,0.94)",
     padding: 28,
-    borderRadius: 18,
+    borderRadius: 19,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.2)",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 8,
   },
   emptyIcon: { fontSize: 40, marginBottom: 10 },
   emptyTitle: {
-    color: "#ffffff",
+    color: "#FFFFFF",
     fontSize: 17,
     fontWeight: "800",
     marginBottom: 6,
+    textShadowColor: "rgba(0,0,0,0.55)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   emptyText: {
-    color: "#9ca3af",
+    color: "rgba(255,255,255,0.6)",
     fontSize: 13,
     textAlign: "center",
     marginBottom: 18,
     lineHeight: 19,
   },
   btnCreateEmpty: {
-    backgroundColor: "#2563eb",
+    backgroundColor: AZUL,
     paddingVertical: 12,
     paddingHorizontal: 22,
-    borderRadius: 12,
+    borderRadius: 14,
   },
-  btnCreateEmptyText: { color: "#ffffff", fontWeight: "700", fontSize: 14 },
+  btnCreateEmptyText: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
 
-  // Tarjeta
+  // Tarjeta (Igualando la sombra y bordes del panelPunto de la pantalla inicial)
   cardService: {
-    backgroundColor: "#161b22",
-    borderRadius: 18,
+    backgroundColor: "rgba(17,19,24,0.94)",
+    borderRadius: 19,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.15)",
     padding: 16,
     marginBottom: 16,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 8,
   },
   cardHeaderRow: {
     flexDirection: "row",
@@ -428,16 +444,14 @@ const styles = StyleSheet.create({
   },
   cardTypeBadge: {
     flexShrink: 1,
-    color: "#ffffff",
-    backgroundColor: "#1e293b",
+    color: "#FFFFFF",
+    backgroundColor: AZUL,
     overflow: "hidden",
     paddingHorizontal: 12,
     paddingVertical: 5,
-    borderRadius: 8,
-    fontWeight: "700",
+    borderRadius: 10,
+    fontWeight: "800",
     fontSize: 12,
-    borderWidth: 1,
-    borderColor: "#3b82f6",
   },
   statusChip: {
     paddingHorizontal: 10,
@@ -450,19 +464,19 @@ const styles = StyleSheet.create({
     borderColor: "rgba(251,191,36,0.4)",
   },
   chipScheduled: {
-    backgroundColor: "rgba(96,165,250,0.12)",
-    borderColor: "rgba(96,165,250,0.4)",
+    backgroundColor: "rgba(41,105,233,0.12)",
+    borderColor: "rgba(41,105,233,0.4)",
   },
   statusChipText: { fontSize: 11, fontWeight: "700" },
 
   // Ruta
   routeContainer: {
     flexDirection: "row",
-    backgroundColor: "#0b0e14",
+    backgroundColor: "rgba(255,255,255,0.03)",
     padding: 14,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.08)",
     marginBottom: 12,
   },
   timelineCol: { alignItems: "center", marginRight: 12, paddingVertical: 4 },
@@ -470,45 +484,45 @@ const styles = StyleSheet.create({
   timelineLine: {
     flex: 1,
     width: 2,
-    backgroundColor: "#374151",
+    backgroundColor: "rgba(255,255,255,0.15)",
     marginVertical: 4,
   },
   routeTexts: { flex: 1 },
   routeBlock: { marginBottom: 10 },
   routeLabel: {
-    color: "#6b7280",
+    color: "rgba(255,255,255,0.6)",
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1,
     marginBottom: 2,
   },
-  routeValue: { color: "#e5e7eb", fontSize: 14, fontWeight: "600" },
+  routeValue: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
 
   // Detalle
   descBox: { marginBottom: 12 },
   descLabel: {
-    color: "#6b7280",
+    color: "rgba(255,255,255,0.6)",
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1,
     marginBottom: 3,
   },
-  cardDesc: { color: "#9ca3af", fontSize: 13, lineHeight: 18 },
+  cardDesc: { color: "#E7F0F4", fontSize: 13, lineHeight: 18 },
 
   // Métricas
   metricsRow: {
     flexDirection: "row",
-    backgroundColor: "#0f1420",
-    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.08)",
     paddingVertical: 10,
     marginBottom: 14,
   },
   metricBox: { flex: 1, alignItems: "center" },
-  metricValue: { color: "#ffffff", fontSize: 18, fontWeight: "800" },
-  metricLabel: { color: "#6b7280", fontSize: 11, marginTop: 1 },
-  metricDivider: { width: 1, backgroundColor: "#1f2937" },
+  metricValue: { color: "#FFFFFF", fontSize: 18, fontWeight: "800" },
+  metricLabel: { color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 1 },
+  metricDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.15)" },
 
   // Pie
   cardFooter: {
@@ -516,29 +530,29 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     justifyContent: "space-between",
     borderTopWidth: 1,
-    borderTopColor: "#1f2937",
+    borderTopColor: "rgba(255,255,255,0.1)",
     paddingTop: 12,
     gap: 10,
   },
   contactInfo: { flex: 1 },
-  contactName: { color: "#e5e7eb", fontSize: 13, fontWeight: "700" },
+  contactName: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
   contactPhone: {
-    color: "#60a5fa",
+    color: AZUL,
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
     marginTop: 2,
   },
-  createdAt: { color: "#6b7280", fontSize: 11, marginTop: 4 },
+  createdAt: { color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 4 },
   btnDelete: {
-    backgroundColor: "rgba(239,68,68,0.12)",
+    backgroundColor: "rgba(239,68,68,0.15)",
     borderWidth: 1,
-    borderColor: "rgba(239,68,68,0.5)",
+    borderColor: "rgba(239,68,68,0.4)",
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: 14,
     minWidth: 92,
     alignItems: "center",
     justifyContent: "center",
   },
-  btnDeleteText: { color: "#fca5a5", fontSize: 12, fontWeight: "700" },
+  btnDeleteText: { color: "#fca5a5", fontSize: 12, fontWeight: "800" },
 });
