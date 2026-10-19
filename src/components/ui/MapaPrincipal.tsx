@@ -102,23 +102,81 @@ const mapaHTML = `
       box-shadow: 0 0 0 8px rgba(41, 151, 255, 0.2);
     }
 
-    .destino-punto {
-      width: 20px;
-      height: 20px;
-      background: #fa0000;
-      border: 3px solid #ffffff;
-      border-radius: 8px;
-      box-shadow: 0 0 0 8px rgba(252, 252, 252, 0.22);
+    /* Icono de destino: camión blanco en cuadrado rojo con punta. */
+    .destino-pin svg,
+    #pin-seleccion svg {
+      display: block;
+      width: 40px;
+      height: 52px;
+      filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.55));
+    }
+
+    /* Pin fijo en el centro del mapa para elegir un punto manualmente. La punta queda justo en el centro. */
+    #pin-seleccion {
+      display: none;
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      width: 40px;
+      height: 52px;
+      margin-left: -20px;
+      margin-top: -48px;
+      pointer-events: none;
+      z-index: 1200;
+    }
+
+    #pin-seleccion svg {
+      transition: transform 0.15s ease;
+    }
+
+    #pin-seleccion.levantado svg {
+      transform: translateY(-10px);
+    }
+
+    /* Pequeña sombra en el suelo, bajo la punta. */
+    #pin-seleccion::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 48px;
+      width: 10px;
+      height: 4px;
+      margin-left: -5px;
+      margin-top: -2px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.45);
     }
   </style>
 </head>
 
 <body>
   <div id="mapa"></div>
+  <div id="pin-seleccion"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
+    // Icono del destino (camión). Se usa en el marcador de la ruta y en el pin de selección.
+    const ICONO_DESTINO =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 62">' +
+      '<path d="M14 3H34A11 11 0 0 1 45 14V34A11 11 0 0 1 34 45H32L24 57L16 45H14A11 11 0 0 1 3 34V14A11 11 0 0 1 14 3Z" ' +
+      'fill="#fa0000" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>' +
+      '<g transform="translate(2.24 3.4) scale(0.085)" fill="#ffffff">' +
+      '<rect x="65" y="150" width="245" height="152"/>' +
+      '<path d="M325 172H388V200L412 245L447 262V322H325Z"/>' +
+      '<rect x="65" y="303" width="382" height="20"/>' +
+      '<polygon points="342,203 381,203 395,250 342,250" fill="#fa0000"/>' +
+      '<circle cx="175" cy="335" r="38"/>' +
+      '<circle cx="175" cy="335" r="29" fill="#fa0000"/>' +
+      '<circle cx="175" cy="335" r="16"/>' +
+      '<circle cx="378" cy="335" r="38"/>' +
+      '<circle cx="378" cy="335" r="29" fill="#fa0000"/>' +
+      '<circle cx="378" cy="335" r="16"/>' +
+      '</g></svg>';
+
+    const pinSeleccion = document.getElementById('pin-seleccion');
+    pinSeleccion.innerHTML = ICONO_DESTINO;
+
     const mapa = L.map('mapa', {
       zoomControl: false,
       attributionControl: false,
@@ -206,11 +264,13 @@ const mapaHTML = `
         lineJoin: 'round'
       }).addTo(mapa);
 
+      // La punta del icono (x=20, y=48 dentro de 40x52) queda exactamente sobre el destino.
       const icono = L.divIcon({
-        className: '',
-        html: '<div class="destino-punto"></div>',
-        iconSize: [26, 26],
-        iconAnchor: [13, 13]
+        className: 'destino-pin',
+        html: ICONO_DESTINO,
+        iconSize: [40, 52],
+        iconAnchor: [20, 48],
+        popupAnchor: [0, -48]
       });
 
       marcadorDestino = L.marker([destino.lat, destino.lng], {
@@ -252,14 +312,20 @@ const mapaHTML = `
       emitir({ tipo: 'CENTRO', lat: c.lat, lng: c.lng });
     }
 
-    // En modo selección, cada vez que el mapa termina de moverse se informa el centro.
+    // Mientras se arrastra el mapa, el pin se levanta un poco; al soltar, baja y se informa el centro.
+    mapa.on('movestart', function () {
+      if (seleccionando) pinSeleccion.classList.add('levantado');
+    });
+
     mapa.on('moveend', function () {
+      pinSeleccion.classList.remove('levantado');
       if (seleccionando) emitirCentro();
     });
 
     // Activa/desactiva el modo selección. Si llegan lat/lng, centra el mapa ahí.
     window.modoSeleccion = function (activo, lat, lng) {
       seleccionando = !!activo;
+      pinSeleccion.style.display = seleccionando ? 'block' : 'none';
       if (!activo) return;
 
       if (Number.isFinite(lat) && Number.isFinite(lng)) {
@@ -368,7 +434,7 @@ export default function MapaPrincipal({
       if (d?.tipo === 'CENTRO') {
         onCentroRef.current?.({ lat: d.lat, lng: d.lng });
       }
-    } catch {}
+    } catch { }
   }, []);
 
   // Web: escucha los mensajes que el iframe envía al padre.
@@ -555,14 +621,6 @@ export default function MapaPrincipal({
         />
       )}
 
-      {/* Pin fijo en el centro: el usuario mueve el mapa debajo de él */}
-      {seleccionando && (
-        <View pointerEvents="none" style={styles.mira}>
-          <View style={styles.pinAro} />
-          <View style={styles.pin} />
-        </View>
-      )}
-
       {(cargando || calculandoRuta) && (
         <View style={styles.estado}>
           <ActivityIndicator color="#FFFFFF" />
@@ -591,26 +649,6 @@ const styles = StyleSheet.create({
   mapa: {
     flex: 1,
     backgroundColor: '#111111',
-  },
-  mira: {
-    ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pinAro: {
-    position: 'absolute',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(250,0,0,0.2)',
-  },
-  pin: {
-    width: 22,
-    height: 22,
-    borderRadius: 8,
-    backgroundColor: '#fa0000',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
   },
   estado: {
     position: 'absolute',
