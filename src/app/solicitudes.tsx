@@ -1,16 +1,16 @@
 // src/app/solicitudes.tsx
-import React, { useState, useEffect, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   obtenerMisServicios,
   SolicitudServicioDTO,
@@ -54,17 +54,20 @@ export default function SolicitudesScreen() {
           onRefresh={onRefresh}
           tintColor="#60a5fa"
         />
-      }>
+      }
+    >
       {/* Barra superior */}
       <View style={styles.topBar}>
         <TouchableOpacity
           onPress={() => router.push("/")}
-          style={styles.btnBack}>
+          style={styles.btnBack}
+        >
           <Text style={styles.btnBackText}>← Inicio</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => router.push("/servicios")}
-          style={styles.btnNew}>
+          style={styles.btnNew}
+        >
           <Text style={styles.btnNewText}>+ Nuevo Servicio</Text>
         </TouchableOpacity>
       </View>
@@ -88,7 +91,8 @@ export default function SolicitudesScreen() {
           </Text>
           <TouchableOpacity
             style={styles.btnCreateEmpty}
-            onPress={() => router.push("/servicios")}>
+            onPress={() => router.push("/servicios")}
+          >
             <Text style={styles.btnCreateEmptyText}>Solicitar un servicio</Text>
           </TouchableOpacity>
         </View>
