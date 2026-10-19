@@ -1,8 +1,16 @@
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { usePathname, useRouter } from "expo-router";
-import { useRef } from "react";
-import { PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Animated,
+  LayoutChangeEvent,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 type Pestaña = "Inicio" | "Servicios" | "Solicitudes" | "Perfil";
 
@@ -13,7 +21,16 @@ const PESTAÑAS = [
   { id: "Perfil", icono: "○", ruta: "/perfil" },
 ] as const;
 
-const DISTANCIA_DESLIZAMIENTO = 45;
+const TOTAL = PESTAÑAS.length;
+
+// Debe coincidir con paddingHorizontal de "elementosBarra".
+const RELLENO_BARRA = 4;
+
+// Movimiento horizontal mínimo para que el gesto de arrastre tome el control sobre el toque.
+const UMBRAL_ARRASTRE = 8;
+
+const limitar = (valor: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, valor));
 
 export default function BarraNavegacion() {
   const router = useRouter();
@@ -24,14 +41,25 @@ export default function BarraNavegacion() {
     PESTAÑAS.findIndex((pestaña) => pestaña.ruta === rutaActual),
   );
 
-  const pestañaActiva: Pestaña = PESTAÑAS[indiceActivo].id;
+  // Pestaña que se ve resaltada (sigue al dedo mientras se arrastra).
+  const [indiceVista, setIndiceVista] = useState(indiceActivo);
+  const [anchoTab, setAnchoTab] = useState(0);
 
-  // Referencias para evitar que el gesto utilice un índice desactualizado.
+  // Posición del cristal en "unidades de pestaña" (0 = primera, 3 = última, admite decimales).
+  const posicion = useRef(new Animated.Value(indiceActivo)).current;
+  const escala = useRef(new Animated.Value(1)).current;
+
+  // Referencias para que el gesto (creado una sola vez) nunca use valores desactualizados.
+  const contenedorRef = useRef<View>(null);
+  const anchoTabRef = useRef(0);
+  const origenXRef = useRef(0);
+  const indiceVistaRef = useRef(indiceActivo);
   const indiceActivoRef = useRef(indiceActivo);
+  const arrastrandoRef = useRef(false);
   indiceActivoRef.current = indiceActivo;
 
   const navegarAIndice = (indice: number) => {
-    if (indice < 0 || indice >= PESTAÑAS.length) return;
+    if (indice < 0 || indice >= TOTAL) return;
 
     const seleccionada = PESTAÑAS[indice];
 
@@ -40,36 +68,128 @@ export default function BarraNavegacion() {
     }
   };
 
-  const manejarPestaña = (pestaña: Pestaña) => {
-    const indice = PESTAÑAS.findIndex((item) => item.id === pestaña);
+  const navegarRef = useRef(navegarAIndice);
+  navegarRef.current = navegarAIndice;
 
+  const animarA = (indice: number) => {
+    Animated.spring(posicion, {
+      toValue: indice,
+      useNativeDriver: true,
+      friction: 7,
+      tension: 140,
+    }).start();
+  };
+
+  const marcarVista = (indice: number) => {
+    if (indice !== indiceVistaRef.current) {
+      indiceVistaRef.current = indice;
+      setIndiceVista(indice);
+    }
+  };
+
+  // Si la ruta cambia desde fuera de la barra, el cristal se acomoda a la nueva pestaña.
+  useEffect(() => {
+    if (arrastrandoRef.current) return;
+    marcarVista(indiceActivo);
+    animarA(indiceActivo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indiceActivo]);
+
+  const alAjustarBarra = (evento: LayoutChangeEvent) => {
+    const ancho = (evento.nativeEvent.layout.width - RELLENO_BARRA * 2) / TOTAL;
+
+    anchoTabRef.current = ancho;
+    setAnchoTab(ancho);
+
+    contenedorRef.current?.measureInWindow((x) => {
+      origenXRef.current = x;
+    });
+  };
+
+  // Lleva el cristal hasta la posición del dedo (coordenada X de pantalla).
+  const seguirDedo = (pantallaX: number) => {
+    const ancho = anchoTabRef.current;
+    if (!ancho) return;
+
+    const local = pantallaX - origenXRef.current - RELLENO_BARRA;
+    const fraccion = limitar(local / ancho - 0.5, 0, TOTAL - 1);
+
+    posicion.setValue(fraccion);
+    marcarVista(Math.round(fraccion));
+  };
+
+  const soltar = (cancelado: boolean) => {
+    arrastrandoRef.current = false;
+
+    Animated.spring(escala, {
+      toValue: 1,
+      useNativeDriver: true,
+      friction: 6,
+    }).start();
+
+    // Si el sistema cancela el gesto, se vuelve a la pestaña actual.
+    const destino = cancelado ? indiceActivoRef.current : indiceVistaRef.current;
+
+    marcarVista(destino);
+    animarA(destino);
+
+    if (!cancelado && destino !== indiceActivoRef.current) {
+      navegarRef.current(destino);
+    }
+  };
+
+  // Arrastrar el dedo sobre la barra mueve el cristal; al soltar se abre la pestaña más cercana.
+  const responderArrastre = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+
+      // "Capture" permite quitarle el gesto a los botones cuando el dedo se desliza.
+      onMoveShouldSetPanResponderCapture: (_, gesto) =>
+        Math.abs(gesto.dx) > UMBRAL_ARRASTRE &&
+        Math.abs(gesto.dx) > Math.abs(gesto.dy) * 1.2,
+
+      onPanResponderTerminationRequest: () => false,
+
+      onPanResponderGrant: (_, gesto) => {
+        arrastrandoRef.current = true;
+
+        contenedorRef.current?.measureInWindow((x) => {
+          origenXRef.current = x;
+        });
+
+        // El cristal crece un poco mientras se arrastra, como en iOS.
+        Animated.spring(escala, {
+          toValue: 1.12,
+          useNativeDriver: true,
+          friction: 6,
+        }).start();
+
+        seguirDedo(gesto.moveX);
+      },
+
+      onPanResponderMove: (_, gesto) => seguirDedo(gesto.moveX),
+
+      onPanResponderRelease: () => soltar(false),
+
+      onPanResponderTerminate: () => soltar(true),
+    }),
+  ).current;
+
+  const manejarPestaña = (indice: number) => {
+    marcarVista(indice);
+    animarA(indice);
     navegarAIndice(indice);
   };
 
-  // Gesto horizontal para avanzar o retroceder entre pestañas.
-  const responderDeslizamiento = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gesto) =>
-        Math.abs(gesto.dx) > 12 &&
-        Math.abs(gesto.dx) > Math.abs(gesto.dy) * 1.2,
-
-      onPanResponderRelease: (_, gesto) => {
-        if (Math.abs(gesto.dx) < DISTANCIA_DESLIZAMIENTO) {
-          return;
-        }
-
-        const indiceActual = indiceActivoRef.current;
-
-        if (gesto.dx < 0) {
-          // Deslizar hacia la izquierda: siguiente pestaña.
-          navegarAIndice(indiceActual + 1);
-        } else {
-          // Deslizar hacia la derecha: pestaña anterior.
-          navegarAIndice(indiceActual - 1);
-        }
-      },
-    }),
-  ).current;
+  const desplazamiento = useMemo(
+    () =>
+      posicion.interpolate({
+        inputRange: [0, TOTAL - 1],
+        outputRange: [RELLENO_BARRA, RELLENO_BARRA + (TOTAL - 1) * anchoTab],
+        extrapolate: "clamp",
+      }),
+    [posicion, anchoTab],
+  );
 
   return (
     <View style={styles.barraNavegacion}>
@@ -104,11 +224,42 @@ export default function BarraNavegacion() {
         <View style={styles.lineaLuzBarra} />
 
         <View
+          ref={contenedorRef}
+          onLayout={alAjustarBarra}
           style={styles.elementosBarra}
-          {...responderDeslizamiento.panHandlers}
+          {...responderArrastre.panHandlers}
         >
-          {PESTAÑAS.map((pestaña) => {
-            const activa = pestañaActiva === pestaña.id;
+          {/* Cristal que se desliza entre pestañas y sigue al dedo */}
+          {anchoTab > 0 && (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.marcador,
+                {
+                  width: anchoTab,
+                  transform: [{ translateX: desplazamiento }, { scale: escala }],
+                },
+              ]}
+            >
+              <View style={styles.cristalActivo}>
+                <LinearGradient
+                  colors={[
+                    "rgba(255,255,255,0.30)",
+                    "rgba(255,255,255,0.11)",
+                    "rgba(255,255,255,0.04)",
+                  ]}
+                  style={StyleSheet.absoluteFill}
+                />
+              </View>
+
+              <View
+                style={[styles.indicadorActivo, { left: (anchoTab - 18) / 2 }]}
+              />
+            </Animated.View>
+          )}
+
+          {PESTAÑAS.map((pestaña, indice) => {
+            const activa = indiceVista === indice;
 
             return (
               <Pressable
@@ -117,24 +268,11 @@ export default function BarraNavegacion() {
                   styles.elementoNavegacion,
                   pressed && styles.presionado,
                 ]}
-                onPress={() => manejarPestaña(pestaña.id)}
+                onPress={() => manejarPestaña(indice)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: activa }}
                 accessibilityLabel={pestaña.id}
               >
-                {activa && (
-                  <View style={styles.cristalActivo}>
-                    <LinearGradient
-                      colors={[
-                        "rgba(255,255,255,0.30)",
-                        "rgba(255,255,255,0.11)",
-                        "rgba(255,255,255,0.04)",
-                      ]}
-                      style={StyleSheet.absoluteFill}
-                    />
-                  </View>
-                )}
-
                 <Text
                   style={[
                     styles.simboloNavegacion,
@@ -152,8 +290,6 @@ export default function BarraNavegacion() {
                 >
                   {pestaña.id}
                 </Text>
-
-                {activa && <View style={styles.indicadorActivo} />}
               </Pressable>
             );
           })}
@@ -222,8 +358,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
-    paddingHorizontal: 4,
+    paddingHorizontal: RELLENO_BARRA,
     zIndex: 1,
+  },
+
+  // Contenedor animado del cristal: ocupa el alto de la barra y mide lo mismo que una pestaña.
+  marcador: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
   },
 
   elementoNavegacion: {
