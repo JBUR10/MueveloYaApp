@@ -1,7 +1,7 @@
 // src/app/servicios.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,9 +15,85 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
 import { registrarServicio } from "../services/servicioService";
+import {
+  obtenerUbicaciones,
+  useUbicaciones,
+  type PuntoMapa,
+} from "../services/ubicacionStore";
+
+type Rol = "origen" | "destino";
+type Coords = { lat: number; lng: number };
+
+/** "Cra 43A 10-50, El Poblado" -> { direccion: "Cra 43A 10-50", barrio: "El Poblado" } */
+function separarDireccion(nombre: string) {
+  const i = nombre.indexOf(",");
+  if (i === -1) return { direccion: nombre.trim(), barrio: "" };
+  return {
+    direccion: nombre.slice(0, i).trim(),
+    barrio: nombre.slice(i + 1).trim(),
+  };
+}
+
+/** Botones para traer la ubicación del mapa o marcarla allí. */
+function AccionesMapa({
+  disponible,
+  textoTraer,
+  textoMarcar,
+  tieneExacto,
+  onTraer,
+  onMarcar,
+  onQuitar,
+}: {
+  disponible: PuntoMapa | null;
+  textoTraer: string;
+  textoMarcar: string;
+  tieneExacto: boolean;
+  onTraer: () => void;
+  onMarcar: () => void;
+  onQuitar: () => void;
+}) {
+  return (
+    <View style={styles.accionesMapa}>
+      <View style={styles.filaChips}>
+        {!!disponible && (
+          <TouchableOpacity
+            style={[styles.chip, styles.chipAzul]}
+            onPress={onTraer}
+          >
+            <Text style={[styles.chipTexto, styles.chipTextoAzul]}>
+              {textoTraer}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity style={styles.chip} onPress={onMarcar}>
+          <Text style={styles.chipTexto}>{textoMarcar}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {!!disponible && (
+        <Text style={styles.chipPista} numberOfLines={1}>
+          {disponible.nombre}
+        </Text>
+      )}
+
+      {tieneExacto && (
+        <View style={styles.filaExacto}>
+          <Text style={styles.textoExacto}>
+            ✓ Punto exacto del mapa guardado
+          </Text>
+          <TouchableOpacity onPress={onQuitar} hitSlop={10}>
+            <Text style={styles.textoQuitar}>Quitar</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
 
 export default function ServiciosScreen() {
   const router = useRouter();
+  const ubic = useUbicaciones();
 
   // Control de Pasos (Wizard Slide): 1, 2, 3, 4
   const [paso, setPaso] = useState(1);
@@ -30,6 +106,10 @@ export default function ServiciosScreen() {
   const [origenBarrio, setOrigenBarrio] = useState("");
   const [destinoDireccion, setDestinoDireccion] = useState("");
   const [destinoBarrio, setDestinoBarrio] = useState("");
+
+  // Coordenadas exactas cuando el punto viene del mapa
+  const [origenPunto, setOrigenPunto] = useState<Coords | null>(null);
+  const [destinoPunto, setDestinoPunto] = useState<Coords | null>(null);
 
   // Nuevo: Tipo de Programación
   const [tipoProgramacion, setTipoProgramacion] = useState<
@@ -45,6 +125,45 @@ export default function ServiciosScreen() {
   const [telefonoContacto, setTelefonoContacto] = useState("");
 
   const [loading, setLoading] = useState(false);
+
+  // Llena los campos de recogida o entrega con un punto del mapa.
+  const aplicarPunto = useCallback((rol: Rol, punto: PuntoMapa) => {
+    const { direccion, barrio } = separarDireccion(punto.nombre);
+    const coords = { lat: punto.lat, lng: punto.lng };
+
+    if (rol === "origen") {
+      setOrigenDireccion(direccion);
+      setOrigenBarrio(barrio);
+      setOrigenPunto(coords);
+    } else {
+      setDestinoDireccion(direccion);
+      setDestinoBarrio(barrio);
+      setDestinoPunto(coords);
+    }
+  }, []);
+
+  // Abre el mapa en modo "ubicar punto" y, al volver, aplica el punto marcado.
+  const esperando = useRef<Rol | null>(null);
+
+  const marcarEnMapa = (rol: Rol) => {
+    esperando.current = rol;
+    router.push({ pathname: "/", params: { seleccionar: rol } });
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      const rol = esperando.current;
+      if (!rol) return;
+      esperando.current = null;
+
+      const guardadas = obtenerUbicaciones();
+      const punto = rol === "origen" ? guardadas.origen : guardadas.destino;
+      if (punto) aplicarPunto(rol, punto);
+    }, [aplicarPunto]),
+  );
+
+  // Punto de recogida disponible: el marcado a mano o, si no hay, la ubicación actual.
+  const origenDisponible = ubic.origen ?? ubic.miUbicacion;
 
   const handleSiguiente = () => {
     if (paso === 2 && (!origenDireccion.trim() || !destinoDireccion.trim())) {
@@ -83,8 +202,14 @@ export default function ServiciosScreen() {
 
       const payload = {
         tipoServicio,
-        origen: `${origenDireccion.trim()}, ${origenBarrio.trim()}`,
-        destino: `${destinoDireccion.trim()}, ${destinoBarrio.trim()}`,
+        origen: [origenDireccion.trim(), origenBarrio.trim()]
+          .filter(Boolean)
+          .join(", "),
+        destino: [destinoDireccion.trim(), destinoBarrio.trim()]
+          .filter(Boolean)
+          .join(", "),
+        origenCoords: origenPunto,
+        destinoCoords: destinoPunto,
         tipoProgramacion,
         fechaProgramada:
           tipoProgramacion === "programado"
@@ -127,6 +252,7 @@ export default function ServiciosScreen() {
         <ScrollView
           style={styles.container}
           contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Barra superior con Botón Retroceder y Pasos */}
           <View style={styles.topBar}>
@@ -192,6 +318,25 @@ export default function ServiciosScreen() {
 
               <View style={styles.cardSection}>
                 <Text style={styles.labelPointBlue}>● Punto de Recogida</Text>
+
+                <AccionesMapa
+                  disponible={origenDisponible}
+                  textoTraer={
+                    ubic.origen
+                      ? "Traer punto marcado"
+                      : "Usar mi ubicación actual"
+                  }
+                  textoMarcar={
+                    ubic.origen ? "Cambiar en el mapa" : "Marcar en el mapa"
+                  }
+                  tieneExacto={!!origenPunto}
+                  onTraer={() =>
+                    origenDisponible && aplicarPunto("origen", origenDisponible)
+                  }
+                  onMarcar={() => marcarEnMapa("origen")}
+                  onQuitar={() => setOrigenPunto(null)}
+                />
+
                 <TextInput
                   style={styles.input}
                   placeholder="Dirección (Ej: Calle 45 # 70-20)"
@@ -210,6 +355,21 @@ export default function ServiciosScreen() {
 
               <View style={styles.cardSection}>
                 <Text style={styles.labelPointGreen}>● Punto de Entrega</Text>
+
+                <AccionesMapa
+                  disponible={ubic.destino}
+                  textoTraer="Traer destino del mapa"
+                  textoMarcar={
+                    ubic.destino ? "Cambiar en el mapa" : "Marcar en el mapa"
+                  }
+                  tieneExacto={!!destinoPunto}
+                  onTraer={() =>
+                    ubic.destino && aplicarPunto("destino", ubic.destino)
+                  }
+                  onMarcar={() => marcarEnMapa("destino")}
+                  onQuitar={() => setDestinoPunto(null)}
+                />
+
                 <TextInput
                   style={styles.input}
                   placeholder="Dirección (Ej: Carrera 80 # 30-15)"
@@ -545,6 +705,58 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 12,
   },
+
+  // Acciones del mapa (traer / marcar)
+  accionesMapa: {
+    marginBottom: 12,
+  },
+  filaChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#374151",
+    backgroundColor: "#0b0e14",
+  },
+  chipAzul: {
+    borderColor: "#3b82f6",
+    backgroundColor: "#1e293b",
+  },
+  chipTexto: {
+    color: "#d1d5db",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  chipTextoAzul: {
+    color: "#60a5fa",
+  },
+  chipPista: {
+    color: "#6b7280",
+    fontSize: 11,
+    marginTop: 8,
+  },
+  filaExacto: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  textoExacto: {
+    color: "#34d399",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  textoQuitar: {
+    color: "#9ca3af",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+
   inputLabel: {
     color: "#d1d5db",
     fontSize: 12,
