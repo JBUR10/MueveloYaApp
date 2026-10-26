@@ -1,6 +1,7 @@
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -19,6 +20,12 @@ import MapaPrincipal, {
   Destino,
   InfoRuta,
 } from "../components/ui/MapaPrincipal";
+import {
+  guardarDestino,
+  guardarMiUbicacion,
+  guardarOrigen,
+  obtenerUbicaciones,
+} from "../services/ubicacionStore";
 
 const AZUL = "#2969e9";
 const FONDO = "#111318";
@@ -76,8 +83,19 @@ async function obtenerDireccion({ lat, lng }: Coordenadas): Promise<string> {
 }
 
 export default function HomeScreen() {
+  const router = useRouter();
+
+  // Cuando se llega desde "Servicios" con ?seleccionar=origen|destino, la pantalla
+  // abre directo el modo "ubicar en el mapa" y al confirmar regresa a Servicios.
+  const { seleccionar } = useLocalSearchParams<{ seleccionar?: string }>();
+  const rol: "origen" | "destino" | null =
+    seleccionar === "origen" || seleccionar === "destino" ? seleccionar : null;
+
   const [nombreUbicacion, setNombreUbicacion] = useState("");
-  const [destino, setDestino] = useState<Destino | null>(null);
+  // Si ya había un destino marcado, se recupera (así no se pierde al cambiar de pantalla).
+  const [destino, setDestino] = useState<Destino | null>(() =>
+    rol === "origen" ? null : obtenerUbicaciones().destino,
+  );
   const [infoRuta, setInfoRuta] = useState<InfoRuta | null>(null);
 
   // Modo "ubicar punto manualmente"
@@ -101,6 +119,13 @@ export default function HomeScreen() {
 
     const direccion = await obtenerDireccion(coords);
     if (direccion) setNombreUbicacion(direccion);
+
+    // Se guarda para poder usarla como punto de recogida en "Servicios".
+    guardarMiUbicacion({
+      lat: coords.lat,
+      lng: coords.lng,
+      nombre: direccion || "Mi ubicación actual",
+    });
   };
 
   // Cada vez que el usuario suelta el mapa, se espera un momento y se busca la dirección.
@@ -128,10 +153,34 @@ export default function HomeScreen() {
     setSeleccionando(true);
   };
 
+  // Llegó desde "Servicios": abre el modo selección automáticamente.
+  useEffect(() => {
+    if (rol) iniciarSeleccion();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Vuelve a la pantalla de Servicios (conserva lo que el usuario ya había escrito).
+  const volverAServicios = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/servicios");
+  };
+
+  const elegirDestino = (punto: Destino) => {
+    setDestino(punto);
+    guardarDestino(punto);
+  };
+
+  const limpiarDestino = () => {
+    setDestino(null);
+    setInfoRuta(null);
+    guardarDestino(null);
+  };
+
   const cancelarSeleccion = () => {
     peticion.current++;
     if (temporizador.current) clearTimeout(temporizador.current);
     setSeleccionando(false);
+    if (rol) volverAServicios();
   };
 
   const confirmarPunto = async () => {
@@ -143,10 +192,26 @@ export default function HomeScreen() {
     if (temporizador.current) clearTimeout(temporizador.current);
 
     const nombre = (await obtenerDireccion(c)) || "Punto en el mapa";
-    setDestino({ lat: c.lat, lng: c.lng, nombre });
+    const punto = { lat: c.lat, lng: c.lng, nombre };
+
+    if (rol === "origen") {
+      guardarOrigen(punto);
+    } else {
+      elegirDestino(punto);
+    }
+
     setSeleccionando(false);
     setConfirmando(false);
+
+    if (rol) volverAServicios();
   };
+
+  const tituloSeleccion =
+    rol === "origen"
+      ? "Mueve el mapa para ubicar el punto de recogida"
+      : rol === "destino"
+        ? "Mueve el mapa para ubicar el punto de entrega"
+        : "Mueve el mapa para ubicar el punto exacto";
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
@@ -196,7 +261,8 @@ export default function HomeScreen() {
               "rgba(255,255,255,0.04)",
             ]}
             locations={[0, 0.45, 1]}
-            style={styles.cristalUbicacion}>
+            style={styles.cristalUbicacion}
+          >
             <LinearGradient
               colors={[
                 "rgba(255,255,255,0.28)",
@@ -228,20 +294,15 @@ export default function HomeScreen() {
           destino={destino}
           info={infoRuta}
           oculto={seleccionando}
-          onSeleccionar={setDestino}
+          onSeleccionar={elegirDestino}
           onUbicarManual={iniciarSeleccion}
-          onLimpiar={() => {
-            setDestino(null);
-            setInfoRuta(null);
-          }}
+          onLimpiar={limpiarDestino}
         />
 
         {/* Modo selección manual: panel de confirmar. Si no, barra de navegación. */}
         {seleccionando ? (
           <View style={styles.panelPunto}>
-            <Text style={styles.tituloPunto}>
-              Mueve el mapa para ubicar el punto exacto
-            </Text>
+            <Text style={styles.tituloPunto}>{tituloSeleccion}</Text>
             <Text style={styles.direccionPunto} numberOfLines={2}>
               {direccionPunto || "Buscando dirección…"}
             </Text>
@@ -249,7 +310,8 @@ export default function HomeScreen() {
             <View style={styles.botonesPunto}>
               <Pressable
                 style={styles.botonCancelar}
-                onPress={cancelarSeleccion}>
+                onPress={cancelarSeleccion}
+              >
                 <Text style={styles.textoCancelar}>Cancelar</Text>
               </Pressable>
 

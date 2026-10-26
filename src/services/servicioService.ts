@@ -6,6 +6,9 @@ export interface SolicitudServicioDTO {
   tipoServicio: string;
   origen: string;
   destino: string;
+  /** Coordenadas exactas si el punto se marcó en el mapa. */
+  origenCoords?: { lat: number; lng: number } | null;
+  destinoCoords?: { lat: number; lng: number } | null;
   tipoProgramacion?: "inmediato" | "programado";
   fechaProgramada?: string;
   descripcion: string;
