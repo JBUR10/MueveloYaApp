@@ -3,8 +3,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -16,11 +16,88 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
 import { registrarServicio } from "../services/servicioService";
+import {
+  obtenerUbicaciones,
+  useUbicaciones,
+  type PuntoMapa,
+} from "../services/ubicacionStore";
+
+type Rol = "origen" | "destino";
+type Coords = { lat: number; lng: number };
+
+/** "Cra 43A 10-50, El Poblado" -> { direccion: "Cra 43A 10-50", barrio: "El Poblado" } */
+function separarDireccion(nombre: string) {
+  const i = nombre.indexOf(",");
+  if (i === -1) return { direccion: nombre.trim(), barrio: "" };
+  return {
+    direccion: nombre.slice(0, i).trim(),
+    barrio: nombre.slice(i + 1).trim(),
+  };
+}
+
+/** Botones para traer la ubicación del mapa o marcarla allí. */
+function AccionesMapa({
+  disponible,
+  textoTraer,
+  textoMarcar,
+  tieneExacto,
+  onTraer,
+  onMarcar,
+  onQuitar,
+}: {
+  disponible: PuntoMapa | null;
+  textoTraer: string;
+  textoMarcar: string;
+  tieneExacto: boolean;
+  onTraer: () => void;
+  onMarcar: () => void;
+  onQuitar: () => void;
+}) {
+  return (
+    <View style={styles.accionesMapa}>
+      <View style={styles.filaChips}>
+        {!!disponible && (
+          <TouchableOpacity
+            style={[styles.chip, styles.chipAzul]}
+            onPress={onTraer}
+          >
+            <Text style={[styles.chipTexto, styles.chipTextoAzul]}>
+              {textoTraer}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity style={styles.chip} onPress={onMarcar}>
+          <Text style={styles.chipTexto}>{textoMarcar}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {!!disponible && (
+        <Text style={styles.chipPista} numberOfLines={1}>
+          {disponible.nombre}
+        </Text>
+      )}
+
+      {tieneExacto && (
+        <View style={styles.filaExacto}>
+          <Text style={styles.textoExacto}>
+            ✓ Punto exacto del mapa guardado
+          </Text>
+          <TouchableOpacity onPress={onQuitar} hitSlop={10}>
+            <Text style={styles.textoQuitar}>Quitar</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
 
 export default function ServiciosScreen() {
   const router = useRouter();
+  const ubic = useUbicaciones();
 
   // Control de Pasos (Wizard Slide): 1, 2, 3, 4
   const [paso, setPaso] = useState(1);
@@ -33,6 +110,10 @@ export default function ServiciosScreen() {
   const [origenBarrio, setOrigenBarrio] = useState("");
   const [destinoDireccion, setDestinoDireccion] = useState("");
   const [destinoBarrio, setDestinoBarrio] = useState("");
+
+  // Coordenadas exactas cuando el punto viene del mapa
+  const [origenPunto, setOrigenPunto] = useState<Coords | null>(null);
+  const [destinoPunto, setDestinoPunto] = useState<Coords | null>(null);
 
   // Tipo de Programación
   const [tipoProgramacion, setTipoProgramacion] = useState<
@@ -94,6 +175,8 @@ export default function ServiciosScreen() {
     setOrigenBarrio("");
     setDestinoDireccion("");
     setDestinoBarrio("");
+    setOrigenPunto(null);
+    setDestinoPunto(null);
     setTipoProgramacion("inmediato");
     setFechaSeleccionada(new Date());
     setHoraSeleccionada(new Date());
@@ -141,6 +224,45 @@ export default function ServiciosScreen() {
     }
   };
 
+  // Llena los campos de recogida o entrega con un punto del mapa.
+  const aplicarPunto = useCallback((rol: Rol, punto: PuntoMapa) => {
+    const { direccion, barrio } = separarDireccion(punto.nombre);
+    const coords = { lat: punto.lat, lng: punto.lng };
+
+    if (rol === "origen") {
+      setOrigenDireccion(direccion);
+      setOrigenBarrio(barrio);
+      setOrigenPunto(coords);
+    } else {
+      setDestinoDireccion(direccion);
+      setDestinoBarrio(barrio);
+      setDestinoPunto(coords);
+    }
+  }, []);
+
+  // Abre el mapa en modo "ubicar punto" y, al volver, aplica el punto marcado.
+  const esperando = useRef<Rol | null>(null);
+
+  const marcarEnMapa = (rol: Rol) => {
+    esperando.current = rol;
+    router.push({ pathname: "/", params: { seleccionar: rol } });
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      const rol = esperando.current;
+      if (!rol) return;
+      esperando.current = null;
+
+      const guardadas = obtenerUbicaciones();
+      const punto = rol === "origen" ? guardadas.origen : guardadas.destino;
+      if (punto) aplicarPunto(rol, punto);
+    }, [aplicarPunto]),
+  );
+
+  // Punto de recogida disponible: el marcado a mano o, si no hay, la ubicación actual.
+  const origenDisponible = ubic.origen ?? ubic.miUbicacion;
+
   const handleSiguiente = () => {
     if (paso === 2 && (!origenDireccion.trim() || !destinoDireccion.trim())) {
       mostrarAlertaPantalla(
@@ -182,8 +304,14 @@ export default function ServiciosScreen() {
 
       const payload = {
         tipoServicio,
-        origen: `${origenDireccion.trim()}, ${origenBarrio.trim()}`,
-        destino: `${destinoDireccion.trim()}, ${destinoBarrio.trim()}`,
+        origen: [origenDireccion.trim(), origenBarrio.trim()]
+          .filter(Boolean)
+          .join(", "),
+        destino: [destinoDireccion.trim(), destinoBarrio.trim()]
+          .filter(Boolean)
+          .join(", "),
+        origenCoords: origenPunto,
+        destinoCoords: destinoPunto,
         tipoProgramacion,
         fechaProgramada:
           tipoProgramacion === "programado"
@@ -229,416 +357,472 @@ export default function ServiciosScreen() {
   ];
 
   return (
-    <View style={styles.mainContainer}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
-      >
-        {/* Barra superior con Botón Retroceder y Pasos */}
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={handleAnterior} style={styles.btnBack}>
-            <Text style={styles.btnBackText}>← Volver</Text>
-          </TouchableOpacity>
-          <Text style={styles.stepIndicator}>Paso {paso} de 4</Text>
-        </View>
+    // Misma estructura que la pantalla principal y solicitudes: así la barra de
+    // navegación queda en la misma posición.
+    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+      <View style={styles.mainContainer}>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Barra superior con Botón Retroceder y Pasos */}
+          <View style={styles.topBar}>
+            <TouchableOpacity onPress={handleAnterior} style={styles.btnBack}>
+              <Text style={styles.btnBackText}>← Volver</Text>
+            </TouchableOpacity>
+            <Text style={styles.stepIndicator}>Paso {paso} de 4</Text>
+          </View>
 
-        {/* Encabezado */}
-        <View style={styles.headerContainer}>
-          <Text style={styles.subtitleHeader}>SOLICITUD EN LÍNEA</Text>
-          <Text style={styles.titleHeader}>
-            Solicitar <Text style={styles.titleHighlight}>Servicio</Text>
-          </Text>
-        </View>
+          {/* Encabezado */}
+          <View style={styles.headerContainer}>
+            <Text style={styles.subtitleHeader}>SOLICITUD EN LÍNEA</Text>
+            <Text style={styles.titleHeader}>
+              Solicitar <Text style={styles.titleHighlight}>Servicio</Text>
+            </Text>
+          </View>
 
-        {/* ================= PASO 1: TIPO DE SERVICIO ================= */}
-        {paso === 1 && (
-          <View>
-            <Text style={styles.sectionTitle}>1. ¿QUÉ NECESITAS MOVER?</Text>
-            <View style={styles.gridServicios}>
-              {serviciosList.map((item) => {
-                const isSelected = tipoServicio === item.id;
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    onPress={() => setTipoServicio(item.id as any)}
-                    style={[
-                      styles.cardServicio,
-                      isSelected
-                        ? styles.cardServicioSelected
-                        : styles.cardServicioNormal,
-                    ]}
-                  >
-                    <Text
+          {/* ================= PASO 1: TIPO DE SERVICIO ================= */}
+          {paso === 1 && (
+            <View>
+              <Text style={styles.sectionTitle}>1. ¿QUÉ NECESITAS MOVER?</Text>
+              <View style={styles.gridServicios}>
+                {serviciosList.map((item) => {
+                  const isSelected = tipoServicio === item.id;
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      onPress={() => setTipoServicio(item.id as any)}
                       style={[
-                        styles.cardTitle,
-                        isSelected && styles.textHighlight,
+                        styles.cardServicio,
+                        isSelected
+                          ? styles.cardServicioSelected
+                          : styles.cardServicioNormal,
                       ]}
                     >
-                      {item.label}
-                    </Text>
-                    <Text style={styles.cardDesc}>{item.desc}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <TouchableOpacity style={styles.btnNext} onPress={handleSiguiente}>
-              <Text style={styles.btnNextText}>Siguiente →</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* ================= PASO 2: ORIGEN Y DESTINO ================= */}
-        {paso === 2 && (
-          <View>
-            <Text style={styles.sectionTitle}>2. RUTA DEL SERVICIO</Text>
-
-            <View style={styles.cardSection}>
-              <Text style={styles.labelPointBlue}>● Punto de Recogida</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Dirección (Ej: Calle 45 # 70-20)"
-                placeholderTextColor="#6b7280"
-                value={origenDireccion}
-                onChangeText={setOrigenDireccion}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Barrio o Municipio (Ej: Laureles)"
-                placeholderTextColor="#6b7280"
-                value={origenBarrio}
-                onChangeText={setOrigenBarrio}
-              />
-            </View>
-
-            <View style={styles.cardSection}>
-              <Text style={styles.labelPointGreen}>● Punto de Entrega</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Dirección (Ej: Carrera 80 # 30-15)"
-                placeholderTextColor="#6b7280"
-                value={destinoDireccion}
-                onChangeText={setDestinoDireccion}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Barrio o Municipio (Ej: Poblado)"
-                placeholderTextColor="#6b7280"
-                value={destinoBarrio}
-                onChangeText={setDestinoBarrio}
-              />
-            </View>
-
-            <TouchableOpacity style={styles.btnNext} onPress={handleSiguiente}>
-              <Text style={styles.btnNextText}>Siguiente →</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* ================= PASO 3: INMEDIATO O PROGRAMADO ================= */}
-        {paso === 3 && (
-          <View>
-            <Text style={styles.sectionTitle}>3. ¿CUÁNDO LO NECESITAS?</Text>
-
-            <View style={styles.gridServicios}>
-              <TouchableOpacity
-                onPress={() => setTipoProgramacion("inmediato")}
-                style={[
-                  styles.cardServicio,
-                  tipoProgramacion === "inmediato"
-                    ? styles.cardServicioSelected
-                    : styles.cardServicioNormal,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.cardTitle,
-                    tipoProgramacion === "inmediato" && styles.textHighlight,
-                  ]}
-                >
-                  ⚡ Inmediato
-                </Text>
-                <Text style={styles.cardDesc}>Recogida lo antes posible</Text>
-              </TouchableOpacity>
+                      <Text
+                        style={[
+                          styles.cardTitle,
+                          isSelected && styles.textHighlight,
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
+                      <Text style={styles.cardDesc}>{item.desc}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
 
               <TouchableOpacity
-                onPress={() => setTipoProgramacion("programado")}
-                style={[
-                  styles.cardServicio,
-                  tipoProgramacion === "programado"
-                    ? styles.cardServicioSelected
-                    : styles.cardServicioNormal,
-                ]}
+                style={styles.btnNext}
+                onPress={handleSiguiente}
               >
-                <Text
-                  style={[
-                    styles.cardTitle,
-                    tipoProgramacion === "programado" && styles.textHighlight,
-                  ]}
-                >
-                  📅 Programado
-                </Text>
-                <Text style={styles.cardDesc}>Elegir fecha y hora</Text>
+                <Text style={styles.btnNextText}>Siguiente →</Text>
               </TouchableOpacity>
             </View>
+          )}
 
-            {tipoProgramacion === "programado" && (
+          {/* ================= PASO 2: ORIGEN Y DESTINO ================= */}
+          {paso === 2 && (
+            <View>
+              <Text style={styles.sectionTitle}>2. RUTA DEL SERVICIO</Text>
+
               <View style={styles.cardSection}>
-                <Text style={styles.inputLabel}>Fecha del servicio</Text>
-                {Platform.OS === "web" ? (
-                  <input
-                    type="date"
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        const [yyyy, mm, dd] = e.target.value.split("-");
-                        const d = new Date(
-                          Number(yyyy),
-                          Number(mm) - 1,
-                          Number(dd),
-                        );
-                        setFechaSeleccionada(d);
-                        setFechaEstablecida(true);
-                      }
-                    }}
-                    style={{
-                      backgroundColor: "#0b0e14",
-                      color: "#ffffff",
-                      padding: "12px",
-                      borderRadius: "12px",
-                      border: "1px solid #1f2937",
-                      marginBottom: "12px",
-                      fontSize: "14px",
-                      width: "100%",
-                      boxSizing: "border-box",
-                      colorScheme: "dark",
-                    }}
-                  />
-                ) : (
-                  <TouchableOpacity
-                    style={styles.pickerSelectorButton}
-                    onPress={() => setShowDatePicker(true)}
+                <Text style={styles.labelPointBlue}>● Punto de Recogida</Text>
+
+                <AccionesMapa
+                  disponible={origenDisponible}
+                  textoTraer={
+                    ubic.origen
+                      ? "Traer punto marcado"
+                      : "Usar mi ubicación actual"
+                  }
+                  textoMarcar={
+                    ubic.origen ? "Cambiar en el mapa" : "Marcar en el mapa"
+                  }
+                  tieneExacto={!!origenPunto}
+                  onTraer={() =>
+                    origenDisponible && aplicarPunto("origen", origenDisponible)
+                  }
+                  onMarcar={() => marcarEnMapa("origen")}
+                  onQuitar={() => setOrigenPunto(null)}
+                />
+
+                <TextInput
+                  style={styles.input}
+                  placeholder="Dirección (Ej: Calle 45 # 70-20)"
+                  placeholderTextColor="#6b7280"
+                  value={origenDireccion}
+                  onChangeText={setOrigenDireccion}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Barrio o Municipio (Ej: Laureles)"
+                  placeholderTextColor="#6b7280"
+                  value={origenBarrio}
+                  onChangeText={setOrigenBarrio}
+                />
+              </View>
+
+              <View style={styles.cardSection}>
+                <Text style={styles.labelPointGreen}>● Punto de Entrega</Text>
+
+                <AccionesMapa
+                  disponible={ubic.destino}
+                  textoTraer="Traer destino del mapa"
+                  textoMarcar={
+                    ubic.destino ? "Cambiar en el mapa" : "Marcar en el mapa"
+                  }
+                  tieneExacto={!!destinoPunto}
+                  onTraer={() =>
+                    ubic.destino && aplicarPunto("destino", ubic.destino)
+                  }
+                  onMarcar={() => marcarEnMapa("destino")}
+                  onQuitar={() => setDestinoPunto(null)}
+                />
+
+                <TextInput
+                  style={styles.input}
+                  placeholder="Dirección (Ej: Carrera 80 # 30-15)"
+                  placeholderTextColor="#6b7280"
+                  value={destinoDireccion}
+                  onChangeText={setDestinoDireccion}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Barrio o Municipio (Ej: Poblado)"
+                  placeholderTextColor="#6b7280"
+                  value={destinoBarrio}
+                  onChangeText={setDestinoBarrio}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.btnNext}
+                onPress={handleSiguiente}
+              >
+                <Text style={styles.btnNextText}>Siguiente →</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* ================= PASO 3: INMEDIATO O PROGRAMADO ================= */}
+          {paso === 3 && (
+            <View>
+              <Text style={styles.sectionTitle}>3. ¿CUÁNDO LO NECESITAS?</Text>
+
+              <View style={styles.gridServicios}>
+                <TouchableOpacity
+                  onPress={() => setTipoProgramacion("inmediato")}
+                  style={[
+                    styles.cardServicio,
+                    tipoProgramacion === "inmediato"
+                      ? styles.cardServicioSelected
+                      : styles.cardServicioNormal,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.cardTitle,
+                      tipoProgramacion === "inmediato" && styles.textHighlight,
+                    ]}
                   >
-                    <Text style={styles.pickerSelectorText}>
-                      {fechaEstablecida
-                        ? `📅 ${formatearFecha(fechaSeleccionada)}`
-                        : "📅 Seleccionar fecha en calendario"}
+                    ⚡ Inmediato
+                  </Text>
+                  <Text style={styles.cardDesc}>Recogida lo antes posible</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setTipoProgramacion("programado")}
+                  style={[
+                    styles.cardServicio,
+                    tipoProgramacion === "programado"
+                      ? styles.cardServicioSelected
+                      : styles.cardServicioNormal,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.cardTitle,
+                      tipoProgramacion === "programado" && styles.textHighlight,
+                    ]}
+                  >
+                    📅 Programado
+                  </Text>
+                  <Text style={styles.cardDesc}>Elegir fecha y hora</Text>
+                </TouchableOpacity>
+              </View>
+
+              {tipoProgramacion === "programado" && (
+                <View style={styles.cardSection}>
+                  <Text style={styles.inputLabel}>Fecha del servicio</Text>
+                  {Platform.OS === "web" ? (
+                    <input
+                      type="date"
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const [yyyy, mm, dd] = e.target.value.split("-");
+                          const d = new Date(
+                            Number(yyyy),
+                            Number(mm) - 1,
+                            Number(dd),
+                          );
+                          setFechaSeleccionada(d);
+                          setFechaEstablecida(true);
+                        }
+                      }}
+                      style={{
+                        backgroundColor: "#0b0e14",
+                        color: "#ffffff",
+                        padding: "12px",
+                        borderRadius: "12px",
+                        border: "1px solid #1f2937",
+                        marginBottom: "12px",
+                        fontSize: "14px",
+                        width: "100%",
+                        boxSizing: "border-box",
+                        colorScheme: "dark",
+                      }}
+                    />
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.pickerSelectorButton}
+                      onPress={() => setShowDatePicker(true)}
+                    >
+                      <Text style={styles.pickerSelectorText}>
+                        {fechaEstablecida
+                          ? `📅 ${formatearFecha(fechaSeleccionada)}`
+                          : "📅 Seleccionar fecha en calendario"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <Text style={styles.inputLabel}>Hora estimada</Text>
+                  {Platform.OS === "web" ? (
+                    <input
+                      type="time"
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const [hrs, mins] = e.target.value.split(":");
+                          const d = new Date();
+                          d.setHours(Number(hrs), Number(mins));
+                          setHoraSeleccionada(d);
+                          setHoraEstablecida(true);
+                        }
+                      }}
+                      style={{
+                        backgroundColor: "#0b0e14",
+                        color: "#ffffff",
+                        padding: "12px",
+                        borderRadius: "12px",
+                        border: "1px solid #1f2937",
+                        marginBottom: "12px",
+                        fontSize: "14px",
+                        width: "100%",
+                        boxSizing: "border-box",
+                        colorScheme: "dark",
+                      }}
+                    />
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.pickerSelectorButton}
+                      onPress={() => setShowTimePicker(true)}
+                    >
+                      <Text style={styles.pickerSelectorText}>
+                        {horaEstablecida
+                          ? `🕒 ${formatearHora(horaSeleccionada)}`
+                          : "🕒 Seleccionar hora en reloj"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Modales DateTimePicker para Android e iOS */}
+                  {showDatePicker && Platform.OS !== "web" && (
+                    <DateTimePicker
+                      value={fechaSeleccionada}
+                      mode="date"
+                      display="default"
+                      minimumDate={new Date()}
+                      onChange={onChangeFecha}
+                    />
+                  )}
+
+                  {showTimePicker && Platform.OS !== "web" && (
+                    <DateTimePicker
+                      value={horaSeleccionada}
+                      mode="time"
+                      is24Hour={false}
+                      display="default"
+                      onChange={onChangeHora}
+                    />
+                  )}
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={styles.btnNext}
+                onPress={handleSiguiente}
+              >
+                <Text style={styles.btnNextText}>Siguiente →</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* ================= PASO 4: AYUDANTES Y DETALLES FINALES ================= */}
+          {paso === 4 && (
+            <View>
+              <Text style={styles.sectionTitle}>4. DETALLES Y AYUDANTES</Text>
+
+              <View style={styles.cardSection}>
+                <Text style={styles.inputLabel}>¿Qué vamos a transportar?</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Ej: 1 nevera, 1 cama doble y 5 cajas..."
+                  placeholderTextColor="#6b7280"
+                  multiline
+                  textAlignVertical="top"
+                  value={descripcion}
+                  onChangeText={setDescripcion}
+                />
+
+                {/* Contador Ayudantes */}
+                <View style={styles.counterRow}>
+                  <View>
+                    <Text style={styles.counterTitle}>
+                      Ayudantes adicionales
                     </Text>
-                  </TouchableOpacity>
-                )}
+                    <Text style={styles.counterSub}>Carga y descarga</Text>
+                  </View>
+                  <View style={styles.counterControls}>
+                    <TouchableOpacity
+                      onPress={() => setAyudantes(Math.max(0, ayudantes - 1))}
+                      style={styles.btnCounterMinus}
+                    >
+                      <Text style={styles.btnCounterText}>-</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.counterValue}>{ayudantes}</Text>
+                    <TouchableOpacity
+                      onPress={() => setAyudantes(ayudantes + 1)}
+                      style={styles.btnCounterPlus}
+                    >
+                      <Text style={styles.btnCounterText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
 
-                <Text style={styles.inputLabel}>Hora estimada</Text>
-                {Platform.OS === "web" ? (
-                  <input
-                    type="time"
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        const [hrs, mins] = e.target.value.split(":");
-                        const d = new Date();
-                        d.setHours(Number(hrs), Number(mins));
-                        setHoraSeleccionada(d);
-                        setHoraEstablecida(true);
+                {/* Contador Escaleras */}
+                <View style={styles.counterRow}>
+                  <View>
+                    <Text style={styles.counterTitle}>Pisos por escaleras</Text>
+                    <Text style={styles.counterSub}>Sin ascensor</Text>
+                  </View>
+                  <View style={styles.counterControls}>
+                    <TouchableOpacity
+                      onPress={() =>
+                        setPisosEscaleras(Math.max(0, pisosEscaleras - 1))
                       }
-                    }}
-                    style={{
-                      backgroundColor: "#0b0e14",
-                      color: "#ffffff",
-                      padding: "12px",
-                      borderRadius: "12px",
-                      border: "1px solid #1f2937",
-                      marginBottom: "12px",
-                      fontSize: "14px",
-                      width: "100%",
-                      boxSizing: "border-box",
-                      colorScheme: "dark",
-                    }}
+                      style={styles.btnCounterMinus}
+                    >
+                      <Text style={styles.btnCounterText}>-</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.counterValue}>{pisosEscaleras}</Text>
+                    <TouchableOpacity
+                      onPress={() => setPisosEscaleras(pisosEscaleras + 1)}
+                      style={styles.btnCounterPlus}
+                    >
+                      <Text style={styles.btnCounterText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Contacto */}
+                <View style={styles.contactDivider}>
+                  <Text style={styles.inputLabel}>
+                    Contacto de quién recibe/entrega
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Nombre completo"
+                    placeholderTextColor="#6b7280"
+                    value={nombreContacto}
+                    onChangeText={setNombreContacto}
                   />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Teléfono (Ej: 300 000 0000)"
+                    placeholderTextColor="#6b7280"
+                    keyboardType="phone-pad"
+                    value={telefonoContacto}
+                    onChangeText={setTelefonoContacto}
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.btnSubmit}
+                disabled={loading}
+                onPress={handleSolicitar}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
                 ) : (
-                  <TouchableOpacity
-                    style={styles.pickerSelectorButton}
-                    onPress={() => setShowTimePicker(true)}
-                  >
-                    <Text style={styles.pickerSelectorText}>
-                      {horaEstablecida
-                        ? `🕒 ${formatearHora(horaSeleccionada)}`
-                        : "🕒 Seleccionar hora en reloj"}
-                    </Text>
-                  </TouchableOpacity>
+                  <Text style={styles.btnSubmitText}>
+                    CONFIRMAR Y SOLICITAR
+                  </Text>
                 )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </ScrollView>
 
-                {/* Modales DateTimePicker para Android e iOS */}
-                {showDatePicker && Platform.OS !== "web" && (
-                  <DateTimePicker
-                    value={fechaSeleccionada}
-                    mode="date"
-                    display="default"
-                    minimumDate={new Date()}
-                    onChange={onChangeFecha}
-                  />
-                )}
-
-                {showTimePicker && Platform.OS !== "web" && (
-                  <DateTimePicker
-                    value={horaSeleccionada}
-                    mode="time"
-                    is24Hour={false}
-                    display="default"
-                    onChange={onChangeHora}
-                  />
-                )}
-              </View>
-            )}
-
-            <TouchableOpacity style={styles.btnNext} onPress={handleSiguiente}>
-              <Text style={styles.btnNextText}>Siguiente →</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* ================= PASO 4: AYUDANTES Y DETALLES FINALES ================= */}
-        {paso === 4 && (
-          <View>
-            <Text style={styles.sectionTitle}>4. DETALLES Y AYUDANTES</Text>
-
-            <View style={styles.cardSection}>
-              <Text style={styles.inputLabel}>¿Qué vamos a transportar?</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Ej: 1 nevera, 1 cama doble y 5 cajas..."
-                placeholderTextColor="#6b7280"
-                multiline
-                textAlignVertical="top"
-                value={descripcion}
-                onChangeText={setDescripcion}
-              />
-
-              {/* Contador Ayudantes */}
-              <View style={styles.counterRow}>
-                <View>
-                  <Text style={styles.counterTitle}>Ayudantes adicionales</Text>
-                  <Text style={styles.counterSub}>Carga y descarga</Text>
-                </View>
-                <View style={styles.counterControls}>
-                  <TouchableOpacity
-                    onPress={() => setAyudantes(Math.max(0, ayudantes - 1))}
-                    style={styles.btnCounterMinus}
-                  >
-                    <Text style={styles.btnCounterText}>-</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.counterValue}>{ayudantes}</Text>
-                  <TouchableOpacity
-                    onPress={() => setAyudantes(ayudantes + 1)}
-                    style={styles.btnCounterPlus}
-                  >
-                    <Text style={styles.btnCounterText}>+</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Contador Escaleras */}
-              <View style={styles.counterRow}>
-                <View>
-                  <Text style={styles.counterTitle}>Pisos por escaleras</Text>
-                  <Text style={styles.counterSub}>Sin ascensor</Text>
-                </View>
-                <View style={styles.counterControls}>
-                  <TouchableOpacity
-                    onPress={() =>
-                      setPisosEscaleras(Math.max(0, pisosEscaleras - 1))
-                    }
-                    style={styles.btnCounterMinus}
-                  >
-                    <Text style={styles.btnCounterText}>-</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.counterValue}>{pisosEscaleras}</Text>
-                  <TouchableOpacity
-                    onPress={() => setPisosEscaleras(pisosEscaleras + 1)}
-                    style={styles.btnCounterPlus}
-                  >
-                    <Text style={styles.btnCounterText}>+</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Contacto */}
-              <View style={styles.contactDivider}>
-                <Text style={styles.inputLabel}>
-                  Contacto de quién recibe/entrega
+          {/* ================= MODAL DE ALERTA EN PANTALLA ================= */}
+          <Modal
+            animationType="fade"
+            transparent={true}
+            visible={modalVisible}
+            onRequestClose={cerrarAlerta}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContainer}>
+                <Text
+                  style={[
+                    styles.modalTitle,
+                    modalConfig.tipo === "exito" && styles.textExito,
+                    modalConfig.tipo === "error" && styles.textError,
+                  ]}
+                >
+                  {modalConfig.titulo}
                 </Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Nombre completo"
-                  placeholderTextColor="#6b7280"
-                  value={nombreContacto}
-                  onChangeText={setNombreContacto}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Teléfono (Ej: 300 000 0000)"
-                  placeholderTextColor="#6b7280"
-                  keyboardType="phone-pad"
-                  value={telefonoContacto}
-                  onChangeText={setTelefonoContacto}
-                />
+                <Text style={styles.modalMessage}>{modalConfig.mensaje}</Text>
+
+                <TouchableOpacity
+                  style={[
+                    styles.modalButton,
+                    modalConfig.tipo === "exito"
+                      ? styles.btnModalExito
+                      : styles.btnModalNormal,
+                  ]}
+                  onPress={cerrarAlerta}
+                >
+                  <Text style={styles.modalButtonText}>Aceptar</Text>
+                </TouchableOpacity>
               </View>
             </View>
+          </Modal>
 
-            <TouchableOpacity
-              style={styles.btnSubmit}
-              disabled={loading}
-              onPress={handleSolicitar}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.btnSubmitText}>CONFIRMAR Y SOLICITAR</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-      </ScrollView>
-
-      {/* ================= MODAL DE ALERTA EN PANTALLA ================= */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={cerrarAlerta}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text
-              style={[
-                styles.modalTitle,
-                modalConfig.tipo === "exito" && styles.textExito,
-                modalConfig.tipo === "error" && styles.textError,
-              ]}
-            >
-              {modalConfig.titulo}
-            </Text>
-            <Text style={styles.modalMessage}>{modalConfig.mensaje}</Text>
-
-            <TouchableOpacity
-              style={[
-                styles.modalButton,
-                modalConfig.tipo === "exito"
-                  ? styles.btnModalExito
-                  : styles.btnModalNormal,
-              ]}
-              onPress={cerrarAlerta}
-            >
-              <Text style={styles.modalButtonText}>Aceptar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Barra de Navegación fija abajo */}
-      <BarraNavegacion />
-    </View>
+        {/* Barra de Navegación fija abajo */}
+        <BarraNavegacion />
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#0b0e14",
+  },
   mainContainer: {
     flex: 1,
     backgroundColor: "#0b0e14",
@@ -649,8 +833,8 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingHorizontal: 16,
-    paddingTop: 30,
-    paddingBottom: 90,
+    paddingTop: 16, // el SafeAreaView ya reserva el espacio de la barra de estado
+    paddingBottom: 90, // Espacio para que la barra inferior no tape el botón final
   },
   topBar: {
     flexDirection: "row",
@@ -753,6 +937,58 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 12,
   },
+
+  // Acciones del mapa (traer / marcar)
+  accionesMapa: {
+    marginBottom: 12,
+  },
+  filaChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#374151",
+    backgroundColor: "#0b0e14",
+  },
+  chipAzul: {
+    borderColor: "#3b82f6",
+    backgroundColor: "#1e293b",
+  },
+  chipTexto: {
+    color: "#d1d5db",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  chipTextoAzul: {
+    color: "#60a5fa",
+  },
+  chipPista: {
+    color: "#6b7280",
+    fontSize: 11,
+    marginTop: 8,
+  },
+  filaExacto: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  textoExacto: {
+    color: "#34d399",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  textoQuitar: {
+    color: "#9ca3af",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+
   inputLabel: {
     color: "#d1d5db",
     fontSize: 12,
