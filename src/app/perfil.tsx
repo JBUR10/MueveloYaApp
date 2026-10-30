@@ -1,8 +1,10 @@
 import { BlurView } from "expo-blur";
+import { Href, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StatusBar,
@@ -13,9 +15,35 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import BarraNavegacion from "../components/ui/BarraNavegacion";
+import MensajeTemporal from "../components/ui/MensajeTemporal";
+import { cambiarModo, useModo } from "../services/modoStore";
 
 const AZUL = "#2969e9";
 const FONDO = "#111318";
+
+// Confirmación que también funciona en web (Alert con botones no existe allí).
+const confirmar = (
+  titulo: string,
+  mensaje: string,
+  textoAceptar: string,
+): Promise<boolean> => {
+  if (Platform.OS === "web") {
+    return Promise.resolve(window.confirm(`${titulo}
+
+${mensaje}`));
+  }
+  return new Promise((resolve) => {
+    Alert.alert(
+      titulo,
+      mensaje,
+      [
+        { text: "Cancelar", style: "cancel", onPress: () => resolve(false) },
+        { text: textoAceptar, onPress: () => resolve(true) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) },
+    );
+  });
+};
 
 const opciones = [
   {
@@ -47,6 +75,32 @@ const opciones = [
 
 export default function PerfilScreen() {
   const [notificacionesActivas, setNotificacionesActivas] = useState(true);
+  const router = useRouter();
+  const { modo } = useModo();
+  const modoTransportista = modo === "transportista";
+  const [mensajeModo, setMensajeModo] = useState<string | null>(null);
+  const ocultarMensajeModo = useCallback(() => setMensajeModo(null), []);
+
+  const alternarModo = async () => {
+    const nuevoModo = modoTransportista ? "usuario" : "transportista";
+    const ok = await confirmar(
+      nuevoModo === "transportista"
+        ? "Cambiar a modo transportista"
+        : "Volver a modo usuario",
+      nuevoModo === "transportista"
+        ? "Podrás ver, aceptar y cancelar solicitudes de servicio."
+        : "Volverás a solicitar servicios como usuario.",
+      "Cambiar",
+    );
+    if (!ok) return;
+
+    await cambiarModo(nuevoModo);
+    setMensajeModo(
+      nuevoModo === "transportista"
+        ? "Estás en modo transportista"
+        : "Estás en modo usuario",
+    );
+  };
 
   const mostrarOpcion = (titulo: string) => {
     Alert.alert(
@@ -241,6 +295,78 @@ export default function PerfilScreen() {
             </Pressable>
           </View>
 
+          {/* Modo transportista */}
+          <View style={styles.tarjetaModo}>
+            <View style={styles.filaModo}>
+              <View style={styles.preferenciaTexto}>
+                <Text style={styles.tituloOpcion}>Modo transportista</Text>
+                <Text style={styles.descripcionOpcion}>
+                  Ve, acepta y gestiona solicitudes de servicio
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={alternarModo}
+                accessibilityRole="switch"
+                accessibilityState={{
+                  checked: modoTransportista,
+                }}
+                accessibilityLabel="Activar modo transportista"
+                style={[
+                  styles.interruptor,
+                  modoTransportista && styles.interruptorActivo,
+                ]}>
+                <View
+                  style={[
+                    styles.interruptorPunto,
+                    modoTransportista && styles.interruptorPuntoActivo,
+                  ]}
+                />
+              </Pressable>
+            </View>
+
+            <View style={styles.divisorModo} />
+
+            <View style={styles.filaModo}>
+              <View style={styles.etiquetaModo}>
+                <View
+                  style={[
+                    styles.puntoModo,
+                    modoTransportista && styles.puntoModoActivo,
+                  ]}
+                />
+                <Text style={styles.textoEtiquetaModo}>
+                  {modoTransportista ? "Modo transportista" : "Modo usuario"}
+                </Text>
+              </View>
+
+              {modoTransportista && (
+                <Pressable
+                  onPress={alternarModo}
+                  accessibilityRole="button"
+                  style={({ pressed }) => pressed && styles.presionado}>
+                  <Text style={styles.textoVolverModo}>
+                    Volver a modo usuario
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+
+            {modoTransportista && (
+              <Pressable
+                onPress={() => router.push("/transportista" as Href)}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.botonPanelTransportista,
+                  pressed && styles.presionado,
+                ]}>
+                <Text style={styles.textoPanelTransportista}>
+                  Ver solicitudes de servicio ›
+                </Text>
+              </Pressable>
+            )}
+          </View>
+
           {/* Cerrar sesión */}
           <Pressable
             onPress={() =>
@@ -266,6 +392,11 @@ export default function PerfilScreen() {
 
         {/* Barra de navegación compartida */}
         <BarraNavegacion />
+
+        <MensajeTemporal
+          mensaje={mensajeModo}
+          alTerminar={ocultarMensajeModo}
+        />
       </View>
     </SafeAreaView>
   );
@@ -648,5 +779,70 @@ const styles = StyleSheet.create({
   presionado: {
     opacity: 0.72,
     transform: [{ scale: 0.98 }],
+  },
+
+  // Modo transportista
+  tarjetaModo: {
+    gap: 12,
+    padding: 15,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.13)",
+    backgroundColor: "rgba(255,255,255,0.045)",
+  },
+
+  filaModo: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+
+  divisorModo: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.075)",
+  },
+
+  etiquetaModo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  puntoModo: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#8395B0",
+  },
+
+  puntoModoActivo: {
+    backgroundColor: "#50DCA4",
+  },
+
+  textoEtiquetaModo: {
+    color: "#F0F3F8",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  textoVolverModo: {
+    color: "#8DB2FF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  botonPanelTransportista: {
+    minHeight: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    backgroundColor: AZUL,
+  },
+
+  textoPanelTransportista: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
   },
 });

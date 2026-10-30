@@ -1,6 +1,6 @@
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { usePathname, useRouter } from "expo-router";
+import { Href, usePathname, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -12,6 +12,8 @@ import {
   View,
 } from "react-native";
 
+import { useModo } from "../../services/modoStore";
+
 type Pestaña = "Inicio" | "Servicios" | "Solicitudes" | "Perfil";
 
 const PESTAÑAS = [
@@ -22,6 +24,12 @@ const PESTAÑAS = [
 ] as const;
 
 const TOTAL = PESTAÑAS.length;
+
+type DatosPestaña = (typeof PESTAÑAS)[number];
+
+// En modo transportista, "Solicitudes" abre el panel del transportista.
+const rutaSegunModo = (pestaña: DatosPestaña, transportista: boolean): string =>
+  transportista && pestaña.id === "Solicitudes" ? "/transportista" : pestaña.ruta;
 
 // Debe coincidir con paddingHorizontal de "elementosBarra".
 const RELLENO_BARRA = 4;
@@ -35,10 +43,13 @@ const limitar = (valor: number, min: number, max: number) =>
 export default function BarraNavegacion() {
   const router = useRouter();
   const rutaActual = usePathname();
+  const transportista = useModo().modo === "transportista";
 
   const indiceActivo = Math.max(
     0,
-    PESTAÑAS.findIndex((pestaña) => pestaña.ruta === rutaActual),
+    PESTAÑAS.findIndex(
+      (pestaña) => rutaSegunModo(pestaña, transportista) === rutaActual,
+    ),
   );
 
   // Pestaña que se ve resaltada (sigue al dedo mientras se arrastra).
@@ -61,10 +72,10 @@ export default function BarraNavegacion() {
   const navegarAIndice = (indice: number) => {
     if (indice < 0 || indice >= TOTAL) return;
 
-    const seleccionada = PESTAÑAS[indice];
+    const ruta = rutaSegunModo(PESTAÑAS[indice], transportista);
 
-    if (seleccionada.ruta !== rutaActual) {
-      router.push(seleccionada.ruta);
+    if (ruta !== rutaActual) {
+      router.push(ruta as Href);
     }
   };
 
