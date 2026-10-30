@@ -1,5 +1,4 @@
-// src/services/servicioService.ts
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { asegurarSesion, supabase } from "../lib/supabase";
 
 export interface SolicitudServicioDTO {
   id?: string;
@@ -19,86 +18,116 @@ export interface SolicitudServicioDTO {
   fecha?: string;
 }
 
-const STORAGE_KEY = "@mueveloya_servicios_local";
-
-const generarId = (extra = "") =>
-  `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${extra}`;
-
-// Lee la lista y garantiza que todos los servicios tengan un id
-const leerServicios = async (): Promise<SolicitudServicioDTO[]> => {
-  const str = await AsyncStorage.getItem(STORAGE_KEY);
-  if (!str) return [];
-
-  let lista: SolicitudServicioDTO[] = [];
-  try {
-    const parsed = JSON.parse(str);
-    lista = Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-
-  let huboCambios = false;
-  const normalizada = lista.map((item, index) => {
-    if (item.id === undefined || item.id === null || item.id === "") {
-      huboCambios = true;
-      return { ...item, id: generarId(`-${index}`) };
-    }
-    return { ...item, id: String(item.id) };
-  });
-
-  if (huboCambios) {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(normalizada));
-  }
-  return normalizada;
+// Fila tal como existe en la tabla (snake_case).
+type FilaServicio = {
+  id: string;
+  tipo_servicio: string;
+  origen: string;
+  destino: string;
+  origen_lat: number | null;
+  origen_lng: number | null;
+  destino_lat: number | null;
+  destino_lng: number | null;
+  tipo_programacion: "inmediato" | "programado" | null;
+  fecha_programada: string | null;
+  descripcion: string;
+  ayudantes: number;
+  pisos_escaleras: number;
+  nombre_contacto: string;
+  telefono_contacto: string;
+  fecha: string;
 };
+
+const aCoords = (lat: number | null, lng: number | null) =>
+  lat !== null && lng !== null ? { lat, lng } : null;
+
+const deFila = (f: FilaServicio): SolicitudServicioDTO => ({
+  id: f.id,
+  tipoServicio: f.tipo_servicio,
+  origen: f.origen,
+  destino: f.destino,
+  origenCoords: aCoords(f.origen_lat, f.origen_lng),
+  destinoCoords: aCoords(f.destino_lat, f.destino_lng),
+  tipoProgramacion: f.tipo_programacion ?? undefined,
+  fechaProgramada: f.fecha_programada ?? undefined,
+  descripcion: f.descripcion,
+  ayudantes: f.ayudantes,
+  pisosEscaleras: f.pisos_escaleras,
+  nombreContacto: f.nombre_contacto,
+  telefonoContacto: f.telefono_contacto,
+  fecha: f.fecha,
+});
+
+// user_id no se envía: la columna lo toma de auth.uid() y RLS lo valida.
+const aFila = (d: SolicitudServicioDTO) => ({
+  tipo_servicio: d.tipoServicio,
+  origen: d.origen,
+  destino: d.destino,
+  origen_lat: d.origenCoords?.lat ?? null,
+  origen_lng: d.origenCoords?.lng ?? null,
+  destino_lat: d.destinoCoords?.lat ?? null,
+  destino_lng: d.destinoCoords?.lng ?? null,
+  tipo_programacion: d.tipoProgramacion ?? null,
+  fecha_programada: d.fechaProgramada ?? null,
+  descripcion: d.descripcion,
+  ayudantes: d.ayudantes,
+  pisos_escaleras: d.pisosEscaleras,
+  nombre_contacto: d.nombreContacto,
+  telefono_contacto: d.telefonoContacto,
+  fecha: d.fecha || new Date().toISOString(),
+});
 
 export const registrarServicio = async (
   datos: SolicitudServicioDTO,
-  token: string,
+  _token?: string,
 ) => {
   try {
-    const serviciosActuales = await leerServicios();
+    await asegurarSesion();
 
-    const nuevoServicio: SolicitudServicioDTO = {
-      ...datos,
-      id: generarId(),
-      fecha: datos.fecha || new Date().toISOString(),
-    };
-
-    await AsyncStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify([nuevoServicio, ...serviciosActuales]),
-    );
+    const { data, error } = await supabase
+      .from("servicios")
+      .insert(aFila(datos))
+      .select()
+      .single();
+    if (error) throw error;
 
     return {
       success: true,
       message: "Servicio registrado con éxito",
-      data: nuevoServicio,
+      data: deFila(data as FilaServicio),
     };
   } catch (error: any) {
-    console.error("Error en servicioService (local):", error);
-    throw new Error("No se pudo guardar la solicitud localmente.");
+    console.error("Error en servicioService (Supabase):", error);
+    throw new Error("No se pudo guardar la solicitud. Revisa tu conexión.");
   }
 };
 
 export const obtenerMisServicios = async (
-  token: string,
+  _token?: string,
 ): Promise<SolicitudServicioDTO[]> => {
   try {
-    return await leerServicios();
+    await asegurarSesion();
+
+    const { data, error } = await supabase
+      .from("servicios")
+      .select("*")
+      .order("fecha", { ascending: false });
+    if (error) throw error;
+
+    return (data as FilaServicio[]).map(deFila);
   } catch (error: any) {
     console.error("Error al obtener servicios:", error);
     return [];
   }
 };
 
-export const eliminarServicio = async (id: string, token: string) => {
+export const eliminarServicio = async (id: string, _token?: string) => {
   try {
-    const servicios = await leerServicios();
-    const filtrados = servicios.filter(
-      (item) => String(item.id) !== String(id),
-    );
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtrados));
+    await asegurarSesion();
+
+    const { error } = await supabase.from("servicios").delete().eq("id", id);
+    if (error) throw error;
+
     return { success: true };
   } catch (error: any) {
     console.error("Error al eliminar servicio:", error);
