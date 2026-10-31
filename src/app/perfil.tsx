@@ -1,10 +1,8 @@
 import { BlurView } from "expo-blur";
-import { Href, useRouter } from "expo-router";
+import { Href, useFocusEffect, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useState } from "react";
 import {
-  Alert,
-  Platform,
   Pressable,
   ScrollView,
   StatusBar,
@@ -14,36 +12,25 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { aviso, confirmar } from "../components/ui/AlertaPantalla";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
 import MensajeTemporal from "../components/ui/MensajeTemporal";
+import { supabase } from "../lib/supabase";
 import { cambiarModo, useModo } from "../services/modoStore";
+import {
+  obtenerMiPerfil,
+  obtenerResumen,
+  Perfil,
+  textoAntiguedad,
+} from "../services/perfilService";
+import {
+  obtenerMiVehiculo,
+  revisarDocumentos,
+  Vehiculo,
+} from "../services/vehiculoService";
 
 const AZUL = "#2969e9";
 const FONDO = "#111318";
-
-// Confirmación que también funciona en web (Alert con botones no existe allí).
-const confirmar = (
-  titulo: string,
-  mensaje: string,
-  textoAceptar: string,
-): Promise<boolean> => {
-  if (Platform.OS === "web") {
-    return Promise.resolve(window.confirm(`${titulo}
-
-${mensaje}`));
-  }
-  return new Promise((resolve) => {
-    Alert.alert(
-      titulo,
-      mensaje,
-      [
-        { text: "Cancelar", style: "cancel", onPress: () => resolve(false) },
-        { text: textoAceptar, onPress: () => resolve(true) },
-      ],
-      { cancelable: true, onDismiss: () => resolve(false) },
-    );
-  });
-};
 
 const opciones = [
   {
@@ -81,17 +68,77 @@ export default function PerfilScreen() {
   const [mensajeModo, setMensajeModo] = useState<string | null>(null);
   const ocultarMensajeModo = useCallback(() => setMensajeModo(null), []);
 
+  const [perfil, setPerfil] = useState<Perfil | null>(null);
+  const [vehiculo, setVehiculo] = useState<Vehiculo | null>(null);
+  const [resumen, setResumen] = useState({ solicitudes: 0, servicios: 0 });
+
+  useFocusEffect(
+    useCallback(() => {
+      obtenerMiPerfil().then(setPerfil);
+      obtenerResumen().then(setResumen);
+      obtenerMiVehiculo()
+        .then(setVehiculo)
+        .catch(() => setVehiculo(null));
+    }, []),
+  );
+
+  const nombre = perfil?.nombre || "Mi usuario";
+  const inicial = nombre.trim().charAt(0).toUpperCase() || "U";
+
   const alternarModo = async () => {
     const nuevoModo = modoTransportista ? "usuario" : "transportista";
-    const ok = await confirmar(
-      nuevoModo === "transportista"
-        ? "Cambiar a modo transportista"
-        : "Volver a modo usuario",
-      nuevoModo === "transportista"
-        ? "Podrás ver, aceptar y cancelar solicitudes de servicio."
-        : "Volverás a solicitar servicios como usuario.",
-      "Cambiar",
-    );
+
+    // Para ser transportista se necesita el vehículo con documentos vigentes.
+    if (nuevoModo === "transportista") {
+      let actual: Vehiculo | null = null;
+      try {
+        actual = await obtenerMiVehiculo();
+      } catch {
+        await aviso(
+          "Sin conexión",
+          "No pudimos revisar tu vehículo. Inténtalo de nuevo.",
+          "error",
+        );
+        return;
+      }
+
+      if (!actual) {
+        const ok = await confirmar({
+          titulo: "Registra tu vehículo",
+          mensaje:
+            "Para trabajar como transportista necesitamos los datos de tu vehículo y la vigencia de tus documentos (SOAT, técnico-mecánica y licencia).",
+          textoAceptar: "Registrar",
+          tipo: "info",
+        });
+        if (ok) router.push({ pathname: "/vehiculo", params: { activar: "1" } });
+        return;
+      }
+
+      const revision = revisarDocumentos(actual);
+      if (!revision.vigentes) {
+        const ok = await confirmar({
+          titulo: "Documentos vencidos",
+          mensaje: `No puedes activar el modo transportista: ${revision.vencidos.join(", ")}. Actualiza las fechas cuando los renueves.`,
+          textoAceptar: "Actualizar",
+          tipo: "error",
+        });
+        if (ok) router.push("/vehiculo");
+        return;
+      }
+    }
+
+    const ok = await confirmar({
+      titulo:
+        nuevoModo === "transportista"
+          ? "Cambiar a modo transportista"
+          : "Volver a modo usuario",
+      mensaje:
+        nuevoModo === "transportista"
+          ? "Podrás ver, aceptar y cancelar solicitudes de servicio."
+          : "Volverás a solicitar servicios como usuario.",
+      textoAceptar: "Cambiar",
+      tipo: "info",
+    });
     if (!ok) return;
 
     await cambiarModo(nuevoModo);
@@ -103,10 +150,28 @@ export default function PerfilScreen() {
   };
 
   const mostrarOpcion = (titulo: string) => {
-    Alert.alert(
+    aviso(
       titulo,
       "Esta sección estará disponible cuando se implemente su funcionalidad.",
+      "info",
     );
+  };
+
+  const cerrarSesion = async () => {
+    const ok = await confirmar({
+      titulo: "Cerrar sesión",
+      mensaje: "¿Seguro que deseas salir de tu cuenta?",
+      textoAceptar: "Cerrar sesión",
+      destructivo: true,
+    });
+    if (!ok) return;
+
+    // El modo queda guardado para esta cuenta; la siguiente cuenta carga el suyo.
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      await aviso("Error", "No se pudo cerrar la sesión. Revisa tu conexión.", "error");
+    }
+    // Sin sesión, el _layout lleva al login automáticamente.
   };
 
   return (
@@ -159,15 +224,19 @@ export default function PerfilScreen() {
                 <LinearGradient
                   colors={["#528BFF", "#1744A4", "#14254A"]}
                   style={styles.avatar}>
-                  <Text style={styles.avatarTexto}>U</Text>
+                  <Text style={styles.avatarTexto}>{inicial}</Text>
                 </LinearGradient>
 
                 <View style={styles.estadoUsuario} />
               </View>
 
               <View style={styles.datosUsuario}>
-                <Text style={styles.nombreUsuario}>Mi usuario</Text>
-                <Text style={styles.correoUsuario}>usuario@ejemplo.com</Text>
+                <Text style={styles.nombreUsuario} numberOfLines={1}>
+                  {nombre}
+                </Text>
+                <Text style={styles.correoUsuario} numberOfLines={1}>
+                  {perfil?.correo ?? ""}
+                </Text>
 
                 <View style={styles.etiquetaCuenta}>
                   <View style={styles.puntoActivo} />
@@ -191,21 +260,23 @@ export default function PerfilScreen() {
 
             <View style={styles.resumenPerfil}>
               <View style={styles.resumenItem}>
-                <Text style={styles.resumenValor}>0</Text>
+                <Text style={styles.resumenValor}>{resumen.solicitudes}</Text>
                 <Text style={styles.resumenEtiqueta}>Solicitudes</Text>
               </View>
 
               <View style={styles.divisorVertical} />
 
               <View style={styles.resumenItem}>
-                <Text style={styles.resumenValor}>0</Text>
+                <Text style={styles.resumenValor}>{resumen.servicios}</Text>
                 <Text style={styles.resumenEtiqueta}>Servicios</Text>
               </View>
 
               <View style={styles.divisorVertical} />
 
               <View style={styles.resumenItem}>
-                <Text style={styles.resumenValor}>—</Text>
+                <Text style={styles.resumenValor}>
+                  {perfil?.creadoEl ? textoAntiguedad(perfil.creadoEl) : "—"}
+                </Text>
                 <Text style={styles.resumenEtiqueta}>Antigüedad</Text>
               </View>
             </View>
@@ -352,6 +423,34 @@ export default function PerfilScreen() {
               )}
             </View>
 
+            {!!vehiculo && (
+              <Pressable
+                onPress={() => router.push("/vehiculo")}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.filaVehiculo,
+                  pressed && styles.presionado,
+                ]}>
+                <View style={styles.preferenciaTexto}>
+                  <Text style={styles.tituloOpcion}>
+                    Mi vehículo · {vehiculo.placa}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.descripcionOpcion,
+                      !revisarDocumentos(vehiculo).vigentes && styles.textoVencido,
+                    ]}>
+                    {!revisarDocumentos(vehiculo).vigentes
+                      ? "Documentos vencidos: actualízalos"
+                      : revisarDocumentos(vehiculo).porVencer.length
+                        ? "Hay documentos por vencer"
+                        : "Documentos al día"}
+                  </Text>
+                </View>
+                <Text style={styles.flechaOpcion}>›</Text>
+              </Pressable>
+            )}
+
             {modoTransportista && (
               <Pressable
                 onPress={() => router.push("/transportista" as Href)}
@@ -369,13 +468,7 @@ export default function PerfilScreen() {
 
           {/* Cerrar sesión */}
           <Pressable
-            onPress={() =>
-              Alert.alert(
-                "Cerrar sesión",
-                "La autenticación todavía no está implementada.",
-                [{ text: "Entendido" }],
-              )
-            }
+            onPress={cerrarSesion}
             accessibilityRole="button"
             style={({ pressed }) => [
               styles.botonCerrarSesion,
@@ -830,6 +923,19 @@ const styles = StyleSheet.create({
     color: "#8DB2FF",
     fontSize: 11,
     fontWeight: "700",
+  },
+
+  filaVehiculo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.075)",
+  },
+
+  textoVencido: {
+    color: "#fca5a5",
   },
 
   botonPanelTransportista: {

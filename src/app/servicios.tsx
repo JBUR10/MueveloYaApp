@@ -1,13 +1,11 @@
 // src/app/servicios.tsx
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -17,7 +15,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { aviso, TipoAlerta } from "../components/ui/AlertaPantalla";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
+import VistaPreviaRuta from "../components/ui/VistaPreviaRuta";
+import { obtenerDireccion } from "../services/geocodificacion";
+import { obtenerMiPerfil } from "../services/perfilService";
 import { registrarServicio } from "../services/servicioService";
 import {
   obtenerUbicaciones,
@@ -138,35 +140,31 @@ export default function ServiciosScreen() {
 
   const [loading, setLoading] = useState(false);
 
-  // Estado para la Alerta Modal Personalizada en Pantalla
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalConfig, setModalConfig] = useState<{
-    titulo: string;
-    mensaje: string;
-    tipo: "exito" | "error" | "advertencia";
-    onConfirm?: () => void;
-  }>({
-    titulo: "",
-    mensaje: "",
-    tipo: "advertencia",
-  });
-
-  const mostrarAlertaPantalla = (
+  // Alerta en pantalla (componente global AlertaPantalla).
+  const mostrarAlertaPantalla = async (
     titulo: string,
     mensaje: string,
-    tipo: "exito" | "error" | "advertencia" = "advertencia",
+    tipo: TipoAlerta = "advertencia",
     onConfirm?: () => void,
   ) => {
-    setModalConfig({ titulo, mensaje, tipo, onConfirm });
-    setModalVisible(true);
+    await aviso(titulo, mensaje, tipo);
+    onConfirm?.();
   };
 
-  const cerrarAlerta = () => {
-    setModalVisible(false);
-    if (modalConfig.onConfirm) {
-      modalConfig.onConfirm();
-    }
-  };
+  // El contacto se llena con los datos de la cuenta (se pueden cambiar).
+  const contactoPerfil = useRef({ nombre: "", telefono: "" });
+
+  useEffect(() => {
+    obtenerMiPerfil().then((perfil) => {
+      if (!perfil) return;
+      contactoPerfil.current = {
+        nombre: perfil.nombre,
+        telefono: perfil.telefono,
+      };
+      setNombreContacto((actual) => actual || perfil.nombre);
+      setTelefonoContacto((actual) => actual || perfil.telefono);
+    });
+  }, []);
 
   const resetFormulario = () => {
     setPaso(1);
@@ -185,8 +183,8 @@ export default function ServiciosScreen() {
     setDescripcion("");
     setAyudantes(0);
     setPisosEscaleras(0);
-    setNombreContacto("");
-    setTelefonoContacto("");
+    setNombreContacto(contactoPerfil.current.nombre);
+    setTelefonoContacto(contactoPerfil.current.telefono);
   };
 
   // Formateadores de fecha (DD/MM/AAAA) y hora (12h AM/PM)
@@ -260,6 +258,29 @@ export default function ServiciosScreen() {
     }, [aplicarPunto]),
   );
 
+  // Vista previa: al ubicar o arrastrar un pin se guardan sus coordenadas.
+  // Si se arrastró, la dirección escrita se reemplaza por la del nuevo punto.
+  const alUbicarPunto = async (
+    rol: Rol,
+    coords: Coords,
+    arrastrado: boolean,
+  ) => {
+    if (rol === "origen") setOrigenPunto(coords);
+    else setDestinoPunto(coords);
+    if (!arrastrado) return;
+
+    const nombre = await obtenerDireccion(coords);
+    if (!nombre) return;
+    const { direccion, barrio } = separarDireccion(nombre);
+    if (rol === "origen") {
+      setOrigenDireccion(direccion);
+      setOrigenBarrio(barrio);
+    } else {
+      setDestinoDireccion(direccion);
+      setDestinoBarrio(barrio);
+    }
+  };
+
   // Punto de recogida disponible: el marcado a mano o, si no hay, la ubicación actual.
   const origenDisponible = ubic.origen ?? ubic.miUbicacion;
 
@@ -300,8 +321,6 @@ export default function ServiciosScreen() {
     setLoading(true);
 
     try {
-      const token = (await AsyncStorage.getItem("token")) || "TOKEN_DEMO";
-
       const payload = {
         tipoServicio,
         origen: [origenDireccion.trim(), origenBarrio.trim()]
@@ -327,7 +346,7 @@ export default function ServiciosScreen() {
         fecha: new Date().toISOString(),
       };
 
-      await registrarServicio(payload, token);
+      await registrarServicio(payload);
 
       mostrarAlertaPantalla(
         "¡Servicio Solicitado! 🎉",
@@ -497,6 +516,14 @@ export default function ServiciosScreen() {
                   onChangeText={setDestinoBarrio}
                 />
               </View>
+
+              <VistaPreviaRuta
+                origen={origenPunto}
+                destino={destinoPunto}
+                textoOrigen={[origenDireccion, origenBarrio].filter(Boolean).join(", ")}
+                textoDestino={[destinoDireccion, destinoBarrio].filter(Boolean).join(", ")}
+                onPunto={alUbicarPunto}
+              />
 
               <TouchableOpacity
                 style={styles.btnNext}
@@ -776,40 +803,6 @@ export default function ServiciosScreen() {
           )}
         </ScrollView>
 
-          {/* ================= MODAL DE ALERTA EN PANTALLA ================= */}
-          <Modal
-            animationType="fade"
-            transparent={true}
-            visible={modalVisible}
-            onRequestClose={cerrarAlerta}
-          >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContainer}>
-                <Text
-                  style={[
-                    styles.modalTitle,
-                    modalConfig.tipo === "exito" && styles.textExito,
-                    modalConfig.tipo === "error" && styles.textError,
-                  ]}
-                >
-                  {modalConfig.titulo}
-                </Text>
-                <Text style={styles.modalMessage}>{modalConfig.mensaje}</Text>
-
-                <TouchableOpacity
-                  style={[
-                    styles.modalButton,
-                    modalConfig.tipo === "exito"
-                      ? styles.btnModalExito
-                      : styles.btnModalNormal,
-                  ]}
-                  onPress={cerrarAlerta}
-                >
-                  <Text style={styles.modalButtonText}>Aceptar</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Modal>
 
         {/* Barra de Navegación fija abajo */}
         <BarraNavegacion />
@@ -1105,59 +1098,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
     letterSpacing: 1,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 20,
-  },
-  modalContainer: {
-    width: "100%",
-    maxWidth: 340,
-    backgroundColor: "#161b22",
-    borderRadius: 20,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: "#374151",
-    alignItems: "center",
-  },
-  modalTitle: {
-    color: "#60a5fa",
-    fontSize: 18,
-    fontWeight: "800",
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  textExito: {
-    color: "#10b981",
-  },
-  textError: {
-    color: "#ef4444",
-  },
-  modalMessage: {
-    color: "#d1d5db",
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  modalButton: {
-    width: "100%",
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  btnModalNormal: {
-    backgroundColor: "#2563eb",
-  },
-  btnModalExito: {
-    backgroundColor: "#10b981",
-  },
-  modalButtonText: {
-    color: "#ffffff",
-    fontWeight: "700",
-    fontSize: 14,
   },
 });

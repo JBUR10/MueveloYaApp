@@ -1,41 +1,44 @@
 // src/services/transportistaService.ts
 //
-// Estado de las solicitudes desde el punto de vista del transportista
-// (aceptadas / canceladas). Se guarda aparte de las solicitudes del usuario
-// para no modificar sus datos. Versión local hasta que exista la base de datos.
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-import { SolicitudServicioDTO } from "./servicioService";
-
-export type EstadoTransportista = "aceptada" | "cancelada";
-
-export interface RegistroTransportista {
-  estado: EstadoTransportista;
-  aceptadaEl: string;
-  canceladaEl?: string;
-}
-
-export type RegistrosTransportista = Record<string, RegistroTransportista>;
-
-const STORAGE_KEY = "@mueveloya_transportista_solicitudes";
+// Flujo del transportista contra Supabase: solicitudes disponibles, las que
+// tiene asignadas, su historial y los cambios de estado (aceptar, cancelar,
+// recoger, finalizar). Los cambios se hacen con funciones RPC del servidor
+// (ver supabase/migraciones/001_login_y_transportista.sql) para que dos
+// transportistas no puedan tomar la misma solicitud.
+import { asegurarSesion, supabase } from "../lib/supabase";
+import {
+  deFila,
+  type FilaServicio,
+  SELECT_CALIFICACIONES,
+  SELECT_CLIENTE,
+  SolicitudServicioDTO,
+} from "./servicioService";
 
 /** Una solicitud aceptada solo se puede cancelar con al menos este margen. */
 export const HORAS_MINIMAS_CANCELACION = 48;
 const MS_MINIMOS_CANCELACION = HORAS_MINIMAS_CANCELACION * 60 * 60 * 1000;
 
-const leerRegistros = async (): Promise<RegistrosTransportista> => {
-  const str = await AsyncStorage.getItem(STORAGE_KEY);
-  if (!str) return {};
-  try {
-    const parsed = JSON.parse(str);
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-};
+export interface Cancelacion {
+  servicio: SolicitudServicioDTO;
+  canceladaEl: string;
+}
 
-const guardarRegistros = (registros: RegistrosTransportista) =>
-  AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
+export interface DatosTransportista {
+  /** Pendientes de otros clientes. */
+  disponibles: SolicitudServicioDTO[];
+  /** Aceptadas o en curso por mí. */
+  asignadas: SolicitudServicioDTO[];
+  /** Completadas por mí. */
+  completadas: SolicitudServicioDTO[];
+  /** Las que cancelé yo (volvieron a quedar pendientes). */
+  cancelaciones: Cancelacion[];
+  /** Las que canceló el cliente después de que yo las aceptara. */
+  canceladasPorCliente: SolicitudServicioDTO[];
+}
+
+/** true si el servicio ya arrancó: inmediato aceptado o programado iniciado. */
+export const estaIniciado = (item: SolicitudServicioDTO) =>
+  !!item.iniciadaEl || item.estado === "en_curso";
 
 export const esInmediato = (item: SolicitudServicioDTO) =>
   item.tipoProgramacion === "inmediato" ||
@@ -82,41 +85,83 @@ export const puedeCancelar = (
   return fecha.getTime() - ahora.getTime() >= MS_MINIMOS_CANCELACION;
 };
 
-export const obtenerRegistrosTransportista = async () => {
-  try {
-    return await leerRegistros();
-  } catch (error) {
-    console.error("Error al obtener registros del transportista:", error);
-    return {};
+export const obtenerDatosTransportista =
+  async (): Promise<DatosTransportista> => {
+    const uid = await asegurarSesion();
+
+    const [pendientes, mias, canceladas] = await Promise.all([
+      supabase
+        .from("servicios")
+        .select(`*, ${SELECT_CLIENTE}`)
+        .eq("estado", "pendiente")
+        .neq("user_id", uid)
+        .order("fecha", { ascending: false }),
+      supabase
+        .from("servicios")
+        .select(`*, ${SELECT_CLIENTE}, ${SELECT_CALIFICACIONES}`)
+        .eq("transportista_id", uid)
+        .order("aceptada_el", { ascending: false }),
+      supabase
+        .from("cancelaciones")
+        .select("cancelada_el, servicio:servicios(*)")
+        .eq("transportista_id", uid)
+        .order("cancelada_el", { ascending: false }),
+    ]);
+
+    const error = pendientes.error || mias.error || canceladas.error;
+    if (error) {
+      console.error("Error al cargar datos del transportista:", error);
+      throw new Error("No se pudieron cargar las solicitudes.");
+    }
+
+    const propias = (mias.data as FilaServicio[]).map(deFila);
+
+    return {
+      disponibles: (pendientes.data as FilaServicio[]).map(deFila),
+      asignadas: propias.filter(
+        (s) => s.estado === "aceptada" || s.estado === "en_curso",
+      ),
+      completadas: propias.filter((s) => s.estado === "completada"),
+      canceladasPorCliente: propias.filter((s) => s.estado === "cancelada"),
+      cancelaciones: (canceladas.data as any[])
+        // Si la solicitud ya no es visible (la tomó otro), no se puede mostrar.
+        .filter((c) => c.servicio)
+        .map((c) => ({
+          servicio: deFila(
+            Array.isArray(c.servicio) ? c.servicio[0] : c.servicio,
+          ),
+          canceladaEl: c.cancelada_el,
+        })),
+    };
+  };
+
+const llamar = async (funcion: string, id: string) => {
+  const { data, error } = await supabase.rpc(funcion, { p_servicio: id });
+  if (error) {
+    console.error(`Error en ${funcion}:`, error);
+    // Los mensajes de las funciones SQL ya vienen en español.
+    throw new Error(error.message || "No se pudo completar la acción.");
   }
+  return deFila(data as FilaServicio);
 };
 
-export const aceptarSolicitud = async (id: string) => {
-  const registros = await leerRegistros();
-  registros[id] = { estado: "aceptada", aceptadaEl: new Date().toISOString() };
-  await guardarRegistros(registros);
-  return registros;
-};
+export const aceptarSolicitud = (id: string) => llamar("aceptar_servicio", id);
 
-export const cancelarSolicitud = async (item: SolicitudServicioDTO) => {
-  const id = String(item.id);
-  const registros = await leerRegistros();
-  const registro = registros[id];
-
-  if (!registro || registro.estado !== "aceptada") {
-    throw new Error("Esta solicitud no está aceptada.");
-  }
+export const cancelarSolicitud = (item: SolicitudServicioDTO) => {
   if (!puedeCancelar(item)) {
-    throw new Error(
-      `No puedes cancelar con menos de ${HORAS_MINIMAS_CANCELACION} horas de anticipación.`,
+    return Promise.reject(
+      new Error(
+        `No puedes cancelar con menos de ${HORAS_MINIMAS_CANCELACION} horas de anticipación.`,
+      ),
     );
   }
-
-  registros[id] = {
-    ...registro,
-    estado: "cancelada",
-    canceladaEl: new Date().toISOString(),
-  };
-  await guardarRegistros(registros);
-  return registros;
+  return llamar("cancelar_servicio", String(item.id));
 };
+
+/** Programados: el conductor sale hacia el punto de recogida. */
+export const iniciarServicio = (id: string) => llamar("iniciar_servicio", id);
+
+export const marcarRecogido = (id: string) => llamar("marcar_recogido", id);
+
+export const completarServicio = (id: string) =>
+  llamar("completar_servicio", id);

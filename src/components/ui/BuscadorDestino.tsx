@@ -39,7 +39,7 @@ function formatearDuracion(min: number) {
   return m ? `${h} h ${m} min` : `${h} h`;
 }
 
-async function buscarLugares(consulta: string): Promise<Resultado[]> {
+export async function buscarLugares(consulta: string): Promise<Resultado[]> {
   // viewbox sesga los resultados hacia Medellín y el Valle de Aburrá (sin limitarlos).
   const url =
     "https://nominatim.openstreetmap.org/search?format=jsonv2" +

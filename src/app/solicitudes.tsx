@@ -1,11 +1,9 @@
 // src/app/solicitudes.tsx
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  Platform,
+  Linking,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -15,44 +13,72 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { aviso, confirmar } from "../components/ui/AlertaPantalla";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
+import CalificarServicio from "../components/ui/CalificarServicio";
+import { mostrarAvisosPendientes } from "../services/avisosStore";
 import {
+  cancelarServicioCliente,
   eliminarServicio,
+  escucharCambiosServicios,
+  EstadoServicio,
   obtenerMisServicios,
   SolicitudServicioDTO,
+  textoCalificacion,
 } from "../services/servicioService";
+import { useSesion } from "../services/sesionStore";
+import {
+  estaIniciado,
+  HORAS_MINIMAS_CANCELACION,
+  puedeCancelar,
+} from "../services/transportistaService";
 
 const AZUL = "#2969e9";
 const FONDO = "#111318";
 
-// ---------- Helpers multiplataforma ----------
-const confirmar = (titulo: string, mensaje: string): Promise<boolean> => {
-  if (Platform.OS === "web") {
-    return Promise.resolve(window.confirm(`${titulo}\n\n${mensaje}`));
-  }
-  return new Promise((resolve) => {
-    Alert.alert(
-      titulo,
-      mensaje,
-      [
-        { text: "Cancelar", style: "cancel", onPress: () => resolve(false) },
-        {
-          text: "Eliminar",
-          style: "destructive",
-          onPress: () => resolve(true),
-        },
-      ],
-      { cancelable: true, onDismiss: () => resolve(false) },
-    );
-  });
+const ESTADOS: Record<
+  EstadoServicio,
+  { texto: string; color: string; fondo: string; borde: string }
+> = {
+  pendiente: {
+    texto: "⏳ Buscando transportista",
+    color: "#fbbf24",
+    fondo: "rgba(251,191,36,0.10)",
+    borde: "rgba(251,191,36,0.35)",
+  },
+  aceptada: {
+    texto: "✓ Aceptada · el transportista va a recoger",
+    color: "#8DB2FF",
+    fondo: "rgba(41,105,233,0.12)",
+    borde: "rgba(41,105,233,0.4)",
+  },
+  en_curso: {
+    texto: "🚚 En camino al destino",
+    color: "#86E8BD",
+    fondo: "rgba(80,220,164,0.10)",
+    borde: "rgba(80,220,164,0.35)",
+  },
+  completada: {
+    texto: "✓ Completada",
+    color: "#86E8BD",
+    fondo: "rgba(80,220,164,0.10)",
+    borde: "rgba(80,220,164,0.35)",
+  },
+  cancelada: {
+    texto: "✕ Cancelaste este servicio",
+    color: "#fca5a5",
+    fondo: "rgba(239,68,68,0.10)",
+    borde: "rgba(239,68,68,0.35)",
+  },
 };
 
-const aviso = (titulo: string, mensaje: string) => {
-  if (Platform.OS === "web") {
-    window.alert(`${titulo}\n\n${mensaje}`);
-  } else {
-    Alert.alert(titulo, mensaje);
-  }
+/** Texto del estado según si el servicio programado ya se inició. */
+const textoEstado = (item: SolicitudServicioDTO) => {
+  const estado = item.estado ?? "pendiente";
+  if (estado !== "aceptada") return ESTADOS[estado].texto;
+  return estaIniciado(item)
+    ? "🚚 El transportista va hacia el punto de recogida"
+    : `✓ Aceptada · programado para el ${item.fechaProgramada}`;
 };
 
 const formatearFecha = (iso?: string) => {
@@ -72,11 +98,12 @@ export default function SolicitudesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+  const [calificandoId, setCalificandoId] = useState<string | null>(null);
+  const uid = useSesion().sesion?.user.id;
 
   const cargarServicios = useCallback(async () => {
     try {
-      const token = (await AsyncStorage.getItem("token")) || "TOKEN_DEMO";
-      const data = await obtenerMisServicios(token);
+      const data = await obtenerMisServicios();
       setServicios(data);
     } catch (error) {
       console.error("Error cargando solicitudes:", error);
@@ -86,11 +113,64 @@ export default function SolicitudesScreen() {
     }
   }, []);
 
+  // Carga al entrar, muestra los avisos sin leer (si un servicio finalizó,
+  // abre la calificación) y se actualiza sola cuando el transportista avanza.
   useFocusEffect(
     useCallback(() => {
-      cargarServicios();
+      cargarServicios().then(() => mostrarAvisosPendientes(setCalificandoId));
+      return escucharCambiosServicios(cargarServicios);
     }, [cargarServicios]),
   );
+
+  const servicioCalificando =
+    servicios.find((s) => s.id === calificandoId) ?? null;
+
+  const alCalificar = async (tuvoProblema: boolean) => {
+    const id = calificandoId;
+    setCalificandoId(null);
+    cargarServicios();
+    if (tuvoProblema) {
+      router.push({ pathname: "/queja", params: { servicio: id ?? "" } });
+      return;
+    }
+    await aviso(
+      "¡Gracias por preferirnos! 💙",
+      "Tu calificación al transportista y a la app nos ayuda a mejorar cada servicio.",
+      "exito",
+    );
+  };
+
+  const handleCancelar = async (item: SolicitudServicioDTO) => {
+    if (!item.id) return;
+    if (!puedeCancelar(item)) {
+      await aviso(
+        "No se puede cancelar",
+        `Solo puedes cancelar con al menos ${HORAS_MINIMAS_CANCELACION} horas de anticipación.`,
+        "advertencia",
+      );
+      return;
+    }
+    const ok = await confirmar({
+      titulo: "Cancelar servicio",
+      mensaje:
+        "¿Seguro que deseas cancelar este servicio? Le avisaremos al transportista.",
+      textoAceptar: "Cancelar servicio",
+      textoCancelar: "Volver",
+      destructivo: true,
+    });
+    if (!ok) return;
+
+    try {
+      setEliminandoId(item.id);
+      await cancelarServicioCliente(item.id);
+      await cargarServicios();
+      await aviso("Servicio cancelado", "Le avisamos al transportista.", "info");
+    } catch (error: any) {
+      await aviso("Error", error?.message || "No se pudo cancelar.", "error");
+    } finally {
+      setEliminandoId(null);
+    }
+  };
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -99,23 +179,30 @@ export default function SolicitudesScreen() {
 
   const handleEliminar = async (id?: string) => {
     if (!id) {
-      aviso("Atención", "Este servicio no cuenta con un identificador válido.");
+      await aviso(
+        "Atención",
+        "Este servicio no cuenta con un identificador válido.",
+        "advertencia",
+      );
       return;
     }
 
-    const ok = await confirmar(
-      "Eliminar solicitud",
-      "¿Estás seguro de que deseas eliminar este servicio? Esta acción no se puede deshacer.",
-    );
+    const ok = await confirmar({
+      titulo: "Eliminar solicitud",
+      mensaje:
+        "¿Estás seguro de que deseas eliminar este servicio? Esta acción no se puede deshacer.",
+      textoAceptar: "Eliminar",
+      destructivo: true,
+    });
     if (!ok) return;
 
     try {
       setEliminandoId(id);
-      const token = (await AsyncStorage.getItem("token")) || "TOKEN_DEMO";
-      await eliminarServicio(id, token);
+      await eliminarServicio(id);
       setServicios((prev) => prev.filter((s) => String(s.id) !== String(id)));
     } catch (error: any) {
-      aviso("Error", error?.message || "No se pudo eliminar");
+      await aviso("Error", error?.message || "No se pudo eliminar", "error");
+      cargarServicios();
     } finally {
       setEliminandoId(null);
     }
@@ -203,6 +290,16 @@ export default function SolicitudesScreen() {
             servicios.map((item, index) => {
               const inmediato = esInmediato(item);
               const borrando = eliminandoId === item.id;
+              const estadoItem = item.estado ?? "pendiente";
+              const estado = ESTADOS[estadoItem];
+              const t = item.transportista;
+              // Aceptada y sin iniciar: se puede cancelar (con 48 h de margen).
+              const cancelable = estadoItem === "aceptada" && !estaIniciado(item);
+              const cancelacionBloqueada = cancelable && !puedeCancelar(item);
+              const porCalificar =
+                estadoItem === "completada" &&
+                !!uid &&
+                !item.calificadoPor?.includes(uid);
 
               return (
                 <View
@@ -232,6 +329,58 @@ export default function SolicitudesScreen() {
                       </Text>
                     </View>
                   </View>
+
+                  {/* Estado de la solicitud */}
+                  <View
+                    style={[
+                      styles.estadoBox,
+                      { backgroundColor: estado.fondo, borderColor: estado.borde },
+                    ]}
+                  >
+                    <Text style={[styles.estadoTexto, { color: estado.color }]}>
+                      {textoEstado(item)}
+                    </Text>
+                  </View>
+
+                  {/* Transportista asignado */}
+                  {t && estadoItem !== "pendiente" && estadoItem !== "cancelada" && (
+                    <View style={styles.transportistaBox}>
+                      <View style={styles.transportistaDatos}>
+                        <Text style={styles.descLabel}>TU TRANSPORTISTA</Text>
+                        <Text style={styles.contactName} numberOfLines={1}>
+                          🚚 {t.nombre || "Transportista"}
+                        </Text>
+                        {t.vehiculo && (
+                          <Text style={styles.vehiculoTexto} numberOfLines={1}>
+                            {t.vehiculo.tipo} · {t.vehiculo.placa}
+                            {t.vehiculo.marcaModelo
+                              ? ` · ${t.vehiculo.marcaModelo}`
+                              : ""}
+                          </Text>
+                        )}
+                        <Text style={styles.calificacionTexto}>
+                          {textoCalificacion(t.calificacion)}
+                        </Text>
+                      </View>
+                      {!!t.telefono && estadoItem !== "completada" && (
+                        <TouchableOpacity
+                          style={styles.btnLlamar}
+                          onPress={() =>
+                            Linking.openURL(`tel:${t.telefono}`).catch(() =>
+                              aviso(
+                                "Error",
+                                "No se pudo iniciar la llamada.",
+                                "error",
+                              ),
+                            )
+                          }
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.btnLlamarText}>📞 Llamar</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
 
                   {/* Ruta tipo línea de tiempo */}
                   <View style={styles.routeContainer}>
@@ -301,20 +450,67 @@ export default function SolicitudesScreen() {
                       ) : null}
                     </View>
 
-                    <TouchableOpacity
-                      onPress={() => handleEliminar(item.id)}
-                      style={styles.btnDelete}
-                      activeOpacity={0.7}
-                      disabled={borrando}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      {borrando ? (
-                        <ActivityIndicator size="small" color="#fca5a5" />
-                      ) : (
-                        <Text style={styles.btnDeleteText}>🗑 Eliminar</Text>
-                      )}
-                    </TouchableOpacity>
+                    {/* Aceptada sin iniciar: el cliente puede cancelar. */}
+                    {cancelable && (
+                      <TouchableOpacity
+                        onPress={() => handleCancelar(item)}
+                        style={[
+                          styles.btnDelete,
+                          cancelacionBloqueada && styles.btnBloqueado,
+                        ]}
+                        activeOpacity={0.7}
+                        disabled={borrando || cancelacionBloqueada}
+                        accessibilityState={{ disabled: cancelacionBloqueada }}
+                      >
+                        {borrando ? (
+                          <ActivityIndicator size="small" color="#fca5a5" />
+                        ) : (
+                          <Text
+                            style={[
+                              styles.btnDeleteText,
+                              cancelacionBloqueada && styles.btnBloqueadoText,
+                            ]}
+                          >
+                            {cancelacionBloqueada ? "🔒 Cancelar" : "✕ Cancelar"}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+
+                    {porCalificar && (
+                      <TouchableOpacity
+                        onPress={() => setCalificandoId(item.id ?? null)}
+                        style={styles.btnCalificar}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.btnCalificarText}>★ Calificar</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Solo se puede eliminar mientras nadie la ha tomado. */}
+                    {estadoItem === "pendiente" && (
+                      <TouchableOpacity
+                        onPress={() => handleEliminar(item.id)}
+                        style={styles.btnDelete}
+                        activeOpacity={0.7}
+                        disabled={borrando}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        {borrando ? (
+                          <ActivityIndicator size="small" color="#fca5a5" />
+                        ) : (
+                          <Text style={styles.btnDeleteText}>🗑 Eliminar</Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
                   </View>
+
+                  {cancelacionBloqueada && (
+                    <Text style={styles.textoBloqueo}>
+                      Faltan menos de {HORAS_MINIMAS_CANCELACION} horas para el
+                      servicio: ya no se puede cancelar.
+                    </Text>
+                  )}
                 </View>
               );
             })
@@ -322,6 +518,14 @@ export default function SolicitudesScreen() {
         </ScrollView>
 
         <BarraNavegacion />
+
+        <CalificarServicio
+          servicioId={servicioCalificando ? calificandoId : null}
+          rol="cliente"
+          nombreCalificado={servicioCalificando?.transportista?.nombre ?? ""}
+          onCerrar={() => setCalificandoId(null)}
+          onEnviado={alCalificar}
+        />
       </View>
     </SafeAreaView>
   );
@@ -555,4 +759,55 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   btnDeleteText: { color: "#fca5a5", fontSize: 12, fontWeight: "800" },
+
+  // Estado y transportista
+  estadoBox: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  estadoTexto: { fontSize: 12, fontWeight: "800" },
+  transportistaBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(41,105,233,0.35)",
+    backgroundColor: "rgba(41,105,233,0.08)",
+    marginBottom: 12,
+  },
+  transportistaDatos: { flex: 1 },
+  vehiculoTexto: { color: "#9BA7BA", fontSize: 12, marginTop: 2 },
+  btnLlamar: {
+    backgroundColor: AZUL,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  btnLlamarText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
+  calificacionTexto: { color: "#fbbf24", fontSize: 12, fontWeight: "700", marginTop: 2 },
+  btnCalificar: {
+    backgroundColor: "#fbbf24",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+    minWidth: 92,
+    alignItems: "center",
+  },
+  btnCalificarText: { color: "#1a1300", fontSize: 12, fontWeight: "900" },
+  btnBloqueado: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  btnBloqueadoText: { color: "rgba(255,255,255,0.35)" },
+  textoBloqueo: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 11,
+    marginTop: 10,
+    lineHeight: 16,
+  },
 });

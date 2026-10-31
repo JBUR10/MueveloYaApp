@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 
+import { useAvisos } from "../../services/avisosStore";
 import { useModo } from "../../services/modoStore";
 
 type Pestaña = "Inicio" | "Servicios" | "Solicitudes" | "Perfil";
@@ -44,6 +45,13 @@ export default function BarraNavegacion() {
   const router = useRouter();
   const rutaActual = usePathname();
   const transportista = useModo().modo === "transportista";
+
+  // Punto rojo en "Solicitudes", como un mensaje no leído.
+  const avisos = useAvisos();
+  const pendientesPorVer =
+    avisos.noLeidas +
+    avisos.proximos +
+    (transportista ? avisos.nuevasDisponibles : 0);
 
   const indiceActivo = Math.max(
     0,
@@ -284,14 +292,27 @@ export default function BarraNavegacion() {
                 accessibilityState={{ selected: activa }}
                 accessibilityLabel={pestaña.id}
               >
-                <Text
-                  style={[
-                    styles.simboloNavegacion,
-                    activa && styles.simboloNavegacionActivo,
-                  ]}
-                >
-                  {pestaña.icono}
-                </Text>
+                <View>
+                  <Text
+                    style={[
+                      styles.simboloNavegacion,
+                      activa && styles.simboloNavegacionActivo,
+                    ]}
+                  >
+                    {pestaña.icono}
+                  </Text>
+
+                  {pestaña.id === "Solicitudes" && pendientesPorVer > 0 && (
+                    <View
+                      style={styles.insignia}
+                      accessibilityLabel={`${pendientesPorVer} avisos sin ver`}
+                    >
+                      <Text style={styles.textoInsignia}>
+                        {pendientesPorVer > 9 ? "9+" : pendientesPorVer}
+                      </Text>
+                    </View>
+                  )}
+                </View>
 
                 <Text
                   style={[
@@ -440,5 +461,27 @@ const styles = StyleSheet.create({
   presionado: {
     opacity: 0.75,
     transform: [{ scale: 0.98 }],
+  },
+
+  insignia: {
+    position: "absolute",
+    top: -4,
+    right: -12,
+    minWidth: 17,
+    height: 17,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    backgroundColor: "#ef4444",
+    borderWidth: 2,
+    borderColor: "#1a1d24",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  textoInsignia: {
+    color: "#FFFFFF",
+    fontSize: 9,
+    fontWeight: "900",
+    lineHeight: 11,
   },
 });
