@@ -1,13 +1,15 @@
-import { BlurView } from "expo-blur";
 import { Href, useFocusEffect, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useState } from "react";
 import {
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -17,12 +19,7 @@ import BarraNavegacion from "../components/ui/BarraNavegacion";
 import MensajeTemporal from "../components/ui/MensajeTemporal";
 import { supabase } from "../lib/supabase";
 import { cambiarModo, useModo } from "../services/modoStore";
-import {
-  obtenerMiPerfil,
-  obtenerResumen,
-  Perfil,
-  textoAntiguedad,
-} from "../services/perfilService";
+import { obtenerMiPerfil, Perfil } from "../services/perfilService";
 import {
   obtenerMiVehiculo,
   revisarDocumentos,
@@ -32,33 +29,47 @@ import {
 const AZUL = "#2969e9";
 const FONDO = "#111318";
 
-const opciones = [
-  {
-    icono: "♙",
-    titulo: "Información personal",
-    descripcion: "Administra tus datos personales",
-  },
-  {
-    icono: "⌖",
-    titulo: "Mis direcciones",
-    descripcion: "Gestiona tus ubicaciones guardadas",
-  },
-  {
-    icono: "◷",
-    titulo: "Historial de solicitudes",
-    descripcion: "Consulta tus actividades anteriores",
-  },
-  {
-    icono: "⚙",
-    titulo: "Configuración",
-    descripcion: "Preferencias de tu cuenta",
-  },
-  {
-    icono: "?",
-    titulo: "Ayuda y soporte",
-    descripcion: "Encuentra respuestas a tus dudas",
-  },
-];
+// Campos extra del formulario. Si tu Perfil aún no los tiene,
+// agrégalos en perfilService (apellido, ciudad, telefono).
+type PerfilExtendido = Perfil & {
+  apellido?: string | null;
+  ciudad?: string | null;
+  telefono?: string | null;
+};
+
+type CampoProps = {
+  etiqueta: string;
+  valor: string;
+  onChange?: (texto: string) => void;
+  editable?: boolean;
+  teclado?: "default" | "email-address" | "phone-pad";
+  autoCapitalize?: "none" | "words" | "sentences";
+};
+
+function Campo({
+  etiqueta,
+  valor,
+  onChange,
+  editable = true,
+  teclado = "default",
+  autoCapitalize = "words",
+}: CampoProps) {
+  return (
+    <View style={[styles.campo, !editable && styles.campoBloqueado]}>
+      <Text style={styles.campoEtiqueta}>{etiqueta}</Text>
+      <TextInput
+        value={valor}
+        onChangeText={onChange}
+        editable={editable}
+        keyboardType={teclado}
+        autoCapitalize={autoCapitalize}
+        placeholderTextColor="#657187"
+        placeholder={etiqueta}
+        style={[styles.campoInput, !editable && styles.campoInputBloqueado]}
+      />
+    </View>
+  );
+}
 
 export default function PerfilScreen() {
   const [notificacionesActivas, setNotificacionesActivas] = useState(true);
@@ -68,22 +79,78 @@ export default function PerfilScreen() {
   const [mensajeModo, setMensajeModo] = useState<string | null>(null);
   const ocultarMensajeModo = useCallback(() => setMensajeModo(null), []);
 
-  const [perfil, setPerfil] = useState<Perfil | null>(null);
+  const [perfil, setPerfil] = useState<PerfilExtendido | null>(null);
   const [vehiculo, setVehiculo] = useState<Vehiculo | null>(null);
-  const [resumen, setResumen] = useState({ solicitudes: 0, servicios: 0 });
+
+  // Formulario
+  const [nombreForm, setNombreForm] = useState("");
+  const [apellidoForm, setApellidoForm] = useState("");
+  const [ciudadForm, setCiudadForm] = useState("");
+  const [telefonoForm, setTelefonoForm] = useState("");
+  const [guardando, setGuardando] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      obtenerMiPerfil().then(setPerfil);
-      obtenerResumen().then(setResumen);
+      obtenerMiPerfil().then((p) => {
+        const datos = p as PerfilExtendido | null;
+        setPerfil(datos);
+        setNombreForm(datos?.nombre ?? "");
+        setApellidoForm(datos?.apellido ?? "");
+        setCiudadForm(datos?.ciudad ?? "");
+        setTelefonoForm(datos?.telefono ?? "");
+      });
       obtenerMiVehiculo()
         .then(setVehiculo)
         .catch(() => setVehiculo(null));
     }, []),
   );
 
-  const nombre = perfil?.nombre || "Mi usuario";
+  const nombre = nombreForm || perfil?.nombre || "Mi usuario";
   const inicial = nombre.trim().charAt(0).toUpperCase() || "U";
+
+  const hayCambios =
+    nombreForm !== (perfil?.nombre ?? "") ||
+    apellidoForm !== (perfil?.apellido ?? "") ||
+    ciudadForm !== (perfil?.ciudad ?? "") ||
+    telefonoForm !== (perfil?.telefono ?? "");
+
+  const guardarPerfil = async () => {
+    if (!hayCambios || guardando) return;
+    setGuardando(true);
+    try {
+      // TODO: conectar con tu servicio, por ejemplo:
+      // await actualizarMiPerfil({ nombre: nombreForm, apellido: apellidoForm,
+      //   ciudad: ciudadForm, telefono: telefonoForm });
+      setPerfil((p) =>
+        p
+          ? {
+              ...p,
+              nombre: nombreForm,
+              apellido: apellidoForm,
+              ciudad: ciudadForm,
+              telefono: telefonoForm,
+            }
+          : p,
+      );
+      setMensajeModo("Perfil actualizado");
+    } catch {
+      await aviso(
+        "Error",
+        "No pudimos guardar tus datos. Inténtalo de nuevo.",
+        "error",
+      );
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const cambiarFoto = () => {
+    aviso(
+      "Foto de perfil",
+      "Esta opción estará disponible próximamente.",
+      "info",
+    );
+  };
 
   const alternarModo = async () => {
     const nuevoModo = modoTransportista ? "usuario" : "transportista";
@@ -110,7 +177,8 @@ export default function PerfilScreen() {
           textoAceptar: "Registrar",
           tipo: "info",
         });
-        if (ok) router.push({ pathname: "/vehiculo", params: { activar: "1" } });
+        if (ok)
+          router.push({ pathname: "/vehiculo", params: { activar: "1" } });
         return;
       }
 
@@ -149,14 +217,6 @@ export default function PerfilScreen() {
     );
   };
 
-  const mostrarOpcion = (titulo: string) => {
-    aviso(
-      titulo,
-      "Esta sección estará disponible cuando se implemente su funcionalidad.",
-      "info",
-    );
-  };
-
   const cerrarSesion = async () => {
     const ok = await confirmar({
       titulo: "Cerrar sesión",
@@ -169,7 +229,11 @@ export default function PerfilScreen() {
     // El modo queda guardado para esta cuenta; la siguiente cuenta carga el suyo.
     const { error } = await supabase.auth.signOut();
     if (error) {
-      await aviso("Error", "No se pudo cerrar la sesión. Revisa tu conexión.", "error");
+      await aviso(
+        "Error",
+        "No se pudo cerrar la sesión. Revisa tu conexión.",
+        "error",
+      );
     }
     // Sin sesión, el _layout lleva al login automáticamente.
   };
@@ -179,47 +243,24 @@ export default function PerfilScreen() {
       <StatusBar barStyle="light-content" backgroundColor={FONDO} />
 
       <View style={styles.contenedor}>
-        <ScrollView
+        <KeyboardAvoidingView
           style={styles.scroll}
-          contentContainerStyle={styles.contenido}
-          showsVerticalScrollIndicator={false}>
-          {/* Encabezado */}
-          <View style={styles.encabezado}>
-            <View>
+          behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.contenido}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
+            {/* Encabezado */}
+            <View style={styles.encabezado}>
               <Text style={styles.etiquetaSuperior}>TU ESPACIO PERSONAL</Text>
-
               <Text style={styles.titulo}>
                 Mi <Text style={styles.textoAzul}>perfil</Text>
               </Text>
             </View>
 
-            <View style={styles.iconoEncabezado}>
-              <Text style={styles.simboloEncabezado}>○</Text>
-            </View>
-          </View>
-
-          {/* Tarjeta principal del usuario */}
-          <View style={styles.tarjetaPerfil}>
-            <BlurView
-              intensity={24}
-              tint="dark"
-              experimentalBlurMethod="dimezisBlurView"
-              style={StyleSheet.absoluteFill}
-            />
-
-            <LinearGradient
-              colors={[
-                "rgba(41,105,233,0.22)",
-                "rgba(255,255,255,0.07)",
-                "rgba(17,19,24,0.30)",
-              ]}
-              locations={[0, 0.5, 1]}
-              style={StyleSheet.absoluteFill}
-            />
-
-            <View style={styles.reflejoPerfil} />
-
-            <View style={styles.perfilSuperior}>
+            {/* Avatar */}
+            <View style={styles.avatarZona}>
               <View style={styles.avatarExterior}>
                 <LinearGradient
                   colors={["#528BFF", "#1744A4", "#14254A"]}
@@ -227,261 +268,216 @@ export default function PerfilScreen() {
                   <Text style={styles.avatarTexto}>{inicial}</Text>
                 </LinearGradient>
 
-                <View style={styles.estadoUsuario} />
-              </View>
-
-              <View style={styles.datosUsuario}>
-                <Text style={styles.nombreUsuario} numberOfLines={1}>
-                  {nombre}
-                </Text>
-                <Text style={styles.correoUsuario} numberOfLines={1}>
-                  {perfil?.correo ?? ""}
-                </Text>
-
-                <View style={styles.etiquetaCuenta}>
-                  <View style={styles.puntoActivo} />
-                  <Text style={styles.textoEtiquetaCuenta}>Cuenta activa</Text>
-                </View>
-              </View>
-
-              <Pressable
-                onPress={() => mostrarOpcion("Editar perfil")}
-                accessibilityRole="button"
-                accessibilityLabel="Editar perfil"
-                style={({ pressed }) => [
-                  styles.botonEditar,
-                  pressed && styles.presionado,
-                ]}>
-                <Text style={styles.iconoEditar}>✎</Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.divisorPerfil} />
-
-            <View style={styles.resumenPerfil}>
-              <View style={styles.resumenItem}>
-                <Text style={styles.resumenValor}>{resumen.solicitudes}</Text>
-                <Text style={styles.resumenEtiqueta}>Solicitudes</Text>
-              </View>
-
-              <View style={styles.divisorVertical} />
-
-              <View style={styles.resumenItem}>
-                <Text style={styles.resumenValor}>{resumen.servicios}</Text>
-                <Text style={styles.resumenEtiqueta}>Servicios</Text>
-              </View>
-
-              <View style={styles.divisorVertical} />
-
-              <View style={styles.resumenItem}>
-                <Text style={styles.resumenValor}>
-                  {perfil?.creadoEl ? textoAntiguedad(perfil.creadoEl) : "—"}
-                </Text>
-                <Text style={styles.resumenEtiqueta}>Antigüedad</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Opciones de cuenta */}
-          <View style={styles.seccionEncabezado}>
-            <View>
-              <Text style={styles.tituloSeccion}>Mi cuenta</Text>
-              <Text style={styles.subtituloSeccion}>
-                Gestiona tu información y preferencias
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.panelOpciones}>
-            <BlurView
-              intensity={18}
-              tint="dark"
-              experimentalBlurMethod="dimezisBlurView"
-              style={StyleSheet.absoluteFill}
-            />
-
-            <LinearGradient
-              colors={["rgba(255,255,255,0.09)", "rgba(255,255,255,0.025)"]}
-              style={StyleSheet.absoluteFill}
-            />
-
-            {opciones.map((opcion, indice) => (
-              <View key={opcion.titulo}>
                 <Pressable
-                  onPress={() => mostrarOpcion(opcion.titulo)}
+                  onPress={cambiarFoto}
                   accessibilityRole="button"
+                  accessibilityLabel="Cambiar foto de perfil"
                   style={({ pressed }) => [
-                    styles.opcion,
+                    styles.botonFoto,
                     pressed && styles.presionado,
                   ]}>
-                  <View style={styles.iconoOpcion}>
-                    <Text style={styles.simboloOpcion}>{opcion.icono}</Text>
-                  </View>
-
-                  <View style={styles.datosOpcion}>
-                    <Text style={styles.tituloOpcion}>{opcion.titulo}</Text>
-                    <Text style={styles.descripcionOpcion}>
-                      {opcion.descripcion}
-                    </Text>
-                  </View>
-
-                  <Text style={styles.flechaOpcion}>›</Text>
+                  <Text style={styles.iconoFoto}>✎</Text>
                 </Pressable>
-
-                {indice < opciones.length - 1 && (
-                  <View style={styles.divisorOpcion} />
-                )}
               </View>
-            ))}
-          </View>
+            </View>
 
-          {/* Preferencias */}
-          <Text style={styles.tituloSeccion}>Preferencias</Text>
-
-          <View style={styles.tarjetaPreferencias}>
-            <View style={styles.preferenciaTexto}>
-              <Text style={styles.tituloOpcion}>Notificaciones</Text>
-              <Text style={styles.descripcionOpcion}>
-                Recibe actualizaciones de tus solicitudes
-              </Text>
+            {/* Formulario */}
+            <View style={styles.formulario}>
+              <Campo
+                etiqueta="Nombre"
+                valor={nombreForm}
+                onChange={setNombreForm}
+              />
+              <Campo
+                etiqueta="Apellido"
+                valor={apellidoForm}
+                onChange={setApellidoForm}
+              />
+              <Campo
+                etiqueta="Correo electrónico"
+                valor={perfil?.correo ?? ""}
+                editable={false}
+                teclado="email-address"
+                autoCapitalize="none"
+              />
+              <Campo
+                etiqueta="Ciudad"
+                valor={ciudadForm}
+                onChange={setCiudadForm}
+              />
+              <Campo
+                etiqueta="Teléfono"
+                valor={telefonoForm}
+                onChange={setTelefonoForm}
+                teclado="phone-pad"
+                autoCapitalize="none"
+              />
             </View>
 
             <Pressable
-              onPress={() => setNotificacionesActivas((activas) => !activas)}
-              accessibilityRole="switch"
-              accessibilityState={{
-                checked: notificacionesActivas,
-              }}
-              accessibilityLabel="Activar notificaciones"
-              style={[
-                styles.interruptor,
-                notificacionesActivas && styles.interruptorActivo,
+              onPress={guardarPerfil}
+              disabled={!hayCambios || guardando}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !hayCambios || guardando }}
+              style={({ pressed }) => [
+                styles.botonGuardar,
+                (!hayCambios || guardando) && styles.botonGuardarInactivo,
+                pressed && styles.presionado,
               ]}>
-              <View
-                style={[
-                  styles.interruptorPunto,
-                  notificacionesActivas && styles.interruptorPuntoActivo,
-                ]}
-              />
+              <Text style={styles.textoGuardar}>
+                {guardando ? "Guardando..." : "Guardar"}
+              </Text>
             </Pressable>
-          </View>
 
-          {/* Modo transportista */}
-          <View style={styles.tarjetaModo}>
-            <View style={styles.filaModo}>
+            {/* Preferencias */}
+            <Text style={styles.tituloSeccion}>Preferencias</Text>
+
+            <View style={styles.tarjetaPreferencias}>
               <View style={styles.preferenciaTexto}>
-                <Text style={styles.tituloOpcion}>Modo transportista</Text>
+                <Text style={styles.tituloOpcion}>Notificaciones</Text>
                 <Text style={styles.descripcionOpcion}>
-                  Ve, acepta y gestiona solicitudes de servicio
+                  Recibe actualizaciones de tus solicitudes
                 </Text>
               </View>
 
               <Pressable
-                onPress={alternarModo}
+                onPress={() => setNotificacionesActivas((activas) => !activas)}
                 accessibilityRole="switch"
                 accessibilityState={{
-                  checked: modoTransportista,
+                  checked: notificacionesActivas,
                 }}
-                accessibilityLabel="Activar modo transportista"
+                accessibilityLabel="Activar notificaciones"
                 style={[
                   styles.interruptor,
-                  modoTransportista && styles.interruptorActivo,
+                  notificacionesActivas && styles.interruptorActivo,
                 ]}>
                 <View
                   style={[
                     styles.interruptorPunto,
-                    modoTransportista && styles.interruptorPuntoActivo,
+                    notificacionesActivas && styles.interruptorPuntoActivo,
                   ]}
                 />
               </Pressable>
             </View>
 
-            <View style={styles.divisorModo} />
+            {/* Modo transportista */}
+            <View style={styles.tarjetaModo}>
+              <View style={styles.filaModo}>
+                <View style={styles.preferenciaTexto}>
+                  <Text style={styles.tituloOpcion}>Modo transportista</Text>
+                  <Text style={styles.descripcionOpcion}>
+                    Ve, acepta y gestiona solicitudes de servicio
+                  </Text>
+                </View>
 
-            <View style={styles.filaModo}>
-              <View style={styles.etiquetaModo}>
-                <View
+                <Pressable
+                  onPress={alternarModo}
+                  accessibilityRole="switch"
+                  accessibilityState={{
+                    checked: modoTransportista,
+                  }}
+                  accessibilityLabel="Activar modo transportista"
                   style={[
-                    styles.puntoModo,
-                    modoTransportista && styles.puntoModoActivo,
-                  ]}
-                />
-                <Text style={styles.textoEtiquetaModo}>
-                  {modoTransportista ? "Modo transportista" : "Modo usuario"}
-                </Text>
+                    styles.interruptor,
+                    modoTransportista && styles.interruptorActivo,
+                  ]}>
+                  <View
+                    style={[
+                      styles.interruptorPunto,
+                      modoTransportista && styles.interruptorPuntoActivo,
+                    ]}
+                  />
+                </Pressable>
               </View>
+
+              <View style={styles.divisorModo} />
+
+              <View style={styles.filaModo}>
+                <View style={styles.etiquetaModo}>
+                  <View
+                    style={[
+                      styles.puntoModo,
+                      modoTransportista && styles.puntoModoActivo,
+                    ]}
+                  />
+                  <Text style={styles.textoEtiquetaModo}>
+                    {modoTransportista ? "Modo transportista" : "Modo usuario"}
+                  </Text>
+                </View>
+
+                {modoTransportista && (
+                  <Pressable
+                    onPress={alternarModo}
+                    accessibilityRole="button"
+                    style={({ pressed }) => pressed && styles.presionado}>
+                    <Text style={styles.textoVolverModo}>
+                      Volver a modo usuario
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+
+              {!!vehiculo && (
+                <Pressable
+                  onPress={() => router.push("/vehiculo")}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [
+                    styles.filaVehiculo,
+                    pressed && styles.presionado,
+                  ]}>
+                  <View style={styles.preferenciaTexto}>
+                    <Text style={styles.tituloOpcion}>
+                      Mi vehículo · {vehiculo.placa}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.descripcionOpcion,
+                        !revisarDocumentos(vehiculo).vigentes &&
+                          styles.textoVencido,
+                      ]}>
+                      {!revisarDocumentos(vehiculo).vigentes
+                        ? "Documentos vencidos: actualízalos"
+                        : revisarDocumentos(vehiculo).porVencer.length
+                          ? "Hay documentos por vencer"
+                          : "Documentos al día"}
+                    </Text>
+                  </View>
+                  <Text style={styles.flechaOpcion}>›</Text>
+                </Pressable>
+              )}
 
               {modoTransportista && (
                 <Pressable
-                  onPress={alternarModo}
+                  onPress={() => router.push("/transportista" as Href)}
                   accessibilityRole="button"
-                  style={({ pressed }) => pressed && styles.presionado}>
-                  <Text style={styles.textoVolverModo}>
-                    Volver a modo usuario
+                  style={({ pressed }) => [
+                    styles.botonPanelTransportista,
+                    pressed && styles.presionado,
+                  ]}>
+                  <Text style={styles.textoPanelTransportista}>
+                    Ver solicitudes de servicio ›
                   </Text>
                 </Pressable>
               )}
             </View>
 
-            {!!vehiculo && (
-              <Pressable
-                onPress={() => router.push("/vehiculo")}
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.filaVehiculo,
-                  pressed && styles.presionado,
-                ]}>
-                <View style={styles.preferenciaTexto}>
-                  <Text style={styles.tituloOpcion}>
-                    Mi vehículo · {vehiculo.placa}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.descripcionOpcion,
-                      !revisarDocumentos(vehiculo).vigentes && styles.textoVencido,
-                    ]}>
-                    {!revisarDocumentos(vehiculo).vigentes
-                      ? "Documentos vencidos: actualízalos"
-                      : revisarDocumentos(vehiculo).porVencer.length
-                        ? "Hay documentos por vencer"
-                        : "Documentos al día"}
-                  </Text>
-                </View>
-                <Text style={styles.flechaOpcion}>›</Text>
-              </Pressable>
-            )}
+            {/* Cerrar sesión */}
+            <Pressable
+              onPress={cerrarSesion}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.botonCerrarSesion,
+                pressed && styles.presionado,
+              ]}>
+              <Text style={styles.iconoCerrarSesion}>⇥</Text>
+              <Text style={styles.textoCerrarSesion}>Cerrar sesión</Text>
+            </Pressable>
 
-            {modoTransportista && (
-              <Pressable
-                onPress={() => router.push("/transportista" as Href)}
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.botonPanelTransportista,
-                  pressed && styles.presionado,
-                ]}>
-                <Text style={styles.textoPanelTransportista}>
-                  Ver solicitudes de servicio ›
-                </Text>
-              </Pressable>
-            )}
-          </View>
-
-          {/* Cerrar sesión */}
-          <Pressable
-            onPress={cerrarSesion}
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.botonCerrarSesion,
-              pressed && styles.presionado,
-            ]}>
-            <Text style={styles.iconoCerrarSesion}>⇥</Text>
-            <Text style={styles.textoCerrarSesion}>Cerrar sesión</Text>
-          </Pressable>
-
-          <Text style={styles.version}>
-            MUÉVELO YA · TU MOVILIDAD, MÁS SIMPLE
-          </Text>
-        </ScrollView>
+            <Text style={styles.version}>
+              MUÉVELO YA · TU MOVILIDAD, MÁS SIMPLE
+            </Text>
+          </ScrollView>
+        </KeyboardAvoidingView>
 
         {/* Barra de navegación compartida */}
         <BarraNavegacion />
@@ -517,10 +513,8 @@ const styles = StyleSheet.create({
     gap: 18,
   },
 
+  // Encabezado
   encabezado: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: 2,
   },
 
@@ -543,51 +537,16 @@ const styles = StyleSheet.create({
     color: AZUL,
   },
 
-  iconoEncabezado: {
-    width: 43,
-    height: 43,
-    borderRadius: 15,
-    backgroundColor: "rgba(41,105,233,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(100,150,255,0.32)",
+  // Avatar
+  avatarZona: {
     alignItems: "center",
-    justifyContent: "center",
-  },
-
-  simboloEncabezado: {
-    fontSize: 28,
-    color: "#8DB2FF",
-  },
-
-  tarjetaPerfil: {
-    borderRadius: 25,
-    borderWidth: 1,
-    borderColor: "rgba(139,170,255,0.30)",
-    overflow: "hidden",
-    backgroundColor: "rgba(20,28,45,0.65)",
-    padding: 17,
-    gap: 17,
-  },
-
-  reflejoPerfil: {
-    position: "absolute",
-    top: 0,
-    left: 22,
-    right: 22,
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.00)",
-  },
-
-  perfilSuperior: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 13,
+    marginVertical: 4,
   },
 
   avatarExterior: {
-    width: 68,
-    height: 68,
-    borderRadius: 23,
+    width: 104,
+    height: 104,
+    borderRadius: 52,
     padding: 3,
     borderWidth: 1,
     borderColor: "rgba(141,178,255,0.65)",
@@ -595,177 +554,97 @@ const styles = StyleSheet.create({
 
   avatar: {
     flex: 1,
-    borderRadius: 19,
+    borderRadius: 49,
     alignItems: "center",
     justifyContent: "center",
   },
 
   avatarTexto: {
     color: "#FFFFFF",
-    fontSize: 30,
+    fontSize: 42,
     fontWeight: "800",
   },
 
-  estadoUsuario: {
+  botonFoto: {
     position: "absolute",
-    right: -2,
+    right: -6,
     bottom: -2,
-    width: 15,
-    height: 15,
-    borderRadius: 8,
-    backgroundColor: "#50DCA4",
-    borderWidth: 3,
-    borderColor: "#172137",
-  },
-
-  datosUsuario: {
-    flex: 1,
-    gap: 4,
-  },
-
-  nombreUsuario: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "800",
-  },
-
-  correoUsuario: {
-    color: "#B0BDD0",
-    fontSize: 11,
-  },
-
-  etiquetaCuenta: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    gap: 5,
-    marginTop: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: "rgba(80,220,164,0.10)",
-    borderWidth: 1,
-    borderColor: "rgba(80,220,164,0.20)",
-  },
-
-  puntoActivo: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "#50DCA4",
-  },
-
-  textoEtiquetaCuenta: {
-    color: "#86E8BD",
-    fontSize: 9,
-    fontWeight: "700",
-  },
-
-  botonEditar: {
-    width: 35,
-    height: 35,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "#1E222B",
+    borderWidth: 3,
+    borderColor: FONDO,
+  },
+
+  iconoFoto: {
+    color: "#FFFFFF",
+    fontSize: 16,
+  },
+
+  // Formulario
+  formulario: {
+    gap: 12,
+  },
+
+  campo: {
+    paddingHorizontal: 15,
+    paddingTop: 10,
+    paddingBottom: 6,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.07)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.16)",
+    borderColor: "rgba(255,255,255,0.08)",
   },
 
-  iconoEditar: {
-    color: "#FFFFFF",
-    fontSize: 20,
+  campoBloqueado: {
+    backgroundColor: "rgba(255,255,255,0.04)",
   },
 
-  divisorPerfil: {
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.13)",
-  },
-
-  resumenPerfil: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-  },
-
-  resumenItem: {
-    flex: 1,
-    alignItems: "center",
-    gap: 4,
-  },
-
-  resumenValor: {
-    color: "#FFFFFF",
-    fontSize: 21,
-    fontWeight: "800",
-  },
-
-  resumenEtiqueta: {
-    color: "#AAB7CA",
-    fontSize: 10,
+  campoEtiqueta: {
+    color: "#9BA7BA",
+    fontSize: 11,
     fontWeight: "600",
   },
 
-  divisorVertical: {
-    width: 1,
-    height: 32,
-    backgroundColor: "rgba(255,255,255,0.13)",
+  campoInput: {
+    color: "#F2F5FA",
+    fontSize: 15,
+    fontWeight: "600",
+    paddingVertical: 4,
+    paddingHorizontal: 0,
   },
 
-  seccionEncabezado: {
-    gap: 5,
+  campoInputBloqueado: {
+    color: "#8E9AAE",
   },
 
+  botonGuardar: {
+    minHeight: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 16,
+    backgroundColor: AZUL,
+  },
+
+  botonGuardarInactivo: {
+    opacity: 0.4,
+  },
+
+  textoGuardar: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
+  // Preferencias (sin cambios)
   tituloSeccion: {
     color: "#F0F3F8",
     fontSize: 17,
     fontWeight: "800",
     letterSpacing: -0.3,
-  },
-
-  subtituloSeccion: {
-    color: "#929EB1",
-    fontSize: 11,
-    marginTop: 4,
-  },
-
-  panelOpciones: {
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
-    backgroundColor: "rgba(255,255,255,0.035)",
-    overflow: "hidden",
-  },
-
-  opcion: {
-    minHeight: 76,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 13,
-    paddingVertical: 12,
-    gap: 12,
-  },
-
-  iconoOpcion: {
-    width: 43,
-    height: 43,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(41,105,233,0.14)",
-    borderWidth: 1,
-    borderColor: "rgba(100,150,255,0.20)",
-  },
-
-  simboloOpcion: {
-    color: "#8DB2FF",
-    fontSize: 23,
-    fontWeight: "500",
-  },
-
-  datosOpcion: {
-    flex: 1,
-    gap: 5,
   },
 
   tituloOpcion: {
@@ -785,12 +664,6 @@ const styles = StyleSheet.create({
     fontSize: 25,
     fontWeight: "300",
     paddingHorizontal: 3,
-  },
-
-  divisorOpcion: {
-    height: 1,
-    marginLeft: 68,
-    backgroundColor: "rgba(255,255,255,0.075)",
   },
 
   tarjetaPreferencias: {
@@ -874,7 +747,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
 
-  // Modo transportista
+  // Modo transportista (sin cambios)
   tarjetaModo: {
     gap: 12,
     padding: 15,
