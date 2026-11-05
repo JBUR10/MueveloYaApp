@@ -19,7 +19,10 @@ export function armarDireccion(
 
 /** Obtiene la dirección de unas coordenadas. Primero expo-location; si no hay resultado
  *  (por ejemplo en web), usa OpenStreetMap (Nominatim). */
-export async function obtenerDireccion({ lat, lng }: Coordenadas): Promise<string> {
+export async function obtenerDireccion({
+  lat,
+  lng,
+}: Coordenadas): Promise<string> {
   try {
     const [lugar] = await Location.reverseGeocodeAsync({
       latitude: lat,
@@ -42,6 +45,7 @@ export async function obtenerDireccion({ lat, lng }: Coordenadas): Promise<strin
   try {
     const respuesta = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=es`,
+      { headers: { "User-Agent": "MueveloYa/1.0 (joelbur003@gmail.com)" } },
     );
     const datos = await respuesta.json();
     const a = datos?.address ?? {};

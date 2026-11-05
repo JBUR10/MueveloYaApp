@@ -1,0 +1,33 @@
+# Publica una actualización OTA (solo JS/assets) cada vez que haces push a main.
+# Llega únicamente a las apps instaladas con el MISMO fingerprint nativo.
+name: EAS Update (OTA)
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: eas-update-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+      - run: npx expo lint
+
+      - name: Publicar update al canal production
+        run: eas update --channel production --environment production --message "${{ github.event.head_commit.message }}" --non-interactive

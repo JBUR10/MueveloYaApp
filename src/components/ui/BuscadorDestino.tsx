@@ -39,7 +39,26 @@ function formatearDuracion(min: number) {
   return m ? `${h} h ${m} min` : `${h} h`;
 }
 
-export async function buscarLugares(consulta: string): Promise<Resultado[]> {
+// Nominatim exige identificar la app con un User-Agent propio. Sin él puede bloquear
+// las peticiones (HTTP 403/429), y eso pasa justo en el APK instalado.
+export const USER_AGENT = "MueveloYa/1.0 (joelbur003@gmail.com)";
+
+async function pedirJson(url: string, ms = 10000): Promise<any> {
+  const control = new AbortController();
+  const temporizador = setTimeout(() => control.abort(), ms);
+  try {
+    const respuesta = await fetch(url, {
+      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+      signal: control.signal,
+    });
+    if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+    return await respuesta.json();
+  } finally {
+    clearTimeout(temporizador);
+  }
+}
+
+async function buscarEnNominatim(consulta: string): Promise<Resultado[]> {
   // viewbox sesga los resultados hacia Medellín y el Valle de Aburrá (sin limitarlos).
   const url =
     "https://nominatim.openstreetmap.org/search?format=jsonv2" +
@@ -47,9 +66,7 @@ export async function buscarLugares(consulta: string): Promise<Resultado[]> {
     "&limit=5&addressdetails=1&accept-language=es&countrycodes=co" +
     "&viewbox=-75.75,6.45,-75.35,6.05&bounded=0";
 
-  const respuesta = await fetch(url);
-  const datos = await respuesta.json();
-
+  const datos = await pedirJson(url);
   if (!Array.isArray(datos)) return [];
 
   return datos.map((item: any) => {
@@ -65,6 +82,45 @@ export async function buscarLugares(consulta: string): Promise<Resultado[]> {
       detalle: partes.slice(1, 4).join(",").trim(),
     };
   });
+}
+
+// Servicio alterno (también basado en OpenStreetMap) por si Nominatim falla.
+async function buscarEnPhoton(consulta: string): Promise<Resultado[]> {
+  const url =
+    "https://photon.komoot.io/api/?limit=5" +
+    `&q=${encodeURIComponent(consulta)}` +
+    "&lat=6.2442&lon=-75.5812";
+
+  const datos = await pedirJson(url);
+  const items: any[] = Array.isArray(datos?.features) ? datos.features : [];
+
+  return items
+    .filter(
+      (f) => !f.properties?.countrycode || f.properties.countrycode === "CO",
+    )
+    .map((f) => {
+      const p = f.properties ?? {};
+      const [lng, lat] = f.geometry?.coordinates ?? [];
+      const calle = [p.street, p.housenumber].filter(Boolean).join(" ");
+      return {
+        lat: Number(lat),
+        lng: Number(lng),
+        nombre: p.name || calle || "Destino",
+        detalle: [p.district || p.locality, p.city, p.state]
+          .filter(Boolean)
+          .join(", "),
+      };
+    })
+    .filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng));
+}
+
+export async function buscarLugares(consulta: string): Promise<Resultado[]> {
+  try {
+    return await buscarEnNominatim(consulta);
+  } catch {
+    // Si el primero falla (bloqueo, caída o sin respuesta), se prueba el alterno.
+    return await buscarEnPhoton(consulta);
+  }
 }
 
 export default function BuscadorDestino({
@@ -102,8 +158,12 @@ export default function BuscadorDestino({
           "No encontramos ese lugar. Prueba con otro nombre o dirección.",
         );
       }
-    } catch {
-      setMensaje("No pudimos buscar. Revisa tu conexión e inténtalo de nuevo.");
+    } catch (error: any) {
+      setMensaje(
+        `No pudimos buscar. Revisa tu conexión e inténtalo de nuevo.${
+          error?.message ? ` (${error.message})` : ""
+        }`,
+      );
     } finally {
       setBuscando(false);
     }
@@ -309,7 +369,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 3,
-    backgroundColor: "#fa0000",
+    backgroundColor: "#4b00fa",
     borderWidth: 1.5,
     borderColor: "#FFFFFF",
   },

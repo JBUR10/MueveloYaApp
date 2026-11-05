@@ -1,0 +1,54 @@
+# Compila un APK (perfil "preview") en los servidores de GitHub y lo publica como Release.
+# Se ejecuta a mano (pestaña Actions -> Run workflow)
+name: Android APK (build en GitHub)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["apk-*"]
+
+permissions:
+  contents: write # necesario para crear el Release
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      - name: Compilar APK (local, en este servidor)
+        run: eas build --platform android --profile preview --local --non-interactive --output "$GITHUB_WORKSPACE/MueveloYa.apk"
+
+      - name: Guardar APK como artefacto (disponible 14 días)
+        uses: actions/upload-artifact@v4
+        with:
+          name: MueveloYa-apk
+          path: MueveloYa.apk
+          retention-days: 14
+
+      - name: Publicar Release con el APK (solo cuando se usa un tag)
+        if: startsWith(github.ref, 'refs/tags/apk-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" MueveloYa.apk --title "${{ github.ref_name }}" --notes "APK de pruebas (perfil preview)"

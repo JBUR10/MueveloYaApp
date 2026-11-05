@@ -1,13 +1,13 @@
-import * as Location from 'expo-location';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import * as Location from "expo-location";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { WebView } from 'react-native-webview';
+} from "react-native";
+import { WebView } from "react-native-webview";
 
 const mapaHTML = `
 <!DOCTYPE html>
@@ -71,7 +71,7 @@ const mapaHTML = `
     }
 
     .leaflet-control-attribution a {
-      color: #fa0000 !important;
+      color: #4b00fa !important;
       text-decoration: none !important;
     }
 
@@ -157,7 +157,7 @@ const mapaHTML = `
     .pin-solicitud.inmediato { background: #f59e0b; }
 
     .pin-solicitud.seleccionado {
-      background: #fa0000;
+      background: #4b00fa;
       transform: rotate(-45deg) scale(1.25);
     }
 
@@ -214,17 +214,17 @@ const mapaHTML = `
     const ICONO_DESTINO =
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 62">' +
       '<path d="M14 3H34A11 11 0 0 1 45 14V34A11 11 0 0 1 34 45H32L24 57L16 45H14A11 11 0 0 1 3 34V14A11 11 0 0 1 14 3Z" ' +
-      'fill="#fa0000" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>' +
+      'fill="#4b00fa" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>' +
       '<g transform="translate(2.24 3.4) scale(0.085)" fill="#ffffff">' +
       '<rect x="65" y="150" width="245" height="152"/>' +
       '<path d="M325 172H388V200L412 245L447 262V322H325Z"/>' +
       '<rect x="65" y="303" width="382" height="20"/>' +
-      '<polygon points="342,203 381,203 395,250 342,250" fill="#fa0000"/>' +
+      '<polygon points="342,203 381,203 395,250 342,250" fill="#4b00fa"/>' +
       '<circle cx="175" cy="335" r="38"/>' +
-      '<circle cx="175" cy="335" r="29" fill="#fa0000"/>' +
+      '<circle cx="175" cy="335" r="29" fill="#4b00fa"/>' +
       '<circle cx="175" cy="335" r="16"/>' +
       '<circle cx="378" cy="335" r="38"/>' +
-      '<circle cx="378" cy="335" r="29" fill="#fa0000"/>' +
+      '<circle cx="378" cy="335" r="29" fill="#4b00fa"/>' +
       '<circle cx="378" cy="335" r="16"/>' +
       '</g></svg>';
 
@@ -597,7 +597,7 @@ type Props = {
   /** Los pines A (origen) y B (destino) de la ruta se pueden arrastrar. */
   pinesMovibles?: boolean;
   /** Se llama al soltar un pin arrastrado. */
-  onMoverPunto?: (cual: 'origen' | 'destino', coords: Coordenadas) => void;
+  onMoverPunto?: (cual: "origen" | "destino", coords: Coordenadas) => void;
   /** Un camión recorre la ruta de A a B (vista previa). */
   animarRuta?: boolean;
 };
@@ -631,7 +631,10 @@ export default function MapaPrincipal({
   const onMarcadorRef = useRef(onMarcador);
   const margenRef = useRef(margenRuta);
   const onMoverPuntoRef = useRef(onMoverPunto);
-  const opcionesRutaRef = useRef({ movibles: pinesMovibles, animar: animarRuta });
+  const opcionesRutaRef = useRef({
+    movibles: pinesMovibles,
+    animar: animarRuta,
+  });
   useEffect(() => {
     onMarcadorRef.current = onMarcador;
     margenRef.current = margenRuta;
@@ -643,15 +646,15 @@ export default function MapaPrincipal({
   const [mapaListo, setMapaListo] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [calculandoRuta, setCalculandoRuta] = useState(false);
-  const [errorUbicacion, setErrorUbicacion] = useState('');
-  const [errorRuta, setErrorRuta] = useState('');
+  const [errorUbicacion, setErrorUbicacion] = useState("");
+  const [errorRuta, setErrorRuta] = useState("");
 
   // Envía un mensaje al mapa (iframe en web, WebView en móvil).
   const enviarAlMapa = useCallback((mensaje: object) => {
-    if (Platform.OS === 'web') {
+    if (Platform.OS === "web") {
       iframeRef.current?.contentWindow?.postMessage(
         JSON.stringify(mensaje),
-        '*'
+        "*",
       );
     } else {
       webViewRef.current?.injectJavaScript(`
@@ -664,31 +667,31 @@ export default function MapaPrincipal({
   // Procesa los mensajes que llegan desde el mapa.
   const procesarMensaje = useCallback((raw: any) => {
     try {
-      const d = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      if (d?.tipo === 'CENTRO') {
+      const d = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (d?.tipo === "CENTRO") {
         onCentroRef.current?.({ lat: d.lat, lng: d.lng });
-      } else if (d?.tipo === 'MARCADOR' && d.id != null) {
+      } else if (d?.tipo === "MARCADOR" && d.id != null) {
         onMarcadorRef.current?.(String(d.id));
       } else if (
-        d?.tipo === 'PUNTO_MOVIDO' &&
-        (d.cual === 'origen' || d.cual === 'destino')
+        d?.tipo === "PUNTO_MOVIDO" &&
+        (d.cual === "origen" || d.cual === "destino")
       ) {
         onMoverPuntoRef.current?.(d.cual, { lat: d.lat, lng: d.lng });
       }
-    } catch { }
+    } catch {}
   }, []);
 
   // Web: escucha los mensajes que el iframe envía al padre.
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
+    if (Platform.OS !== "web") return;
 
     const handler = (e: MessageEvent) => {
       if (e.source !== iframeRef.current?.contentWindow) return;
       procesarMensaje(e.data);
     };
 
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
   }, [procesarMensaje]);
 
   // 1) Obtener la ubicación del cliente (Android, iOS y web).
@@ -702,7 +705,7 @@ export default function MapaPrincipal({
         if (!permiso.granted) {
           if (activo) {
             setErrorUbicacion(
-              'Activa el permiso de ubicación para mostrar tu posición.'
+              "Activa el permiso de ubicación para mostrar tu posición.",
             );
           }
           return;
@@ -720,12 +723,12 @@ export default function MapaPrincipal({
         };
 
         setCoords(nuevas);
-        setErrorUbicacion('');
+        setErrorUbicacion("");
         onUbicacion?.(nuevas);
       } catch {
         if (activo) {
           setErrorUbicacion(
-            'No pudimos obtener tu ubicación. Comprueba el GPS e inténtalo de nuevo.'
+            "No pudimos obtener tu ubicación. Comprueba el GPS e inténtalo de nuevo.",
           );
         }
       } finally {
@@ -743,7 +746,7 @@ export default function MapaPrincipal({
   //    las coordenadas y la página del mapa ya cargada.
   useEffect(() => {
     if (!coords || !mapaListo) return;
-    enviarAlMapa({ tipo: 'UBICACION', lat: coords.lat, lng: coords.lng });
+    enviarAlMapa({ tipo: "UBICACION", lat: coords.lat, lng: coords.lng });
   }, [coords, mapaListo, enviarAlMapa]);
 
   // 3) Trazar (o quitar) la ruta cuando cambia el destino o el punto de partida.
@@ -760,10 +763,10 @@ export default function MapaPrincipal({
     // Sin destino: limpiar la ruta si había una.
     if (!destino) {
       if (habiaRuta.current) {
-        enviarAlMapa({ tipo: 'LIMPIAR_RUTA' });
+        enviarAlMapa({ tipo: "LIMPIAR_RUTA" });
         habiaRuta.current = false;
       }
-      setErrorRuta('');
+      setErrorRuta("");
       setCalculandoRuta(false);
       onRutaRef.current?.(null);
       return;
@@ -778,36 +781,36 @@ export default function MapaPrincipal({
     // Aún se está obteniendo la ubicación: se espera a que termine.
     if (!inicio) {
       if (!cargando) {
-        setErrorRuta('Necesitamos tu ubicación para trazar la ruta.');
+        setErrorRuta("Necesitamos tu ubicación para trazar la ruta.");
       }
       return;
     }
 
     let activo = true;
     setCalculandoRuta(true);
-    setErrorRuta('');
+    setErrorRuta("");
 
     (async () => {
       try {
         const url =
-          'https://router.project-osrm.org/route/v1/driving/' +
+          "https://router.project-osrm.org/route/v1/driving/" +
           `${inicio.lng},${inicio.lat};${destino.lng},${destino.lat}` +
-          '?overview=full&geometries=geojson';
+          "?overview=full&geometries=geojson";
 
         const respuesta = await fetch(url);
         const datos = await respuesta.json();
         const ruta = datos?.routes?.[0];
 
-        if (!ruta) throw new Error('Sin ruta');
+        if (!ruta) throw new Error("Sin ruta");
         if (!activo) return;
 
         // OSRM devuelve [lng, lat]; Leaflet usa [lat, lng].
         const puntos = ruta.geometry.coordinates.map(
-          ([lng, lat]: [number, number]) => [lat, lng]
+          ([lng, lat]: [number, number]) => [lat, lng],
         );
 
         enviarAlMapa({
-          tipo: 'RUTA',
+          tipo: "RUTA",
           puntos,
           destino,
           origen,
@@ -823,7 +826,7 @@ export default function MapaPrincipal({
       } catch {
         if (activo) {
           setErrorRuta(
-            'No pudimos trazar la ruta. Revisa tu conexión e inténtalo de nuevo.'
+            "No pudimos trazar la ruta. Revisa tu conexión e inténtalo de nuevo.",
           );
           onRutaRef.current?.(null);
         }
@@ -850,7 +853,7 @@ export default function MapaPrincipal({
   useEffect(() => {
     if (!mapaListo || !marcadores) return;
     enviarAlMapa({
-      tipo: 'MARCADORES',
+      tipo: "MARCADORES",
       lista: marcadores,
       seleccionado: marcadorSeleccionado,
     });
@@ -865,7 +868,7 @@ export default function MapaPrincipal({
     if (!mapaListo) return;
     const i = inicioRef.current;
     enviarAlMapa({
-      tipo: 'MODO_SELECCION',
+      tipo: "MODO_SELECCION",
       activo: seleccionando,
       lat: i?.lat,
       lng: i?.lng,
@@ -876,22 +879,22 @@ export default function MapaPrincipal({
 
   return (
     <View style={styles.contenedor}>
-      {Platform.OS === 'web' ? (
+      {Platform.OS === "web" ? (
         <iframe
           ref={iframeRef}
           title="Mapa de Muévelo Ya"
           srcDoc={mapaHTML}
           onLoad={() => setMapaListo(true)}
           style={{
-            width: '100%',
-            height: '100%',
-            border: 'none',
+            width: "100%",
+            height: "100%",
+            border: "none",
           }}
         />
       ) : (
         <WebView
           ref={webViewRef}
-          originWhitelist={['*']}
+          originWhitelist={["*"]}
           source={{ html: mapaHTML }}
           javaScriptEnabled
           domStorageEnabled
@@ -918,40 +921,40 @@ export default function MapaPrincipal({
 
 const styles = StyleSheet.create({
   contenedor: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     right: 0,
     bottom: 0,
     left: 0,
-    overflow: 'hidden',
-    backgroundColor: '#111111',
+    overflow: "hidden",
+    backgroundColor: "#111111",
   },
   mapa: {
     flex: 1,
-    backgroundColor: '#111111',
+    backgroundColor: "#111111",
   },
   estado: {
-    position: 'absolute',
+    position: "absolute",
     top: 215,
-    alignSelf: 'center',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignSelf: "center",
+    alignItems: "center",
+    justifyContent: "center",
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(17,17,17,0.85)',
+    backgroundColor: "rgba(17,17,17,0.85)",
   },
   aviso: {
-    position: 'absolute',
+    position: "absolute",
     top: 215,
     left: 16,
     right: 16,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: 'rgba(28,28,28,0.95)',
+    backgroundColor: "rgba(28,28,28,0.95)",
   },
   textoAviso: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 13,
   },
 });
