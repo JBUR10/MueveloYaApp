@@ -1,5 +1,3 @@
-# Compila AAB (Play Store) e IPA (App Store) y los envía a las tiendas
-# al crear un tag con formato v1.0.1, v1.1.0, etc.
 name: EAS Build + Submit (tiendas)
 
 on:
