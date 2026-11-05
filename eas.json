@@ -17,7 +17,8 @@
       "channel": "preview",
       "environment": "preview",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease -x lintVitalAnalyzeRelease"
       }
     },
     "production": {
