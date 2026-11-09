@@ -120,7 +120,7 @@ const calificacionDeFila = (f: FilaCalificacion): Calificacion => ({
 type FilaVehiculoCorta = { tipo: string; placa: string; marca_modelo: string };
 
 // PostgREST devuelve objeto o arreglo según detecte la relación.
-const uno = <T,>(v: T | T[] | null | undefined): T | null =>
+const uno = <T>(v: T | T[] | null | undefined): T | null =>
   Array.isArray(v) ? (v[0] ?? null) : (v ?? null);
 
 const transportistaDeFila = (
@@ -198,6 +198,8 @@ const aFila = (d: SolicitudServicioDTO) => ({
   nombre_contacto: d.nombreContacto,
   telefono_contacto: d.telefonoContacto,
   fecha: d.fecha || new Date().toISOString(),
+  // Se envía explícito para no depender del default de la columna en la base.
+  estado: "pendiente" as EstadoServicio,
 });
 
 export const registrarServicio = async (
