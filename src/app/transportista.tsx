@@ -214,6 +214,20 @@ export default function TransportistaScreen() {
             router.replace({ pathname: "/vehiculo", params: { activar: "1" } });
             return;
           }
+          // Sin la aprobación de un administrador no se reciben solicitudes.
+          if (vehiculo.verificacion !== "aprobado") {
+            const rechazado = vehiculo.verificacion === "rechazado";
+            await cambiarModo("usuario");
+            await aviso(
+              rechazado ? "Perfil rechazado" : "Perfil en revisión",
+              rechazado
+                ? `Un administrador rechazó tu perfil: ${vehiculo.motivoRechazo || "revisa tus datos"}. Corrige tu vehículo y se enviará a revisión de nuevo.`
+                : "Un administrador está revisando tu perfil. Podrás recibir solicitudes cuando lo apruebe.",
+              rechazado ? "error" : "info",
+            );
+            router.replace(rechazado ? "/vehiculo" : "/perfil");
+            return;
+          }
           const revision = revisarDocumentos(vehiculo);
           if (!revision.vigentes) {
             await aviso(

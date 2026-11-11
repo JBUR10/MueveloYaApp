@@ -136,18 +136,32 @@ export default function VehiculoScreen() {
       );
     }
 
-    if (activar) {
-      await cambiarModo("transportista");
-      await aviso(
-        "¡Listo!",
-        "Tu vehículo quedó registrado. Ya puedes recibir solicitudes.",
-        "exito",
-      );
-      router.replace("/transportista");
-    } else {
+    // La base de datos decide el estado: si cambiaron datos clave o estaba
+    // rechazado, vuelve a "pendiente" y un administrador debe revisarlo.
+    let estadoNuevo: Vehiculo["verificacion"] = "pendiente";
+    try {
+      estadoNuevo = (await obtenerMiVehiculo())?.verificacion ?? "pendiente";
+    } catch {
+      // Si no se pudo leer, se asume en revisión (lo más seguro).
+    }
+
+    if (estadoNuevo === "aprobado") {
+      if (activar) {
+        await cambiarModo("transportista");
+        router.replace("/transportista");
+        return;
+      }
       await aviso("Vehículo actualizado", "Tus datos quedaron guardados.", "exito");
       volver();
+      return;
     }
+
+    await aviso(
+      "Cuenta en revisión",
+      "Tu cuenta será revisada por un administrador. Mientras tanto no podrás recibir pedidos.",
+      "exito",
+    );
+    router.replace("/perfil");
   };
 
   return (
@@ -173,12 +187,43 @@ export default function VehiculoScreen() {
         <Text style={styles.descripcion}>
           Los documentos obligatorios deben estar vigentes. Si alguno se vence,
           el modo transportista se bloquea hasta que actualices la fecha.
+          Además, un administrador debe revisar y aprobar tu perfil antes de
+          que puedas recibir solicitudes. Si cambias el tipo, la placa o la
+          licencia de tránsito, se revisa de nuevo.
         </Text>
 
         {cargando ? (
           <ActivityIndicator color={AZUL} size="large" style={{ marginTop: 40 }} />
         ) : (
           <>
+            {/* Estado de la revisión del administrador */}
+            {existe && (
+              <View
+                style={[
+                  styles.banner,
+                  v.verificacion === "aprobado"
+                    ? styles.bannerOk
+                    : v.verificacion === "rechazado"
+                      ? styles.bannerError
+                      : styles.bannerEspera,
+                ]}>
+                <Text style={styles.bannerTitulo}>
+                  {v.verificacion === "aprobado"
+                    ? "Perfil aprobado"
+                    : v.verificacion === "rechazado"
+                      ? "Perfil rechazado"
+                      : "En revisión"}
+                </Text>
+                <Text style={styles.bannerTexto}>
+                  {v.verificacion === "aprobado"
+                    ? "Un administrador aprobó tu perfil. Ya puedes recibir solicitudes."
+                    : v.verificacion === "rechazado"
+                      ? `${v.motivoRechazo || "Revisa tus datos"}. Corrige lo que haga falta y guarda: se enviará a revisión de nuevo.`
+                      : "Un administrador está revisando tu perfil. Podrás activar el modo transportista cuando lo apruebe."}
+                </Text>
+              </View>
+            )}
+
             {/* Vehículo */}
             <View style={styles.tarjeta}>
               <Text style={styles.tituloTarjeta}>Vehículo</Text>
@@ -363,4 +408,19 @@ const styles = StyleSheet.create({
   checkActivo: { backgroundColor: AZUL, borderColor: AZUL },
   checkMarca: { color: "#FFFFFF", fontSize: 13, fontWeight: "900" },
   textoCheck: { flex: 1, color: "#E7F0F4", fontSize: 13, lineHeight: 18 },
+  banner: { padding: 14, borderRadius: 16, borderWidth: 1, gap: 4 },
+  bannerOk: {
+    borderColor: "rgba(52,199,89,0.5)",
+    backgroundColor: "rgba(52,199,89,0.12)",
+  },
+  bannerError: {
+    borderColor: "rgba(255,69,58,0.5)",
+    backgroundColor: "rgba(255,69,58,0.12)",
+  },
+  bannerEspera: {
+    borderColor: "rgba(255,196,0,0.5)",
+    backgroundColor: "rgba(255,196,0,0.1)",
+  },
+  bannerTitulo: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
+  bannerTexto: { color: "#D5DCE8", fontSize: 13, lineHeight: 18 },
 });
