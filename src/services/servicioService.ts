@@ -120,7 +120,7 @@ const calificacionDeFila = (f: FilaCalificacion): Calificacion => ({
 type FilaVehiculoCorta = { tipo: string; placa: string; marca_modelo: string };
 
 // PostgREST devuelve objeto o arreglo según detecte la relación.
-const uno = <T>(v: T | T[] | null | undefined): T | null =>
+const uno = <T,>(v: T | T[] | null | undefined): T | null =>
   Array.isArray(v) ? (v[0] ?? null) : (v ?? null);
 
 const transportistaDeFila = (

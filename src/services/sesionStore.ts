@@ -7,6 +7,7 @@ import { useSyncExternalStore } from "react";
 
 import { supabase } from "../lib/supabase";
 import { iniciarAvisos } from "./avisosStore";
+import { avisarRevisionPendiente } from "./avisoRevision";
 import { cargarModoDeUsuario } from "./modoStore";
 
 type Estado = {
@@ -37,6 +38,7 @@ function suscribir(oyente: () => void) {
 function aplicarSesion(sesion: Session | null) {
   cargarModoDeUsuario(sesion?.user.id ?? null);
   iniciarAvisos(sesion?.user.id ?? null);
+  avisarRevisionPendiente(sesion?.user.id ?? null);
   actualizar({ sesion, cargado: true });
 }
 

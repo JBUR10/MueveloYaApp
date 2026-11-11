@@ -18,6 +18,7 @@ import { aviso, confirmar } from "../components/ui/AlertaPantalla";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
 import MensajeTemporal from "../components/ui/MensajeTemporal";
 import { supabase } from "../lib/supabase";
+import { soyAdmin } from "../services/adminService";
 import { cambiarModo, useModo } from "../services/modoStore";
 import { obtenerMiPerfil, Perfil } from "../services/perfilService";
 import {
@@ -81,6 +82,7 @@ export default function PerfilScreen() {
 
   const [perfil, setPerfil] = useState<PerfilExtendido | null>(null);
   const [vehiculo, setVehiculo] = useState<Vehiculo | null>(null);
+  const [esAdmin, setEsAdmin] = useState(false);
 
   // Formulario
   const [nombreForm, setNombreForm] = useState("");
@@ -102,6 +104,7 @@ export default function PerfilScreen() {
       obtenerMiVehiculo()
         .then(setVehiculo)
         .catch(() => setVehiculo(null));
+      soyAdmin().then(setEsAdmin);
     }, []),
   );
 
@@ -191,6 +194,26 @@ export default function PerfilScreen() {
           tipo: "error",
         });
         if (ok) router.push("/vehiculo");
+        return;
+      }
+
+      // Además de los documentos, un administrador debe aprobar el perfil.
+      if (actual.verificacion === "rechazado") {
+        const ok = await confirmar({
+          titulo: "Perfil rechazado",
+          mensaje: `Un administrador rechazó tu perfil: ${actual.motivoRechazo || "revisa tus datos"}. Corrige tu vehículo y se enviará a revisión de nuevo.`,
+          textoAceptar: "Corregir",
+          tipo: "error",
+        });
+        if (ok) router.push("/vehiculo");
+        return;
+      }
+      if (actual.verificacion !== "aprobado") {
+        await aviso(
+          "Perfil en revisión",
+          "Un administrador está revisando tu perfil. Cuando lo apruebe podrás activar el modo transportista.",
+          "info",
+        );
         return;
       }
     }
@@ -432,10 +455,15 @@ export default function PerfilScreen() {
                     <Text
                       style={[
                         styles.descripcionOpcion,
-                        !revisarDocumentos(vehiculo).vigentes &&
+                        (vehiculo.verificacion === "rechazado" ||
+                          !revisarDocumentos(vehiculo).vigentes) &&
                           styles.textoVencido,
                       ]}>
-                      {!revisarDocumentos(vehiculo).vigentes
+                      {vehiculo.verificacion === "pendiente"
+                        ? "En revisión por un administrador"
+                        : vehiculo.verificacion === "rechazado"
+                          ? "Rechazado: corrige tus datos"
+                          : !revisarDocumentos(vehiculo).vigentes
                         ? "Documentos vencidos: actualízalos"
                         : revisarDocumentos(vehiculo).porVencer.length
                           ? "Hay documentos por vencer"
@@ -460,6 +488,20 @@ export default function PerfilScreen() {
                 </Pressable>
               )}
             </View>
+
+            {esAdmin && (
+              <Pressable
+                onPress={() => router.push("/admin" as Href)}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.botonPanelTransportista,
+                  pressed && styles.presionado,
+                ]}>
+                <Text style={styles.textoPanelTransportista}>
+                  Panel de administración ›
+                </Text>
+              </Pressable>
+            )}
 
             {/* Cerrar sesión */}
             <Pressable

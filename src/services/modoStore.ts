@@ -66,15 +66,15 @@ export async function cargarModoDeUsuario(uid: string | null) {
       AsyncStorage.getItem(claveModo(uid)),
       AsyncStorage.getItem(claveAyudantes(uid)),
     ]);
-    // Sin preferencia guardada: quien tiene vehículo registrado es transportista.
+    // Sin preferencia guardada: quien tiene el vehículo APROBADO es transportista.
     let modoInicial: Modo = modo === "transportista" ? "transportista" : "usuario";
     if (modo === null) {
       const { data } = await supabase
         .from("vehiculos")
-        .select("transportista_id")
+        .select("verificacion")
         .eq("transportista_id", uid)
         .maybeSingle();
-      if (data) modoInicial = "transportista";
+      if (data?.verificacion === "aprobado") modoInicial = "transportista";
     }
 
     // Si mientras tanto cambió la cuenta, se descarta esta lectura.

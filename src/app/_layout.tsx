@@ -44,6 +44,7 @@ export default function RootLayout() {
           <Stack.Screen name="perfil" />
           <Stack.Screen name="transportista" />
           <Stack.Screen name="vehiculo" />
+          <Stack.Screen name="admin" />
           <Stack.Screen name="queja" />
           <Stack.Screen name="explore" />
         </Stack.Protected>

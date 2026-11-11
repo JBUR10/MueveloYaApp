@@ -13,6 +13,9 @@ export const TIPOS_VEHICULO = [
 /** Con este margen (o menos) se avisa que un documento está por vencer. */
 export const DIAS_AVISO_VENCIMIENTO = 30;
 
+/** Revisión del perfil por un administrador. */
+export type EstadoVerificacion = "pendiente" | "aprobado" | "rechazado";
+
 export interface Vehiculo {
   tipo: string;
   placa: string;
@@ -24,9 +27,12 @@ export interface Vehiculo {
   tecnomecanicaVence: string | null;
   licenciaConduccionVence: string;
   seguroRcVence: string | null;
+  /** La decide un administrador; el transportista no puede cambiarla. */
+  verificacion?: EstadoVerificacion;
+  motivoRechazo?: string | null;
 }
 
-type FilaVehiculo = {
+export type FilaVehiculo = {
   tipo: string;
   placa: string;
   marca_modelo: string;
@@ -36,6 +42,8 @@ type FilaVehiculo = {
   tecnomecanica_vence: string | null;
   licencia_conduccion_vence: string;
   seguro_rc_vence: string | null;
+  verificacion?: EstadoVerificacion | null;
+  motivo_rechazo?: string | null;
 };
 
 export const vehiculoDeFila = (f: FilaVehiculo): Vehiculo => ({
@@ -48,6 +56,8 @@ export const vehiculoDeFila = (f: FilaVehiculo): Vehiculo => ({
   tecnomecanicaVence: f.tecnomecanica_vence,
   licenciaConduccionVence: f.licencia_conduccion_vence,
   seguroRcVence: f.seguro_rc_vence,
+  verificacion: f.verificacion ?? "pendiente",
+  motivoRechazo: f.motivo_rechazo ?? null,
 });
 
 /** "2026-11-30" -> Date local a medianoche (sin corrimiento por zona horaria). */
