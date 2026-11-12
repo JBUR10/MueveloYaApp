@@ -26,6 +26,7 @@ import { aviso, confirmar } from "../components/ui/AlertaPantalla";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
 import { buscarLugares } from "../components/ui/BuscadorDestino";
 import CalificarServicio from "../components/ui/CalificarServicio";
+import MotivoCancelacion from "../components/ui/MotivoCancelacion";
 import MapaPrincipal, {
   Coordenadas,
   InfoRuta,
@@ -36,6 +37,11 @@ import {
   marcarDisponiblesVistas,
   mostrarAvisosPendientes,
 } from "../services/avisosStore";
+import {
+  cambiarDisponibilidad,
+  useDisponibilidad,
+} from "../services/disponibilidadStore";
+import { usePush } from "../services/notificacionesPush";
 import {
   cambiarCuentaConAyudantes,
   cambiarModo,
@@ -106,6 +112,7 @@ type ItemHistorial = {
   /** cancelada = la cancelé yo; cancelada_cliente = la canceló el cliente. */
   tipo: "completada" | "cancelada" | "cancelada_cliente";
   fecha: string;
+  motivo?: string | null;
 };
 
 const TEXTO_HISTORIAL: Record<ItemHistorial["tipo"], { chip: string; fecha: string }> = {
@@ -149,6 +156,11 @@ export default function TransportistaScreen() {
   const { cuentaConAyudantes } = useModo();
   const uid = useSesion().sesion?.user.id;
   const [calificandoId, setCalificandoId] = useState<string | null>(null);
+  // Servicio que se está cancelando (abre el selector de motivo).
+  const [cancelando, setCancelando] = useState<SolicitudServicioDTO | null>(null);
+  const { disponible } = useDisponibilidad();
+  const push = usePush();
+  const [cambiandoDisponible, setCambiandoDisponible] = useState(false);
 
   const [datos, setDatos] = useState<DatosTransportista>(DATOS_VACIOS);
   const [vista, setVista] = useState<Vista>("mapa");
@@ -283,11 +295,13 @@ export default function TransportistaScreen() {
           servicio: c.servicio,
           tipo: "cancelada" as const,
           fecha: c.canceladaEl,
+          motivo: c.motivo,
         })),
         ...datos.canceladasPorCliente.map((s) => ({
           servicio: s,
           tipo: "cancelada_cliente" as const,
           fecha: s.canceladaEl ?? "",
+          motivo: s.motivoCancelacion,
         })),
       ].sort((a, b) => b.fecha.localeCompare(a.fecha)),
     [datos],
@@ -545,28 +559,98 @@ export default function TransportistaScreen() {
       return;
     }
 
-    const ok = await confirmar({
-      titulo: "Cancelar solicitud",
-      mensaje:
-        "¿Seguro que deseas cancelar este servicio? Volverá a estar disponible para otros transportistas.",
-      textoAceptar: "Cancelar servicio",
-      textoCancelar: "Volver",
-      destructivo: true,
-    });
-    if (!ok) return;
+    // El motivo es obligatorio: se elige en el modal y se envía al confirmar.
+    setCancelando(item);
+  };
 
+  /** Lo llama el selector de motivo. Si falla, el error se ve en el modal. */
+  const confirmarCancelacion = async (motivo: string) => {
+    const item = cancelando;
+    if (!item?.id) return;
+    setProcesandoId(item.id);
     try {
-      setProcesandoId(item.id);
-      await cancelarSolicitud(item);
-      if (rutaId === item.id) setRutaId(null);
-      await cargarDatos();
-      setMensaje("Solicitud cancelada");
-    } catch (error: any) {
-      await aviso("Error", error?.message || "No se pudo cancelar la solicitud.", "error");
+      await cancelarSolicitud(item, motivo);
     } finally {
       setProcesandoId(null);
     }
+    setCancelando(null);
+    if (rutaId === item.id) setRutaId(null);
+    await cargarDatos();
+    setMensaje("Solicitud cancelada");
   };
+
+  // ---------- Disponible (push de solicitudes nuevas) ----------
+  const handleDisponible = async () => {
+    const nuevo = !disponible;
+    setCambiandoDisponible(true);
+    try {
+      await cambiarDisponibilidad(nuevo);
+    } catch (error: any) {
+      await aviso("No se pudo cambiar", error?.message || "Inténtalo de nuevo.", "error");
+      return;
+    } finally {
+      setCambiandoDisponible(false);
+    }
+
+    if (!nuevo) {
+      setMensaje("Ya no recibirás avisos de solicitudes nuevas");
+    } else if (!push.soportado) {
+      await aviso(
+        "Estás disponible",
+        "Las notificaciones push solo llegan en la app instalada (APK). Aquí verás las solicitudes al abrir el panel.",
+        "info",
+      );
+    } else if (!push.activo || push.sinPermiso) {
+      await aviso(
+        "Estás disponible",
+        "Tienes las notificaciones apagadas: actívalas en tu Perfil para que te avisemos de solicitudes nuevas.",
+        "advertencia",
+      );
+    } else {
+      setMensaje("Disponible: te avisaremos de solicitudes nuevas");
+    }
+  };
+
+  const renderInterruptorDisponible = (compacto: boolean) => (
+    <Pressable
+      onPress={handleDisponible}
+      disabled={cambiandoDisponible}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: disponible, disabled: cambiandoDisponible }}
+      accessibilityLabel="Disponible para recibir solicitudes"
+      style={({ pressed }) => [
+        compacto ? styles.chipDisponible : styles.tarjetaDisponible,
+        disponible && styles.disponibleActivo,
+        pressed && { opacity: 0.8 },
+      ]}
+    >
+      {/* En el chip del mapa el texto no se estira (flex:1 lo encogería). */}
+      <View style={compacto ? undefined : styles.ayudantesTexto}>
+        <Text style={styles.ayudantesTitulo}>
+          {disponible ? "🟢 Disponible" : "⚪ No disponible"}
+        </Text>
+        {!compacto && (
+          <Text style={styles.ayudantesDescripcion}>
+            {disponible
+              ? "Te avisaremos de solicitudes nuevas aunque tengas la app cerrada."
+              : "Actívalo para recibir avisos de solicitudes nuevas."}
+          </Text>
+        )}
+      </View>
+      {cambiandoDisponible ? (
+        <ActivityIndicator size="small" color="#FFFFFF" />
+      ) : (
+        <View style={[styles.interruptor, disponible && styles.interruptorDisponible]}>
+          <View
+            style={[
+              styles.interruptorPunto,
+              disponible && styles.interruptorPuntoActivo,
+            ]}
+          />
+        </View>
+      )}
+    </Pressable>
+  );
 
   const handleRecogido = async (item: SolicitudServicioDTO) => {
     if (!item.id) return;
@@ -801,12 +885,7 @@ export default function TransportistaScreen() {
             <Text style={styles.btnBackText}>← Solicitudes</Text>
           </TouchableOpacity>
         ) : (
-          <View style={styles.chipModo}>
-            <View style={styles.puntoModo} />
-            <Text style={styles.chipModoText}>
-              {loading ? "Cargando…" : `${conteos.disponibles} disponibles`}
-            </Text>
-          </View>
+          renderInterruptorDisponible(true)
         )}
 
         {!servicioRuta && (
@@ -838,6 +917,7 @@ export default function TransportistaScreen() {
         !loading && (
           <View style={[styles.panelInferior, styles.panelAyuda]}>
             <Text style={styles.textoAyuda}>
+              {`${conteos.disponibles} solicitud${conteos.disponibles === 1 ? "" : "es"} disponible${conteos.disponibles === 1 ? "" : "s"}. `}
               {marcadores.length
                 ? "Toca un pin para ver la solicitud."
                 : "No hay solicitudes con ubicación en el mapa."}
@@ -1025,6 +1105,11 @@ export default function TransportistaScreen() {
                 </Text>
               </>
             )}
+            {!!historialItem?.motivo && (
+              <Text style={styles.motivoHistorial}>
+                Motivo: {historialItem.motivo}
+              </Text>
+            )}
             <Text style={styles.createdAt}>
               {historialItem
                 ? `${TEXTO_HISTORIAL[historialItem.tipo].fecha} el ${formatearFecha(historialItem.fecha)}`
@@ -1129,6 +1214,8 @@ export default function TransportistaScreen() {
           </Text>
         </View>
 
+        {renderInterruptorDisponible(false)}
+
         <View style={styles.tarjetaAyudantes}>
           <View style={styles.ayudantesTexto}>
             <Text style={styles.ayudantesTitulo}>Cuento con ayudantes</Text>
@@ -1211,6 +1298,13 @@ export default function TransportistaScreen() {
 
         <MensajeTemporal mensaje={mensaje} alTerminar={ocultarMensaje} />
 
+        <MotivoCancelacion
+          visible={!!cancelando}
+          rol="conductor"
+          onCerrar={() => setCancelando(null)}
+          onConfirmar={confirmarCancelacion}
+        />
+
         <CalificarServicio
           servicioId={calificandoId}
           rol="transportista"
@@ -1284,6 +1378,41 @@ const styles = StyleSheet.create({
   },
 
   // Mapa: elementos flotantes
+  chipDisponible: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 14,
+    backgroundColor: "rgba(17,19,24,0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  tarjetaDisponible: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 15,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.13)",
+    backgroundColor: "rgba(255,255,255,0.045)",
+    marginBottom: 12,
+  },
+  disponibleActivo: {
+    borderColor: "rgba(80,220,164,0.55)",
+    backgroundColor: "rgba(16,185,129,0.12)",
+  },
+  interruptorDisponible: {
+    backgroundColor: "rgba(16,185,129,0.85)",
+    borderColor: "rgba(134,232,189,0.65)",
+  },
+  motivoHistorial: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 12,
+    marginTop: 4,
+  },
   barraFlotante: {
     position: "absolute",
     top: 12,

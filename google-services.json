@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "839769664065",
+    "project_id": "mueveloya-2b6a2",
+    "storage_bucket": "mueveloya-2b6a2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:839769664065:android:81da90887c5335613834c0",
+        "android_client_info": {
+          "package_name": "com.joelbur.MueveloYa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAjpT4LslXen-2sGNPCpRpg-wMcjDPkOGc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

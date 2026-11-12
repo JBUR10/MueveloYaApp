@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { aviso, confirmar } from "../components/ui/AlertaPantalla";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
 import CalificarServicio from "../components/ui/CalificarServicio";
+import MotivoCancelacion from "../components/ui/MotivoCancelacion";
 import { mostrarAvisosPendientes } from "../services/avisosStore";
 import {
   cancelarServicioCliente,
@@ -99,6 +100,8 @@ export default function SolicitudesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
   const [calificandoId, setCalificandoId] = useState<string | null>(null);
+  // Servicio que se está cancelando (abre el selector de motivo).
+  const [cancelandoId, setCancelandoId] = useState<string | null>(null);
   const uid = useSesion().sesion?.user.id;
 
   const cargarServicios = useCallback(async () => {
@@ -150,26 +153,27 @@ export default function SolicitudesScreen() {
       );
       return;
     }
-    const ok = await confirmar({
-      titulo: "Cancelar servicio",
-      mensaje:
-        "¿Seguro que deseas cancelar este servicio? Le avisaremos al transportista.",
-      textoAceptar: "Cancelar servicio",
-      textoCancelar: "Volver",
-      destructivo: true,
-    });
-    if (!ok) return;
+    // El motivo es obligatorio: se elige en el modal y se envía al confirmar.
+    setCancelandoId(item.id);
+  };
 
+  /** Lo llama el selector de motivo. Si falla, el error se ve en el modal. */
+  const confirmarCancelacion = async (motivo: string) => {
+    const id = cancelandoId;
+    if (!id) return;
+    setEliminandoId(id);
     try {
-      setEliminandoId(item.id);
-      await cancelarServicioCliente(item.id);
-      await cargarServicios();
-      await aviso("Servicio cancelado", "Le avisamos al transportista.", "info");
-    } catch (error: any) {
-      await aviso("Error", error?.message || "No se pudo cancelar.", "error");
+      await cancelarServicioCliente(id, motivo);
     } finally {
       setEliminandoId(null);
     }
+    setCancelandoId(null);
+    await cargarServicios();
+    await aviso(
+      "Servicio cancelado",
+      "Le avisamos al transportista con el motivo que indicaste.",
+      "info",
+    );
   };
 
   const onRefresh = useCallback(() => {
@@ -340,6 +344,11 @@ export default function SolicitudesScreen() {
                     <Text style={[styles.estadoTexto, { color: estado.color }]}>
                       {textoEstado(item)}
                     </Text>
+                    {estadoItem === "cancelada" && !!item.motivoCancelacion && (
+                      <Text style={styles.motivoTexto}>
+                        Motivo: {item.motivoCancelacion}
+                      </Text>
+                    )}
                   </View>
 
                   {/* Transportista asignado */}
@@ -518,6 +527,13 @@ export default function SolicitudesScreen() {
         </ScrollView>
 
         <BarraNavegacion />
+
+        <MotivoCancelacion
+          visible={!!cancelandoId}
+          rol="usuario"
+          onCerrar={() => setCancelandoId(null)}
+          onConfirmar={confirmarCancelacion}
+        />
 
         <CalificarServicio
           servicioId={servicioCalificando ? calificandoId : null}
@@ -768,6 +784,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 12,
   },
+  motivoTexto: { color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 4 },
   estadoTexto: { fontSize: 12, fontWeight: "800" },
   transportistaBox: {
     flexDirection: "row",

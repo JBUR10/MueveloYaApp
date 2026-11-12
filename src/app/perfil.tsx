@@ -19,7 +19,13 @@ import BarraNavegacion from "../components/ui/BarraNavegacion";
 import MensajeTemporal from "../components/ui/MensajeTemporal";
 import { supabase } from "../lib/supabase";
 import { soyAdmin } from "../services/adminService";
+import { apagarDisponibilidad } from "../services/disponibilidadStore";
 import { cambiarModo, useModo } from "../services/modoStore";
+import {
+  cambiarPushActivo,
+  quitarDispositivoPush,
+  usePush,
+} from "../services/notificacionesPush";
 import { obtenerMiPerfil, Perfil } from "../services/perfilService";
 import {
   obtenerMiVehiculo,
@@ -73,7 +79,9 @@ function Campo({
 }
 
 export default function PerfilScreen() {
-  const [notificacionesActivas, setNotificacionesActivas] = useState(true);
+  // Notificaciones push de este celular (solo en el APK de Android).
+  const push = usePush();
+  const notificacionesActivas = push.soportado && push.activo && !push.sinPermiso;
   const router = useRouter();
   const { modo } = useModo();
   const modoTransportista = modo === "transportista";
@@ -240,6 +248,30 @@ export default function PerfilScreen() {
     );
   };
 
+  const alternarNotificaciones = async () => {
+    if (!push.soportado) {
+      await aviso(
+        "Notificaciones",
+        "Las notificaciones push solo funcionan en la app instalada en Android (APK). Aquí sigues viendo los avisos dentro de la app.",
+        "info",
+      );
+      return;
+    }
+    const activar = !notificacionesActivas;
+    const ok = await cambiarPushActivo(activar);
+    if (activar && !ok) {
+      await aviso(
+        "Permiso de notificaciones",
+        "El celular no permite que Muévelo Ya envíe notificaciones. Actívalas en Ajustes > Aplicaciones > Muévelo Ya > Notificaciones.",
+        "advertencia",
+      );
+      return;
+    }
+    setMensajeModo(
+      activar ? "Notificaciones activadas" : "Notificaciones desactivadas",
+    );
+  };
+
   const cerrarSesion = async () => {
     const ok = await confirmar({
       titulo: "Cerrar sesión",
@@ -248,6 +280,10 @@ export default function PerfilScreen() {
       destructivo: true,
     });
     if (!ok) return;
+
+    // Antes de salir (aún con sesión): este celular deja de recibir push de
+    // la cuenta y el conductor deja de estar disponible.
+    await Promise.all([quitarDispositivoPush(), apagarDisponibilidad()]);
 
     // El modo queda guardado para esta cuenta; la siguiente cuenta carga el suyo.
     const { error } = await supabase.auth.signOut();
@@ -359,12 +395,14 @@ export default function PerfilScreen() {
               <View style={styles.preferenciaTexto}>
                 <Text style={styles.tituloOpcion}>Notificaciones</Text>
                 <Text style={styles.descripcionOpcion}>
-                  Recibe actualizaciones de tus solicitudes
+                  {push.soportado
+                    ? "Avisos de tus servicios aunque tengas la app cerrada"
+                    : "Disponible en la app instalada (APK de Android)"}
                 </Text>
               </View>
 
               <Pressable
-                onPress={() => setNotificacionesActivas((activas) => !activas)}
+                onPress={alternarNotificaciones}
                 accessibilityRole="switch"
                 accessibilityState={{
                   checked: notificacionesActivas,

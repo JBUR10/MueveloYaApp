@@ -8,6 +8,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSyncExternalStore } from "react";
 
 import { supabase } from "../lib/supabase";
+import { apagarDisponibilidad } from "./disponibilidadStore";
 
 export type Modo = "usuario" | "transportista";
 
@@ -93,6 +94,8 @@ export const obtenerModo = () => estado;
 
 export const cambiarModo = async (modo: Modo) => {
   actualizar({ modo });
+  // En modo usuario deja de estar disponible para recibir solicitudes.
+  if (modo === "usuario") apagarDisponibilidad();
   if (!usuarioActual) return;
   try {
     await AsyncStorage.setItem(claveModo(usuarioActual), modo);

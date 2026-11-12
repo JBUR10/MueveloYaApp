@@ -150,6 +150,9 @@ const TIPO_ALERTA: Record<string, TipoAlerta> = {
   cancelada_cliente: "error",
   completada: "exito",
   aceptada: "exito",
+  cuenta_aprobada: "exito",
+  cuenta_rechazada: "error",
+  hora_sin_iniciar: "advertencia",
 };
 
 let mostrando = false;

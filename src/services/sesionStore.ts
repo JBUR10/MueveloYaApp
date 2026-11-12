@@ -8,7 +8,9 @@ import { useSyncExternalStore } from "react";
 import { supabase } from "../lib/supabase";
 import { iniciarAvisos } from "./avisosStore";
 import { avisarRevisionPendiente } from "./avisoRevision";
+import { cargarDisponibilidad } from "./disponibilidadStore";
 import { cargarModoDeUsuario } from "./modoStore";
+import { iniciarPush } from "./notificacionesPush";
 
 type Estado = {
   sesion: Session | null;
@@ -39,6 +41,8 @@ function aplicarSesion(sesion: Session | null) {
   cargarModoDeUsuario(sesion?.user.id ?? null);
   iniciarAvisos(sesion?.user.id ?? null);
   avisarRevisionPendiente(sesion?.user.id ?? null);
+  cargarDisponibilidad(sesion?.user.id ?? null);
+  iniciarPush(sesion?.user.id ?? null);
   actualizar({ sesion, cargado: true });
 }
 
