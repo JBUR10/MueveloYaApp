@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
+import BotonAyuda from "../components/ui/BotonAyuda";
 import BuscadorDestino from "../components/ui/BuscadorDestino";
 import MapaPrincipal, {
   Coordenadas,
@@ -189,6 +190,9 @@ export default function HomeScreen() {
               Muévelo <Text style={styles.nombreAzul}>Ya</Text>
             </Text>
           </View>
+
+          {/* Ayuda: preguntas frecuentes y tutorial guiado */}
+          <BotonAyuda />
         </View>
 
         {/* Panel de ubicación con cristal y fondo difuminado */}
