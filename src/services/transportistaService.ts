@@ -21,6 +21,8 @@ const MS_MINIMOS_CANCELACION = HORAS_MINIMAS_CANCELACION * 60 * 60 * 1000;
 export interface Cancelacion {
   servicio: SolicitudServicioDTO;
   canceladaEl: string;
+  /** Motivo que di al cancelar. */
+  motivo: string | null;
 }
 
 export interface DatosTransportista {
@@ -103,7 +105,7 @@ export const obtenerDatosTransportista =
         .order("aceptada_el", { ascending: false }),
       supabase
         .from("cancelaciones")
-        .select("cancelada_el, servicio:servicios(*)")
+        .select("cancelada_el, motivo, servicio:servicios(*)")
         .eq("transportista_id", uid)
         .order("cancelada_el", { ascending: false }),
     ]);
@@ -131,12 +133,17 @@ export const obtenerDatosTransportista =
             Array.isArray(c.servicio) ? c.servicio[0] : c.servicio,
           ),
           canceladaEl: c.cancelada_el,
+          motivo: c.motivo ?? null,
         })),
     };
   };
 
-const llamar = async (funcion: string, id: string) => {
-  const { data, error } = await supabase.rpc(funcion, { p_servicio: id });
+const llamar = async (
+  funcion: string,
+  id: string,
+  extra: Record<string, unknown> = {},
+) => {
+  const { data, error } = await supabase.rpc(funcion, { p_servicio: id, ...extra });
   if (error) {
     console.error(`Error en ${funcion}:`, error);
     // Los mensajes de las funciones SQL ya vienen en español.
@@ -147,7 +154,7 @@ const llamar = async (funcion: string, id: string) => {
 
 export const aceptarSolicitud = (id: string) => llamar("aceptar_servicio", id);
 
-export const cancelarSolicitud = (item: SolicitudServicioDTO) => {
+export const cancelarSolicitud = (item: SolicitudServicioDTO, motivo: string) => {
   if (!puedeCancelar(item)) {
     return Promise.reject(
       new Error(
@@ -155,7 +162,7 @@ export const cancelarSolicitud = (item: SolicitudServicioDTO) => {
       ),
     );
   }
-  return llamar("cancelar_servicio", String(item.id));
+  return llamar("cancelar_servicio", String(item.id), { p_motivo: motivo });
 };
 
 /** Programados: el conductor sale hacia el punto de recogida. */

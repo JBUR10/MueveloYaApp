@@ -80,3 +80,8 @@ coverage/
 *.tmp
 *.temp
 
+
+# Clave PRIVADA de Firebase (cuenta de servicio) para subir a Expo: nunca al repo.
+# google-services.json SI se sube (no es secreto).
+*-firebase-adminsdk-*.json
+firebase-service-account*.json

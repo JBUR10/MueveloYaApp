@@ -25,6 +25,10 @@ Pegar y ejecutar cada archivo en el SQL Editor. Todos se pueden volver a correr 
 1. [`001_login_y_transportista.sql`](migraciones/001_login_y_transportista.sql): perfiles, vehículos, estados y flujo del transportista.
 2. [`002_vigencia_maxima_un_anio.sql`](migraciones/002_vigencia_maxima_un_anio.sql): SOAT y técnico-mecánica con vigencia máxima de un año.
 3. [`003_avisos_calificaciones_programados.sql`](migraciones/003_avisos_calificaciones_programados.sql): avisos, calificaciones, quejas, inicio de programados, cancelación del cliente y margen entre servicios.
+4. [`004_corregir_estado_servicios.sql`](migraciones/004_corregir_estado_servicios.sql): corrige el estado por defecto de los servicios.
+5. [`005_aprobacion_transportista.sql`](migraciones/005_aprobacion_transportista.sql): aprobación de conductores y panel de administrador.
+6. [`006_admin_temporal.sql`](migraciones/006_admin_temporal.sql): cuenta de administrador de prueba.
+7. [`007_notificaciones_push.sql`](migraciones/007_notificaciones_push.sql): notificaciones push, interruptor «Disponible», motivo de cancelación y recordatorios. Ver la sección 6.
 
 El detalle de lo que crea la 001 está abajo.
 
@@ -63,3 +67,44 @@ Cómo probar sin gastar esos envíos:
 ## 5. Variables de entorno
 
 Copiar `.env.example` a `.env` con la URL del proyecto y la clave **publishable**, que están en **Project Settings → API Keys**. Después reiniciar con `npx expo start -c`.
+
+## 6. Notificaciones push (Android)
+
+Llegan al celular aunque la app esté cerrada: aceptada, iniciada, recogida, finalizada, cancelada (con motivo), recordatorios (24 h, 1 h y «ya es la hora»), cuenta de conductor aprobada o rechazada y, a los conductores **disponibles**, solicitudes nuevas.
+
+Funcionan **solo en el APK de Android**. No funcionan en Expo Go (desde el SDK 53) ni en web. En esos casos siguen funcionando los avisos dentro de la app.
+
+### 6.1 Supabase
+
+1. Ejecutar [`007_notificaciones_push.sql`](migraciones/007_notificaciones_push.sql) en el SQL Editor.
+   - Si sale un error con `pg_net` o `pg_cron`, activarlas en **Database → Extensions** y volver a ejecutar.
+2. Comprobar que quedó programada la tarea de recordatorios:
+   ```sql
+   select jobname, schedule from cron.job;   -- debe salir mueveloya-recordatorios
+   ```
+
+### 6.2 Firebase (lo hace quien administra la cuenta de Expo `mueveloyaapp`)
+
+Android entrega las push a través de Firebase. Es gratis.
+
+1. En [console.firebase.google.com](https://console.firebase.google.com) crear un proyecto, por ejemplo «MueveloYa». Google Analytics no es necesario.
+2. **Agregar app → Android** con el paquete exacto `com.joelbur.MueveloYa`.
+3. Descargar **`google-services.json`** y guardarlo en la **raíz del proyecto**, al lado de `app.json`, y subirlo al repositorio. No es secreto. `app.config.js` lo detecta solo.
+4. En Firebase: **Configuración del proyecto → Cuentas de servicio → Generar nueva clave privada**. Se descarga un JSON.
+   - ⚠️ Este archivo **sí es secreto**: no va al repositorio (el `.gitignore` ya lo excluye) y no se comparte por chat.
+5. Subir esa clave privada a Expo, por cualquiera de estas dos vías:
+   - **Web:** [expo.dev](https://expo.dev) → proyecto *mueveloya* → **Credentials → Android → com.joelbur.MueveloYa → FCM V1 service account key → Add a service account key** → subir el JSON.
+   - **Terminal:** `npx eas-cli@latest credentials` → Android → elegir el perfil → *Google Service Account* → *Manage your Google Service Account Key for Push Notifications (FCM V1)* → *Upload a new service account key*.
+6. Volver a compilar el APK: GitHub → **Actions → Android APK → Run workflow**, o `npx eas-cli@latest build -p android --profile preview`.
+
+### 6.3 Probar
+
+1. Instalar el APK nuevo, iniciar sesión y **aceptar el permiso de notificaciones**.
+2. En Supabase, revisar que el celular quedó registrado:
+   ```sql
+   select token, usuario_id, activo, actualizado_el from dispositivos_push;
+   ```
+3. Prueba rápida sin usar la app: copiar el `token` de esa tabla y enviar un mensaje desde [expo.dev/notifications](https://expo.dev/notifications).
+4. Prueba real: con el celular bloqueado, desde otra cuenta en otro dispositivo, aceptar o cancelar un servicio de ese usuario.
+
+Si en el paso 2 no aparece ninguna fila, casi siempre es porque falta `google-services.json` o la clave de Firebase en Expo, o porque el APK se compiló antes de agregarlos.

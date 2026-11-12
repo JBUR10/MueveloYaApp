@@ -58,6 +58,8 @@ export interface SolicitudServicioDTO {
   iniciadaEl?: string | null;
   canceladaEl?: string | null;
   canceladaPor?: string | null;
+  /** Motivo que dio el cliente al cancelar. */
+  motivoCancelacion?: string | null;
   /** Solo se llena en las solicitudes del cliente (obtenerMisServicios). */
   transportista?: TransportistaAsignado | null;
   /** Solo se llena en las consultas del transportista. */
@@ -93,6 +95,7 @@ type FilaServicio = {
   iniciada_el?: string | null;
   cancelada_el?: string | null;
   cancelada_por?: string | null;
+  motivo_cancelacion?: string | null;
   transportista?: FilaTransportista | FilaTransportista[] | null;
   cliente?: FilaCliente | FilaCliente[] | null;
   calificaciones?: { autor_id: string }[] | null;
@@ -165,6 +168,7 @@ export const deFila = (f: FilaServicio): SolicitudServicioDTO => ({
   iniciadaEl: f.iniciada_el ?? null,
   canceladaEl: f.cancelada_el ?? null,
   canceladaPor: f.cancelada_por ?? null,
+  motivoCancelacion: f.motivo_cancelacion ?? null,
   transportista: transportistaDeFila(uno(f.transportista)),
   cliente: (() => {
     const c = uno(f.cliente);
@@ -297,9 +301,10 @@ export const escucharCambiosServicios = (alCambiar: () => void) => {
 };
 
 /** El cliente cancela un servicio ya aceptado (mínimo 48 h antes y sin iniciar). */
-export const cancelarServicioCliente = async (id: string) => {
+export const cancelarServicioCliente = async (id: string, motivo: string) => {
   const { error } = await supabase.rpc("cancelar_servicio_cliente", {
     p_servicio: id,
+    p_motivo: motivo,
   });
   if (error) {
     console.error("Error al cancelar el servicio:", error);

@@ -1,10 +1,32 @@
 import '@/global.css';
 
-import { Stack } from 'expo-router';
+import { Href, Stack, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 import AlertaPantalla from '../components/ui/AlertaPantalla';
+import { cambiarModo, obtenerModo } from '../services/modoStore';
+import { escucharToquesNotificacion } from '../services/notificacionesPush';
 import { useSesion } from '../services/sesionStore';
+
+/** Al tocar una notificación push, abre la pantalla que corresponde. */
+function AbrirDesdeNotificacion() {
+  const router = useRouter();
+
+  useEffect(
+    () =>
+      escucharToquesNotificacion((ruta) => {
+        // Los avisos del conductor se ven en el panel del transportista.
+        if (ruta === '/transportista' && obtenerModo().modo !== 'transportista') {
+          cambiarModo('transportista');
+        }
+        router.push(ruta as Href);
+      }),
+    [router],
+  );
+
+  return null;
+}
 
 export default function RootLayout() {
   const { sesion, cargado, recuperandoClave } = useSesion();
@@ -50,6 +72,8 @@ export default function RootLayout() {
           <Stack.Screen name="ayuda" />
         </Stack.Protected>
       </Stack>
+
+      {conSesion && <AbrirDesdeNotificacion />}
 
       <AlertaPantalla />
     </>
