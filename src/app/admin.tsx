@@ -1,6 +1,7 @@
 // src/app/admin.tsx
 // Panel del administrador: revisa los perfiles de los transportistas y los
-// aprueba o rechaza. Solo entran cuentas de la tabla "administradores".
+// aprueba o rechaza, y muestra las estadísticas de pedidos (por tipo y por
+// zona). Solo entran cuentas de la tabla "administradores".
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -16,6 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import PanelEstadisticas from "../components/admin/PanelEstadisticas";
 import { aviso, confirmar } from "../components/ui/AlertaPantalla";
 import {
   obtenerTransportistas,
@@ -36,6 +38,13 @@ const FILTROS: { id: EstadoVerificacion; titulo: string }[] = [
   { id: "pendiente", titulo: "Pendientes" },
   { id: "aprobado", titulo: "Aprobados" },
   { id: "rechazado", titulo: "Rechazados" },
+];
+
+type Seccion = "transportistas" | "estadisticas";
+
+const SECCIONES: { id: Seccion; titulo: string }[] = [
+  { id: "transportistas", titulo: "Transportistas" },
+  { id: "estadisticas", titulo: "Estadísticas" },
 ];
 
 const VACIO: Record<EstadoVerificacion, string> = {
@@ -79,6 +88,7 @@ function Documento({
 export default function AdminScreen() {
   const router = useRouter();
   const [esAdmin, setEsAdmin] = useState<boolean | null>(null);
+  const [seccion, setSeccion] = useState<Seccion>("transportistas");
   const [filtro, setFiltro] = useState<EstadoVerificacion>("pendiente");
   const [items, setItems] = useState<SolicitudTransportista[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -185,14 +195,16 @@ export default function AdminScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refrescando}
-            tintColor="#FFFFFF"
-            onRefresh={() => {
-              setRefrescando(true);
-              cargar(filtro);
-            }}
-          />
+          seccion === "transportistas" ? (
+            <RefreshControl
+              refreshing={refrescando}
+              tintColor="#FFFFFF"
+              onRefresh={() => {
+                setRefrescando(true);
+                cargar(filtro);
+              }}
+            />
+          ) : undefined
         }>
         <View style={styles.topBar}>
           <Pressable onPress={volver} style={styles.btnBack}>
@@ -200,6 +212,29 @@ export default function AdminScreen() {
           </Pressable>
         </View>
 
+        <View style={styles.secciones}>
+          {SECCIONES.map((s) => {
+            const activa = seccion === s.id;
+            return (
+              <Pressable
+                key={s.id}
+                onPress={() => setSeccion(s.id)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: activa }}
+                style={[styles.seccion, activa && styles.seccionActiva]}>
+                <Text
+                  style={[styles.seccionTexto, activa && styles.seccionTextoActivo]}>
+                  {s.titulo}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {seccion === "estadisticas" ? (
+          <PanelEstadisticas />
+        ) : (
+          <>
         <Text style={styles.subtitulo}>PANEL DE ADMINISTRACIÓN</Text>
         <Text style={styles.titulo}>
           Revisión de <Text style={styles.azul}>transportistas</Text>
@@ -335,6 +370,8 @@ export default function AdminScreen() {
             );
           })
         )}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -351,6 +388,17 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   btnBackText: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
+  secciones: {
+    flexDirection: "row",
+    padding: 4,
+    gap: 4,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  seccion: { flex: 1, paddingVertical: 10, borderRadius: 11, alignItems: "center" },
+  seccionActiva: { backgroundColor: AZUL },
+  seccionTexto: { color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: "800" },
+  seccionTextoActivo: { color: "#FFFFFF" },
   subtitulo: {
     color: "rgba(255,255,255,0.6)",
     fontSize: 11,

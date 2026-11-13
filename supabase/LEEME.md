@@ -29,6 +29,7 @@ Pegar y ejecutar cada archivo en el SQL Editor. Todos se pueden volver a correr 
 5. [`005_aprobacion_transportista.sql`](migraciones/005_aprobacion_transportista.sql): aprobación de conductores y panel de administrador.
 6. [`006_admin_temporal.sql`](migraciones/006_admin_temporal.sql): cuenta de administrador de prueba.
 7. [`007_notificaciones_push.sql`](migraciones/007_notificaciones_push.sql): notificaciones push, interruptor «Disponible», motivo de cancelación y recordatorios. Ver la sección 6.
+8. [`008_estadisticas_admin.sql`](migraciones/008_estadisticas_admin.sql): estadísticas de pedidos (por tipo y por zona) para la sección «Estadísticas» del panel de administrador.
 
 El detalle de lo que crea la 001 está abajo.
 
