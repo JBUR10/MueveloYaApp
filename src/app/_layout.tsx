@@ -16,8 +16,10 @@ function AbrirDesdeNotificacion() {
   useEffect(
     () =>
       escucharToquesNotificacion((ruta) => {
-        // Los avisos del conductor se ven en el panel del transportista.
-        if (ruta === '/transportista' && obtenerModo().modo !== 'transportista') {
+        // Los avisos del conductor se ven en su panel (lista) o en su Inicio
+        // (mapa, "/?ver=<id>" para las solicitudes nuevas).
+        const delConductor = ruta === '/transportista' || ruta.startsWith('/?ver=');
+        if (delConductor && obtenerModo().modo !== 'transportista') {
           cambiarModo('transportista');
         }
         router.push(ruta as Href);

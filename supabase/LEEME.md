@@ -30,6 +30,8 @@ Pegar y ejecutar cada archivo en el SQL Editor. Todos se pueden volver a correr 
 6. [`006_admin_temporal.sql`](migraciones/006_admin_temporal.sql): cuenta de administrador de prueba.
 7. [`007_notificaciones_push.sql`](migraciones/007_notificaciones_push.sql): notificaciones push, interruptor «Disponible», motivo de cancelación y recordatorios. Ver la sección 6.
 8. [`008_estadisticas_admin.sql`](migraciones/008_estadisticas_admin.sql): estadísticas de pedidos (por tipo y por zona) para la sección «Estadísticas» del panel de administrador.
+9. [`009_tarifas_y_consultas.sql`](migraciones/009_tarifas_y_consultas.sql): tarifa de los servicios (120.000 por los primeros 5 km + 20.000 por km adicional + 20.000 por ayudante + 10.000 por piso), calculada en la base de datos, y las consultas Q01–Q10 de la sección «Consultas SQL» del panel de administrador. Los servicios que ya existían quedan con una distancia estimada en línea recta.
+10. [`010_rechazos_conductor.sql`](migraciones/010_rechazos_conductor.sql): el conductor puede rechazar solicitudes (dejan de aparecerle solo a él), y en ruta recibe push de las programadas nuevas.
 
 El detalle de lo que crea la 001 está abajo.
 

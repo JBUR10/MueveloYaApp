@@ -17,7 +17,7 @@ import { aviso, confirmar } from "../components/ui/AlertaPantalla";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
 import CalificarServicio from "../components/ui/CalificarServicio";
 import MotivoCancelacion from "../components/ui/MotivoCancelacion";
-import { mostrarAvisosPendientes } from "../services/avisosStore";
+import { alLlegarAviso, mostrarAvisosPendientes } from "../services/avisosStore";
 import {
   cancelarServicioCliente,
   eliminarServicio,
@@ -28,6 +28,7 @@ import {
   textoCalificacion,
 } from "../services/servicioService";
 import { useSesion } from "../services/sesionStore";
+import { formatearPesos } from "../services/tarifa";
 import {
   estaIniciado,
   HORAS_MINIMAS_CANCELACION,
@@ -121,7 +122,16 @@ export default function SolicitudesScreen() {
   useFocusEffect(
     useCallback(() => {
       cargarServicios().then(() => mostrarAvisosPendientes(setCalificandoId));
-      return escucharCambiosServicios(cargarServicios);
+      const dejarDeEscuchar = escucharCambiosServicios(cargarServicios);
+      // Con la pantalla abierta, un aviso nuevo (aceptada, cancelada...) se
+      // muestra al instante, sin tener que salir y volver a entrar.
+      const dejarAvisos = alLlegarAviso(() =>
+        cargarServicios().then(() => mostrarAvisosPendientes(setCalificandoId)),
+      );
+      return () => {
+        dejarDeEscuchar();
+        dejarAvisos();
+      };
     }, [cargarServicios]),
   );
 
@@ -439,6 +449,17 @@ export default function SolicitudesScreen() {
                       </Text>
                       <Text style={styles.metricLabel}>Pisos</Text>
                     </View>
+                    {item.tarifaAcordada != null && (
+                      <>
+                        <View style={styles.metricDivider} />
+                        <View style={styles.metricBox}>
+                          <Text style={styles.metricValue}>
+                            {formatearPesos(item.tarifaAcordada)}
+                          </Text>
+                          <Text style={styles.metricLabel}>Tarifa</Text>
+                        </View>
+                      </>
+                    )}
                   </View>
 
                   {/* Pie: contacto + eliminar */}

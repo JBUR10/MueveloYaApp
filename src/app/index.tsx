@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
 import BotonAyuda from "../components/ui/BotonAyuda";
+import PanelTransportista from "../components/transportista/PanelTransportista";
 import BuscadorDestino from "../components/ui/BuscadorDestino";
 import MapaPrincipal, {
   Coordenadas,
@@ -21,6 +22,8 @@ import MapaPrincipal, {
   InfoRuta,
 } from "../components/ui/MapaPrincipal";
 import { obtenerDireccion } from "../services/geocodificacion";
+import { useModo } from "../services/modoStore";
+import { calcularTarifa, formatearPesos } from "../services/tarifa";
 import {
   guardarDestino,
   guardarMiUbicacion,
@@ -31,7 +34,28 @@ import {
 const AZUL = "#2969e9";
 const FONDO = "#111318";
 
-export default function HomeScreen() {
+/**
+ * Pestaña Inicio.
+ *  - Modo transportista: mapa con las solicitudes (y la ruta del servicio en
+ *    curso). Si llega una solicitud nueva, sale ahí el aviso para verla.
+ *  - Modo usuario: el buscador "¿Pa' dónde es?" de siempre.
+ * Con ?seleccionar=origen|destino (viene de "Marcar en el mapa" en
+ * Servicios) siempre se usa el mapa del usuario, en cualquier modo.
+ */
+export default function Inicio() {
+  const { modo, cargado } = useModo();
+  const { seleccionar } = useLocalSearchParams<{ seleccionar?: string }>();
+
+  // Mientras se lee el modo guardado, no se muestra ninguno de los dos mapas.
+  if (!cargado) return <View style={{ flex: 1, backgroundColor: FONDO }} />;
+
+  if (modo === "transportista" && !seleccionar) {
+    return <PanelTransportista vista="mapa" />;
+  }
+  return <InicioUsuario />;
+}
+
+function InicioUsuario() {
   const router = useRouter();
 
   // Cuando se llega desde "Servicios" con ?seleccionar=origen|destino, la pantalla
@@ -249,6 +273,14 @@ export default function HomeScreen() {
           onSeleccionar={elegirDestino}
           onUbicarManual={iniciarSeleccion}
           onLimpiar={limpiarDestino}
+          // Precio mínimo (sin ayudantes ni pisos) de la ruta trazada.
+          precioDesde={
+            infoRuta ? formatearPesos(calcularTarifa(infoRuta.distanciaKm, 0, 0).total) : null
+          }
+          // Servicios llega con recogida = mi ubicación y entrega = este destino.
+          onSolicitar={() =>
+            router.push({ pathname: "/servicios", params: { desde: "inicio" } })
+          }
         />
 
         {/* Modo selección manual: panel de confirmar. Si no, barra de navegación. */}

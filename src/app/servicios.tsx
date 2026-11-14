@@ -2,7 +2,7 @@
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,12 +15,22 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { aviso, TipoAlerta } from "../components/ui/AlertaPantalla";
+import { aviso, confirmar, TipoAlerta } from "../components/ui/AlertaPantalla";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
+import { buscarLugares } from "../components/ui/BuscadorDestino";
 import VistaPreviaRuta from "../components/ui/VistaPreviaRuta";
 import { obtenerDireccion } from "../services/geocodificacion";
 import { obtenerMiPerfil } from "../services/perfilService";
 import { registrarServicio } from "../services/servicioService";
+import {
+  calcularTarifa,
+  distanciaRutaKm,
+  formatearPesos,
+  KM_INCLUIDOS,
+  PRECIO_AYUDANTE,
+  PRECIO_KM_ADICIONAL,
+  PRECIO_PISO,
+} from "../services/tarifa";
 import {
   obtenerUbicaciones,
   useUbicaciones,
@@ -97,9 +107,21 @@ function AccionesMapa({
   );
 }
 
+/** Una línea del desglose del precio: "2 ayudantes × $ 25.000 .... $ 50.000". */
+function FilaPrecio({ texto, valor }: { texto: string; valor: number }) {
+  return (
+    <View style={styles.filaPrecio}>
+      <Text style={styles.textoPrecio}>{texto}</Text>
+      <Text style={styles.valorPrecio}>{formatearPesos(valor)}</Text>
+    </View>
+  );
+}
+
 export default function ServiciosScreen() {
   const router = useRouter();
   const ubic = useUbicaciones();
+  // ?desde=inicio cuando se llega con el botón "Solicitar servicio" del buscador.
+  const { desde } = useLocalSearchParams<{ desde?: string }>();
 
   // Control de Pasos (Wizard Slide): 1, 2, 3, 4
   const [paso, setPaso] = useState(1);
@@ -151,6 +173,41 @@ export default function ServiciosScreen() {
     onConfirm?.();
   };
 
+  // Distancia de la ruta (km) entre A y B. Se guarda con la clave de los dos
+  // puntos: si se mueve un pin, deja de valer y se vuelve a calcular.
+  const claveRuta =
+    origenPunto && destinoPunto
+      ? `${origenPunto.lat},${origenPunto.lng};${destinoPunto.lat},${destinoPunto.lng}`
+      : "";
+  const [rutaGuardada, setRutaGuardada] = useState<{
+    clave: string;
+    km: number;
+  } | null>(null);
+  const distanciaKm = rutaGuardada?.clave === claveRuta ? rutaGuardada.km : null;
+  const [ubicandoRuta, setUbicandoRuta] = useState(false);
+  // Puntos A y B que el cliente revisó en el mapa (misma forma que claveRuta).
+  // Las direcciones escritas se ubican de forma aproximada, por eso se piden revisar.
+  const [puntosConfirmados, setPuntosConfirmados] = useState("");
+
+  useEffect(() => {
+    if (!origenPunto || !destinoPunto) return;
+    const clave = claveRuta;
+    let activo = true;
+    distanciaRutaKm(origenPunto, destinoPunto)
+      .then((km) => activo && setRutaGuardada({ clave, km }))
+      .catch(() => {
+        // Se reintenta al pasar al siguiente paso.
+      });
+    return () => {
+      activo = false;
+    };
+    // claveRuta resume los dos puntos.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claveRuta]);
+
+  const tarifa =
+    distanciaKm != null ? calcularTarifa(distanciaKm, ayudantes, pisosEscaleras) : null;
+
   // El contacto se llena con los datos de la cuenta (se pueden cambiar).
   const contactoPerfil = useRef({ nombre: "", telefono: "" });
 
@@ -185,6 +242,8 @@ export default function ServiciosScreen() {
     setPisosEscaleras(0);
     setNombreContacto(contactoPerfil.current.nombre);
     setTelefonoContacto(contactoPerfil.current.telefono);
+    setRutaGuardada(null);
+    setPuntosConfirmados("");
   };
 
   // Formateadores de fecha (DD/MM/AAAA) y hora (12h AM/PM)
@@ -258,6 +317,33 @@ export default function ServiciosScreen() {
     }, [aplicarPunto]),
   );
 
+  // Llegada desde el buscador del inicio: solicitud nueva con recogida = mi
+  // ubicación y entrega = el destino buscado. El cliente ya vio la ruta en el
+  // mapa, así que los pines cuentan como revisados.
+  useFocusEffect(
+    useCallback(() => {
+      if (desde !== "inicio") return;
+      // Se quita el parámetro para no volver a aplicarlo al regresar a esta pantalla.
+      router.setParams({ desde: undefined });
+
+      const { miUbicacion, destino } = obtenerUbicaciones();
+      resetFormulario();
+      if (destino) aplicarPunto("destino", destino);
+      if (miUbicacion) aplicarPunto("origen", miUbicacion);
+      if (miUbicacion && destino) {
+        setPuntosConfirmados(
+          `${miUbicacion.lat},${miUbicacion.lng};${destino.lat},${destino.lng}`,
+        );
+      } else if (destino) {
+        aviso(
+          "Falta el punto de recogida",
+          "No pudimos obtener tu ubicación actual. En el paso 2 escribe o marca en el mapa dónde recogemos la carga.",
+          "advertencia",
+        );
+      }
+    }, [desde, aplicarPunto, router]),
+  );
+
   // Vista previa: al ubicar o arrastrar un pin se guardan sus coordenadas.
   // Si se arrastró, la dirección escrita se reemplaza por la del nuevo punto.
   const alUbicarPunto = async (
@@ -268,6 +354,11 @@ export default function ServiciosScreen() {
     if (rol === "origen") setOrigenPunto(coords);
     else setDestinoPunto(coords);
     if (!arrastrado) return;
+
+    // Si el cliente movió un pin, ya revisó el mapa: no se le vuelve a preguntar.
+    const a = rol === "origen" ? coords : origenPunto;
+    const b = rol === "destino" ? coords : destinoPunto;
+    if (a && b) setPuntosConfirmados(`${a.lat},${a.lng};${b.lat},${b.lng}`);
 
     const nombre = await obtenerDireccion(coords);
     if (!nombre) return;
@@ -284,7 +375,63 @@ export default function ServiciosScreen() {
   // Punto de recogida disponible: el marcado a mano o, si no hay, la ubicación actual.
   const origenDisponible = ubic.origen ?? ubic.miUbicacion;
 
-  const handleSiguiente = () => {
+  /**
+   * Como en Google Maps: si una dirección se escribió a mano, se busca para
+   * obtener sus coordenadas, y luego se calcula la distancia de la ruta.
+   * Devuelve false (y avisa) si no se pudo.
+   */
+  const asegurarRuta = async (): Promise<{ clave: string; km: number } | null> => {
+    let a = origenPunto;
+    let b = destinoPunto;
+
+    const ubicar = async (direccion: string, barrio: string) => {
+      const texto = [direccion.trim(), barrio.trim()].filter(Boolean).join(", ");
+      const [primero] = texto ? await buscarLugares(texto).catch(() => []) : [];
+      return primero ? { lat: primero.lat, lng: primero.lng } : null;
+    };
+
+    if (!a) {
+      a = await ubicar(origenDireccion, origenBarrio);
+      if (!a) {
+        await mostrarAlertaPantalla(
+          "No encontramos la recogida",
+          "No pudimos ubicar la dirección de recogida. Usa «Marcar en el mapa» para señalar el punto exacto.",
+          "advertencia",
+        );
+        return null;
+      }
+      setOrigenPunto(a);
+    }
+    if (!b) {
+      b = await ubicar(destinoDireccion, destinoBarrio);
+      if (!b) {
+        await mostrarAlertaPantalla(
+          "No encontramos la entrega",
+          "No pudimos ubicar la dirección de entrega. Usa «Marcar en el mapa» para señalar el punto exacto.",
+          "advertencia",
+        );
+        return null;
+      }
+      setDestinoPunto(b);
+    }
+
+    const clave = `${a.lat},${a.lng};${b.lat},${b.lng}`;
+    if (rutaGuardada?.clave === clave) return rutaGuardada;
+    try {
+      const km = await distanciaRutaKm(a, b);
+      setRutaGuardada({ clave, km });
+      return { clave, km };
+    } catch {
+      await mostrarAlertaPantalla(
+        "No pudimos calcular la ruta",
+        "Revisa tu conexión a internet e inténtalo de nuevo. La distancia es necesaria para calcular el precio.",
+        "error",
+      );
+      return null;
+    }
+  };
+
+  const handleSiguiente = async () => {
     if (paso === 2 && (!origenDireccion.trim() || !destinoDireccion.trim())) {
       mostrarAlertaPantalla(
         "Atención",
@@ -292,6 +439,26 @@ export default function ServiciosScreen() {
         "advertencia",
       );
       return;
+    }
+    if (paso === 2) {
+      setUbicandoRuta(true);
+      const ruta = await asegurarRuta();
+      setUbicandoRuta(false);
+      if (!ruta) return;
+
+      // El precio depende de la distancia: el cliente confirma que los pines
+      // están en el lugar exacto (si arrastró alguno, ya cuenta como revisado).
+      if (puntosConfirmados !== ruta.clave) {
+        const ok = await confirmar({
+          titulo: "¿Los puntos están bien ubicados?",
+          mensaje: `Revisa en el mapa que A (recogida) y el camión (entrega) estén en el lugar exacto. Si no, arrástralos. La ruta mide ${ruta.km.toFixed(1).replace(".", ",")} km y con eso se calcula el precio.`,
+          textoAceptar: "Sí, continuar",
+          textoCancelar: "Ajustar",
+          tipo: "info",
+        });
+        if (!ok) return;
+        setPuntosConfirmados(ruta.clave);
+      }
     }
     if (
       paso === 3 &&
@@ -321,6 +488,9 @@ export default function ServiciosScreen() {
     setLoading(true);
 
     try {
+      // Sin distancia no hay precio: se vuelve a intentar antes de enviar.
+      if (distanciaKm == null && !(await asegurarRuta())) return;
+
       const payload = {
         tipoServicio,
         origen: [origenDireccion.trim(), origenBarrio.trim()]
@@ -344,6 +514,7 @@ export default function ServiciosScreen() {
         nombreContacto,
         telefonoContacto,
         fecha: new Date().toISOString(),
+        distanciaKm,
       };
 
       await registrarServicio(payload);
@@ -528,8 +699,13 @@ export default function ServiciosScreen() {
               <TouchableOpacity
                 style={styles.btnNext}
                 onPress={handleSiguiente}
+                disabled={ubicandoRuta}
               >
-                <Text style={styles.btnNextText}>Siguiente →</Text>
+                {ubicandoRuta ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.btnNextText}>Siguiente →</Text>
+                )}
               </TouchableOpacity>
             </View>
           )}
@@ -784,6 +960,47 @@ export default function ServiciosScreen() {
                     onChangeText={setTelefonoContacto}
                   />
                 </View>
+              </View>
+
+              {/* Precio estimado (la base de datos guarda el definitivo con la misma fórmula) */}
+              <View style={styles.cardSection}>
+                <Text style={styles.inputLabel}>Precio estimado</Text>
+                {tarifa ? (
+                  <>
+                    <FilaPrecio
+                      texto={`Base (primeros ${KM_INCLUIDOS} km)`}
+                      valor={tarifa.base}
+                    />
+                    {tarifa.kmAdicionales > 0 && (
+                      <FilaPrecio
+                        texto={`${tarifa.kmAdicionales.toFixed(2).replace(".", ",")} km adicionales × ${formatearPesos(PRECIO_KM_ADICIONAL)}`}
+                        valor={tarifa.valorKm}
+                      />
+                    )}
+                    {ayudantes > 0 && (
+                      <FilaPrecio
+                        texto={`${ayudantes} ayudante${ayudantes === 1 ? "" : "s"} × ${formatearPesos(PRECIO_AYUDANTE)}`}
+                        valor={tarifa.valorAyudantes}
+                      />
+                    )}
+                    {pisosEscaleras > 0 && (
+                      <FilaPrecio
+                        texto={`${pisosEscaleras} piso${pisosEscaleras === 1 ? "" : "s"} × ${formatearPesos(PRECIO_PISO)}`}
+                        valor={tarifa.valorPisos}
+                      />
+                    )}
+                    <View style={styles.filaTotal}>
+                      <Text style={styles.textoTotal}>
+                        Total · {distanciaKm?.toFixed(1).replace(".", ",")} km de ruta
+                      </Text>
+                      <Text style={styles.valorTotal}>{formatearPesos(tarifa.total)}</Text>
+                    </View>
+                  </>
+                ) : (
+                  <Text style={styles.textoPrecioPendiente}>
+                    Calculando la distancia de la ruta…
+                  </Text>
+                )}
               </View>
 
               <TouchableOpacity
@@ -1085,6 +1302,26 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 1,
   },
+  filaPrecio: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingVertical: 4,
+  },
+  textoPrecio: { color: "#9ca3af", fontSize: 13, flex: 1 },
+  valorPrecio: { color: "#E7F0F4", fontSize: 13, fontWeight: "700" },
+  filaTotal: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.12)",
+  },
+  textoTotal: { color: "#FFFFFF", fontSize: 13, fontWeight: "800", flex: 1 },
+  valorTotal: { color: "#10b981", fontSize: 20, fontWeight: "900" },
+  textoPrecioPendiente: { color: "#9ca3af", fontSize: 13 },
   btnSubmit: {
     backgroundColor: "#10b981",
     paddingVertical: 16,

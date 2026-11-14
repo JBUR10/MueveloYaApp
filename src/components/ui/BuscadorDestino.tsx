@@ -23,6 +23,10 @@ type Props = {
   onUbicarManual: () => void;
   /** Oculta el buscador (mientras se elige el punto en el mapa). */
   oculto?: boolean;
+  /** Precio mínimo de la ruta ("$ 175.400"), sin ayudantes ni pisos. */
+  precioDesde?: string | null;
+  /** Lleva a Servicios con la ruta ya cargada. Sin esto no sale el botón. */
+  onSolicitar?: () => void;
 };
 
 type Resultado = Destino & { detalle: string };
@@ -130,6 +134,8 @@ export default function BuscadorDestino({
   onLimpiar,
   onUbicarManual,
   oculto = false,
+  precioDesde = null,
+  onSolicitar,
 }: Props) {
   const [texto, setTexto] = useState("");
   const [buscando, setBuscando] = useState(false);
@@ -298,8 +304,48 @@ export default function BuscadorDestino({
         </View>
       )}
 
+      {/* Ruta lista: tarjeta con precio y botón para pedir el servicio */}
+      {!hayLista && !!destino && !!info && !!onSolicitar && (
+        <View style={styles.tarjeta}>
+          <Text style={styles.tarjetaDestino} numberOfLines={1}>
+            📍 {destino.nombre}
+          </Text>
+          <View style={styles.tarjetaFila}>
+            <Text style={styles.tarjetaInfo}>
+              {formatearDistancia(info.distanciaKm)} ·{" "}
+              {formatearDuracion(info.duracionMin)}
+            </Text>
+            {!!precioDesde && (
+              <Text style={styles.tarjetaPrecio}>Desde {precioDesde}</Text>
+            )}
+          </View>
+          <View style={styles.tarjetaBotones}>
+            <Pressable
+              onPress={ubicarManual}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.tarjetaBotonSecundario,
+                pressed && styles.presionado,
+              ]}
+            >
+              <Text style={styles.textoManual}>Ajustar en el mapa</Text>
+            </Pressable>
+            <Pressable
+              onPress={onSolicitar}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.tarjetaBotonPrincipal,
+                pressed && styles.presionado,
+              ]}
+            >
+              <Text style={styles.tarjetaTextoPrincipal}>Solicitar servicio →</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
       {/* Resumen de la ruta + botón de ubicar en el mapa */}
-      {!hayLista && (
+      {!hayLista && !(destino && info && onSolicitar) && (
         <View style={styles.acciones}>
           {!!destino && !!info && (
             <View style={styles.info}>
@@ -495,5 +541,76 @@ const styles = StyleSheet.create({
 
   presionado: {
     opacity: 0.75,
+  },
+
+  tarjeta: {
+    marginTop: 8,
+    padding: 14,
+    gap: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(17,19,24,0.94)",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+
+  tarjetaDestino: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
+  tarjetaFila: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  tarjetaInfo: {
+    color: "#8DB2FF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  tarjetaPrecio: {
+    color: "#10b981",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+
+  tarjetaBotones: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 2,
+  },
+
+  tarjetaBotonSecundario: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.24)",
+  },
+
+  tarjetaBotonPrincipal: {
+    flex: 1.4,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: AZUL,
+  },
+
+  tarjetaTextoPrincipal: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
   },
 });

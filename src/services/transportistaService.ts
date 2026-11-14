@@ -91,7 +91,7 @@ export const obtenerDatosTransportista =
   async (): Promise<DatosTransportista> => {
     const uid = await asegurarSesion();
 
-    const [pendientes, mias, canceladas] = await Promise.all([
+    const [pendientes, mias, canceladas, rechazadas] = await Promise.all([
       supabase
         .from("servicios")
         .select(`*, ${SELECT_CLIENTE}`)
@@ -108,6 +108,10 @@ export const obtenerDatosTransportista =
         .select("cancelada_el, motivo, servicio:servicios(*)")
         .eq("transportista_id", uid)
         .order("cancelada_el", { ascending: false }),
+      supabase
+        .from("solicitudes_rechazadas")
+        .select("servicio_id")
+        .eq("transportista_id", uid),
     ]);
 
     const error = pendientes.error || mias.error || canceladas.error;
@@ -117,9 +121,19 @@ export const obtenerDatosTransportista =
     }
 
     const propias = (mias.data as FilaServicio[]).map(deFila);
+    if (rechazadas.error) {
+      console.warn("No se pudieron leer las solicitudes rechazadas:", rechazadas.error);
+    }
+    const idsRechazados = new Set(
+      (rechazadas.data ?? []).map((r: { servicio_id: string }) => r.servicio_id),
+    );
 
     return {
-      disponibles: (pendientes.data as FilaServicio[]).map(deFila),
+      // Las que este conductor rechazó ya no le aparecen. Si aún no se ejecutó
+      // la migración 010 (no existe la tabla), simplemente no se filtra.
+      disponibles: (pendientes.data as FilaServicio[])
+        .map(deFila)
+        .filter((s) => !idsRechazados.has(String(s.id))),
       asignadas: propias.filter(
         (s) => s.estado === "aceptada" || s.estado === "en_curso",
       ),
@@ -163,6 +177,25 @@ export const cancelarSolicitud = (item: SolicitudServicioDTO, motivo: string) =>
     );
   }
   return llamar("cancelar_servicio", String(item.id), { p_motivo: motivo });
+};
+
+/** El conductor rechaza una solicitud: deja de aparecerle (solo a él). */
+export const rechazarSolicitud = async (id: string) => {
+  const uid = await asegurarSesion();
+  const { error } = await supabase
+    .from("solicitudes_rechazadas")
+    .upsert(
+      { transportista_id: uid, servicio_id: id },
+      { onConflict: "transportista_id,servicio_id", ignoreDuplicates: true },
+    );
+  if (error) {
+    console.error("Error al rechazar la solicitud:", error);
+    throw new Error(
+      error.message?.includes("solicitudes_rechazadas")
+        ? "Falta ejecutar la migración 010 en Supabase."
+        : "No se pudo rechazar la solicitud. Revisa tu conexión.",
+    );
+  }
 };
 
 /** Programados: el conductor sale hacia el punto de recogida. */

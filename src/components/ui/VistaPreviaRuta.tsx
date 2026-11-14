@@ -102,7 +102,7 @@ export default function VistaPreviaRuta({
         <Text style={styles.titulo}>🗺️ Vista previa de la ruta</Text>
         {info && (
           <Text style={styles.info}>
-            {info.distanciaKm.toFixed(1)} km · {info.duracionMin} min
+            {info.distanciaKm.toFixed(1).replace(".", ",")} km · {info.duracionMin} min
           </Text>
         )}
       </View>

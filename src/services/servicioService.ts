@@ -60,6 +60,10 @@ export interface SolicitudServicioDTO {
   canceladaPor?: string | null;
   /** Motivo que dio el cliente al cancelar. */
   motivoCancelacion?: string | null;
+  /** Km de la ruta en calles entre recogida y entrega. */
+  distanciaKm?: number | null;
+  /** La calcula la base de datos (migración 009). */
+  tarifaAcordada?: number | null;
   /** Solo se llena en las solicitudes del cliente (obtenerMisServicios). */
   transportista?: TransportistaAsignado | null;
   /** Solo se llena en las consultas del transportista. */
@@ -96,6 +100,8 @@ type FilaServicio = {
   cancelada_el?: string | null;
   cancelada_por?: string | null;
   motivo_cancelacion?: string | null;
+  distancia_km?: number | string | null;
+  tarifa_acordada?: number | null;
   transportista?: FilaTransportista | FilaTransportista[] | null;
   cliente?: FilaCliente | FilaCliente[] | null;
   calificaciones?: { autor_id: string }[] | null;
@@ -169,6 +175,9 @@ export const deFila = (f: FilaServicio): SolicitudServicioDTO => ({
   canceladaEl: f.cancelada_el ?? null,
   canceladaPor: f.cancelada_por ?? null,
   motivoCancelacion: f.motivo_cancelacion ?? null,
+  // numeric llega como texto desde Supabase.
+  distanciaKm: f.distancia_km == null ? null : Number(f.distancia_km),
+  tarifaAcordada: f.tarifa_acordada ?? null,
   transportista: transportistaDeFila(uno(f.transportista)),
   cliente: (() => {
     const c = uno(f.cliente);
@@ -180,7 +189,7 @@ export const deFila = (f: FilaServicio): SolicitudServicioDTO => ({
 /** Texto corto de una calificación: "★ 4.8 (12)" o "Sin calificaciones". */
 export const textoCalificacion = (c?: Calificacion | null) =>
   c?.promedio != null
-    ? `★ ${c.promedio.toFixed(1)} (${c.total})`
+    ? `★ ${c.promedio.toFixed(1).replace(".", ",")} (${c.total})`
     : "Sin calificaciones";
 
 export type { FilaServicio };
@@ -202,6 +211,8 @@ const aFila = (d: SolicitudServicioDTO) => ({
   nombre_contacto: d.nombreContacto,
   telefono_contacto: d.telefonoContacto,
   fecha: d.fecha || new Date().toISOString(),
+  // La tarifa no se envía: la calcula la base de datos con esta distancia.
+  distancia_km: d.distanciaKm ?? null,
   // Se envía explícito para no depender del default de la columna en la base.
   estado: "pendiente" as EstadoServicio,
 });

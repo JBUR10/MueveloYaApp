@@ -99,6 +99,21 @@ export async function marcarDisponiblesVistas() {
   refrescarAvisos();
 }
 
+// Pantallas abiertas que quieren mostrar al instante los avisos nuevos
+// (Solicitudes y el panel del transportista).
+const oyentesAvisoNuevo = new Set<() => void>();
+
+/**
+ * Llama a `alLlegar` cada vez que llega una notificación nueva en tiempo
+ * real. Devuelve la función para dejar de escuchar.
+ */
+export function alLlegarAviso(alLlegar: () => void) {
+  oyentesAvisoNuevo.add(alLlegar);
+  return () => {
+    oyentesAvisoNuevo.delete(alLlegar);
+  };
+}
+
 /** La llama sesionStore al entrar, salir o cambiar de cuenta. */
 export function iniciarAvisos(uid: string | null) {
   if (uid === uidActual) return;
@@ -126,7 +141,13 @@ export function iniciarAvisos(uid: string | null) {
         table: "notificaciones",
         filter: `usuario_id=eq.${uid}`,
       },
-      programar,
+      (cambio) => {
+        programar();
+        // Aviso nuevo: si hay una pantalla escuchando, lo muestra ya.
+        if (cambio.eventType === "INSERT") {
+          oyentesAvisoNuevo.forEach((oyente) => oyente());
+        }
+      },
     )
     .on(
       "postgres_changes",
@@ -156,6 +177,8 @@ const TIPO_ALERTA: Record<string, TipoAlerta> = {
 };
 
 let mostrando = false;
+// Llegó otro aviso mientras se mostraban los anteriores: se revisa al terminar.
+let repetir: ((servicioId: string) => void) | undefined | null = null;
 
 /**
  * Muestra en pantalla las notificaciones no leídas, una tras otra, y las
@@ -166,7 +189,11 @@ export async function mostrarAvisosPendientes(
   alCompletar?: (servicioId: string) => void,
 ) {
   const uid = uidActual;
-  if (!uid || mostrando) return;
+  if (!uid) return;
+  if (mostrando) {
+    repetir = alCompletar;
+    return;
+  }
   mostrando = true;
 
   try {
@@ -196,6 +223,12 @@ export async function mostrarAvisosPendientes(
     console.error("Error al mostrar los avisos:", error);
   } finally {
     mostrando = false;
+  }
+
+  if (repetir !== null) {
+    const callback = repetir;
+    repetir = null;
+    mostrarAvisosPendientes(callback);
   }
 }
 
