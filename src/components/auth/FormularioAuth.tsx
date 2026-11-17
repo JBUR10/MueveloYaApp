@@ -12,11 +12,10 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
-  TextInput,
   TextInputProps,
   View,
 } from "react-native";
+import { Text, TextInput } from "../ui/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export const AZUL = "#2969e9";
@@ -275,7 +274,7 @@ const styles = StyleSheet.create({
   verClave: { color: "#8DB2FF", fontSize: 12, fontWeight: "700" },
   textoError: { color: "#fca5a5", fontSize: 11 },
   boton: {
-    height: 48,
+    minHeight: 48,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",

@@ -8,10 +8,10 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { Text } from "../components/ui/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { aviso, confirmar } from "../components/ui/AlertaPantalla";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
@@ -25,7 +25,6 @@ import {
   EstadoServicio,
   obtenerMisServicios,
   SolicitudServicioDTO,
-  textoCalificacion,
 } from "../services/servicioService";
 import { useSesion } from "../services/sesionStore";
 import { formatearPesos } from "../services/tarifa";
@@ -34,40 +33,48 @@ import {
   HORAS_MINIMAS_CANCELACION,
   puedeCancelar,
 } from "../services/transportistaService";
+import Icono, { type NombreIcono } from "../components/ui/Icono";
+import TextoIcono from "../components/ui/TextoIcono";
+import TextoCalificacion from "../components/ui/TextoCalificacion";
 
 const AZUL = "#2969e9";
 const FONDO = "#111318";
 
 const ESTADOS: Record<
   EstadoServicio,
-  { texto: string; color: string; fondo: string; borde: string }
+  { icono: NombreIcono; texto: string; color: string; fondo: string; borde: string }
 > = {
   pendiente: {
-    texto: "⏳ Buscando transportista",
+    icono: "hourglass-outline",
+    texto: "Buscando transportista",
     color: "#fbbf24",
     fondo: "rgba(251,191,36,0.10)",
     borde: "rgba(251,191,36,0.35)",
   },
   aceptada: {
-    texto: "✓ Aceptada · el transportista va a recoger",
+    icono: "checkmark-circle-outline",
+    texto: "Aceptada · el transportista va a recoger",
     color: "#8DB2FF",
     fondo: "rgba(41,105,233,0.12)",
     borde: "rgba(41,105,233,0.4)",
   },
   en_curso: {
-    texto: "🚚 En camino al destino",
+    icono: "navigate-outline",
+    texto: "En camino al destino",
     color: "#86E8BD",
     fondo: "rgba(80,220,164,0.10)",
     borde: "rgba(80,220,164,0.35)",
   },
   completada: {
-    texto: "✓ Completada",
+    icono: "checkmark-done-outline",
+    texto: "Completada",
     color: "#86E8BD",
     fondo: "rgba(80,220,164,0.10)",
     borde: "rgba(80,220,164,0.35)",
   },
   cancelada: {
-    texto: "✕ Cancelaste este servicio",
+    icono: "close-circle-outline",
+    texto: "Cancelaste este servicio",
     color: "#fca5a5",
     fondo: "rgba(239,68,68,0.10)",
     borde: "rgba(239,68,68,0.35)",
@@ -75,12 +82,17 @@ const ESTADOS: Record<
 };
 
 /** Texto del estado según si el servicio programado ya se inició. */
-const textoEstado = (item: SolicitudServicioDTO) => {
+const textoEstado = (
+  item: SolicitudServicioDTO,
+): { icono: NombreIcono; texto: string } => {
   const estado = item.estado ?? "pendiente";
-  if (estado !== "aceptada") return ESTADOS[estado].texto;
+  if (estado !== "aceptada") return ESTADOS[estado];
   return estaIniciado(item)
-    ? "🚚 El transportista va hacia el punto de recogida"
-    : `✓ Aceptada · programado para el ${item.fechaProgramada}`;
+    ? { icono: "navigate-outline", texto: "El transportista va hacia el punto de recogida" }
+    : {
+        icono: "checkmark-circle-outline",
+        texto: `Aceptada · programado para el ${item.fechaProgramada}`,
+      };
 };
 
 const formatearFecha = (iso?: string) => {
@@ -147,7 +159,7 @@ export default function SolicitudesScreen() {
       return;
     }
     await aviso(
-      "¡Gracias por preferirnos! 💙",
+      "¡Gracias por preferirnos!",
       "Tu calificación al transportista y a la app nos ayuda a mejorar cada servicio.",
       "exito",
     );
@@ -251,7 +263,9 @@ export default function SolicitudesScreen() {
               style={styles.btnBack}
               activeOpacity={0.8}
             >
-              <Text style={styles.btnBackText}>← Inicio</Text>
+              <TextoIcono icono="arrow-back" style={styles.btnBackText}>
+                Inicio
+              </TextoIcono>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => router.push("/servicios")}
@@ -284,7 +298,12 @@ export default function SolicitudesScreen() {
             </View>
           ) : servicios.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>📦</Text>
+              <Icono
+                nombre="cube-outline"
+                tamano={44}
+                color="rgba(255,255,255,0.7)"
+                style={styles.emptyIcon}
+              />
               <Text style={styles.emptyTitle}>Aún no tienes solicitudes</Text>
               <Text style={styles.emptyText}>
                 Cuando solicites un servicio aparecerá aquí con todos sus
@@ -331,16 +350,15 @@ export default function SolicitudesScreen() {
                         inmediato ? styles.chipImmediate : styles.chipScheduled,
                       ]}
                     >
-                      <Text
+                      <TextoIcono
+                        icono={inmediato ? "flash" : "calendar-outline"}
                         style={[
                           styles.statusChipText,
                           { color: inmediato ? "#fbbf24" : AZUL },
                         ]}
                       >
-                        {inmediato
-                          ? "⚡ Inmediato"
-                          : `📅 ${item.fechaProgramada}`}
-                      </Text>
+                        {inmediato ? "Inmediato" : item.fechaProgramada}
+                      </TextoIcono>
                     </View>
                   </View>
 
@@ -351,9 +369,12 @@ export default function SolicitudesScreen() {
                       { backgroundColor: estado.fondo, borderColor: estado.borde },
                     ]}
                   >
-                    <Text style={[styles.estadoTexto, { color: estado.color }]}>
-                      {textoEstado(item)}
-                    </Text>
+                    <TextoIcono
+                      icono={textoEstado(item).icono}
+                      style={[styles.estadoTexto, { color: estado.color }]}
+                    >
+                      {textoEstado(item).texto}
+                    </TextoIcono>
                     {estadoItem === "cancelada" && !!item.motivoCancelacion && (
                       <Text style={styles.motivoTexto}>
                         Motivo: {item.motivoCancelacion}
@@ -366,9 +387,13 @@ export default function SolicitudesScreen() {
                     <View style={styles.transportistaBox}>
                       <View style={styles.transportistaDatos}>
                         <Text style={styles.descLabel}>TU TRANSPORTISTA</Text>
-                        <Text style={styles.contactName} numberOfLines={1}>
-                          🚚 {t.nombre || "Transportista"}
-                        </Text>
+                        <TextoIcono
+                          icono="car-outline"
+                          style={styles.contactName}
+                          numberOfLines={1}
+                        >
+                          {t.nombre || "Transportista"}
+                        </TextoIcono>
                         {t.vehiculo && (
                           <Text style={styles.vehiculoTexto} numberOfLines={1}>
                             {t.vehiculo.tipo} · {t.vehiculo.placa}
@@ -377,9 +402,10 @@ export default function SolicitudesScreen() {
                               : ""}
                           </Text>
                         )}
-                        <Text style={styles.calificacionTexto}>
-                          {textoCalificacion(t.calificacion)}
-                        </Text>
+                        <TextoCalificacion
+                          calificacion={t.calificacion}
+                          style={styles.calificacionTexto}
+                        />
                       </View>
                       {!!t.telefono && estadoItem !== "completada" && (
                         <TouchableOpacity
@@ -395,7 +421,9 @@ export default function SolicitudesScreen() {
                           }
                           activeOpacity={0.8}
                         >
-                          <Text style={styles.btnLlamarText}>📞 Llamar</Text>
+                          <TextoIcono icono="call-outline" style={styles.btnLlamarText}>
+                            Llamar
+                          </TextoIcono>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -465,13 +493,21 @@ export default function SolicitudesScreen() {
                   {/* Pie: contacto + eliminar */}
                   <View style={styles.cardFooter}>
                     <View style={styles.contactInfo}>
-                      <Text style={styles.contactName} numberOfLines={1}>
-                        👤 {item.nombreContacto}
-                      </Text>
+                      <TextoIcono
+                        icono="person-outline"
+                        style={styles.contactName}
+                        numberOfLines={1}
+                      >
+                        {item.nombreContacto}
+                      </TextoIcono>
                       {item.telefonoContacto ? (
-                        <Text style={styles.contactPhone} numberOfLines={1}>
-                          📞 {item.telefonoContacto}
-                        </Text>
+                        <TextoIcono
+                          icono="call-outline"
+                          style={styles.contactPhone}
+                          numberOfLines={1}
+                        >
+                          {item.telefonoContacto}
+                        </TextoIcono>
                       ) : null}
                       {item.fecha ? (
                         <Text style={styles.createdAt}>
@@ -495,14 +531,19 @@ export default function SolicitudesScreen() {
                         {borrando ? (
                           <ActivityIndicator size="small" color="#fca5a5" />
                         ) : (
-                          <Text
+                          <TextoIcono
+                            icono={
+                              cancelacionBloqueada
+                                ? "lock-closed-outline"
+                                : "close-outline"
+                            }
                             style={[
                               styles.btnDeleteText,
                               cancelacionBloqueada && styles.btnBloqueadoText,
                             ]}
                           >
-                            {cancelacionBloqueada ? "🔒 Cancelar" : "✕ Cancelar"}
-                          </Text>
+                            Cancelar
+                          </TextoIcono>
                         )}
                       </TouchableOpacity>
                     )}
@@ -513,7 +554,9 @@ export default function SolicitudesScreen() {
                         style={styles.btnCalificar}
                         activeOpacity={0.8}
                       >
-                        <Text style={styles.btnCalificarText}>★ Calificar</Text>
+                        <TextoIcono icono="star" style={styles.btnCalificarText}>
+                          Calificar
+                        </TextoIcono>
                       </TouchableOpacity>
                     )}
 
@@ -529,7 +572,9 @@ export default function SolicitudesScreen() {
                         {borrando ? (
                           <ActivityIndicator size="small" color="#fca5a5" />
                         ) : (
-                          <Text style={styles.btnDeleteText}>🗑 Eliminar</Text>
+                          <TextoIcono icono="trash-outline" style={styles.btnDeleteText}>
+                            Eliminar
+                          </TextoIcono>
                         )}
                       </TouchableOpacity>
                     )}
@@ -637,7 +682,7 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 8,
   },
-  emptyIcon: { fontSize: 40, marginBottom: 10 },
+  emptyIcon: { marginBottom: 10 },
   emptyTitle: {
     color: "#FFFFFF",
     fontSize: 17,

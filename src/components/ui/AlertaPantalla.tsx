@@ -7,7 +7,9 @@
 //   await aviso("Listo", "Solicitud aceptada", "exito");
 //   if (await confirmar({ titulo: "Eliminar", mensaje: "¿Seguro?" })) { ... }
 import { useSyncExternalStore } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "./Texto";
+import Icono, { type NombreIcono } from "./Icono";
 
 export type TipoAlerta = "exito" | "error" | "advertencia" | "info";
 
@@ -88,11 +90,11 @@ export function confirmar({
   });
 }
 
-const ICONOS: Record<TipoAlerta, string> = {
-  exito: "✓",
-  error: "✕",
-  advertencia: "!",
-  info: "i",
+const ICONOS: Record<TipoAlerta, NombreIcono> = {
+  exito: "checkmark",
+  error: "close",
+  advertencia: "alert",
+  info: "information",
 };
 
 const COLORES: Record<TipoAlerta, string> = {
@@ -133,9 +135,7 @@ export default function AlertaPantalla() {
                 { backgroundColor: `${color}22`, borderColor: `${color}66` },
               ]}
             >
-              <Text style={[styles.iconoTexto, { color }]}>
-                {ICONOS[actual.tipo]}
-              </Text>
+              <Icono nombre={ICONOS[actual.tipo]} tamano={26} color={color} />
             </View>
 
             <Text style={styles.titulo}>{actual.titulo}</Text>
@@ -210,7 +210,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 14,
   },
-  iconoTexto: { fontSize: 22, fontWeight: "900" },
   titulo: {
     color: "#FFFFFF",
     fontSize: 18,

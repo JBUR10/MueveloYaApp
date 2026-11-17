@@ -8,9 +8,9 @@ import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
+import { Text } from "../ui/Texto";
 
 import {
   contarAudiencia,
@@ -18,6 +18,7 @@ import {
   MotivoPromocion,
   MOTIVOS,
 } from "../../services/promocionesService";
+import Icono from "../ui/Icono";
 
 const AZUL = "#2969e9";
 const TIPOS = ["Envío", "Acarreo", "Trasteo", "Mudanza"];
@@ -160,8 +161,15 @@ export default function FormularioPromocion({
     <View style={styles.tarjeta}>
       <View style={styles.encabezado}>
         <Text style={styles.titulo}>Enviar promoción</Text>
-        <Pressable onPress={onCerrar} disabled={bloqueado}>
-          <Text style={styles.cerrar}>✕</Text>
+        <Pressable
+          onPress={onCerrar}
+          disabled={bloqueado}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Cerrar"
+          style={styles.cerrar}
+        >
+          <Icono nombre="close" tamano={22} color="#9BA7BA" />
         </Pressable>
       </View>
 
@@ -267,7 +275,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   titulo: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
-  cerrar: { color: "#9BA7BA", fontSize: 18, paddingHorizontal: 6 },
+  cerrar: { paddingHorizontal: 6 },
   etiqueta: { color: "#9BA7BA", fontSize: 12, fontWeight: "700", marginTop: 4 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {

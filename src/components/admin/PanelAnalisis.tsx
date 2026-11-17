@@ -9,15 +9,17 @@ import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
+import { Text } from "../ui/Texto";
 
 import { Analisis, obtenerAnalisis } from "../../services/analisisService";
 import type { PeriodoEstadisticas } from "../../services/estadisticasService";
 import { formatearPesos } from "../../services/tarifa";
 import MapaCalor from "./MapaCalor";
 import PanelNegocio from "./PanelNegocio";
+import TextoIcono from "../ui/TextoIcono";
+import { type NombreIcono } from "../ui/Icono";
 
 const AZUL = "#2969e9";
 const NOMBRE_DIA = ["", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -41,21 +43,40 @@ function Kpi({
   titulo,
   valor,
   delta,
+  iconoValor,
 }: {
   titulo: string;
   valor: string;
   delta?: number | null;
+  /** Icono que acompaña al valor (por ejemplo una estrella). */
+  iconoValor?: NombreIcono;
 }) {
   return (
     <View style={styles.kpi}>
       <Text style={styles.kpiTitulo}>{titulo}</Text>
-      <Text style={styles.kpiValor}>{valor}</Text>
+      {iconoValor ? (
+        <TextoIcono
+          icono={iconoValor}
+          alFinal
+          colorIcono="#FBBF24"
+          style={styles.kpiValor}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {valor}
+        </TextoIcono>
+      ) : (
+        <Text style={styles.kpiValor} numberOfLines={1} adjustsFontSizeToFit>
+          {valor}
+        </Text>
+      )}
       {delta != null && (
-        <Text
+        <TextoIcono
+          icono={delta >= 0 ? "caret-up" : "caret-down"}
           style={[styles.delta, { color: delta >= 0 ? "#34d399" : "#f87171" }]}
         >
-          {delta >= 0 ? "▲" : "▼"} {Math.abs(delta)} % vs. periodo anterior
-        </Text>
+          {Math.abs(delta)} % vs. periodo anterior
+        </TextoIcono>
       )}
     </View>
   );
@@ -253,9 +274,10 @@ export default function PanelAnalisis() {
             />
             <Kpi
               titulo="Calificación"
+              iconoValor={datos.calificacionPromedio != null ? "star" : undefined}
               valor={
                 datos.calificacionPromedio != null
-                  ? `${datos.calificacionPromedio} ★`
+                  ? `${datos.calificacionPromedio}`
                   : "—"
               }
             />

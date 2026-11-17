@@ -9,9 +9,9 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
+import { Text } from "../components/ui/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BotonPrincipal, Campo } from "../components/auth/FormularioAuth";
@@ -28,6 +28,8 @@ import {
   TIPOS_VEHICULO,
   Vehiculo,
 } from "../services/vehiculoService";
+import TextoIcono from "../components/ui/TextoIcono";
+import Icono from "../components/ui/Icono";
 
 const AZUL = "#2969e9";
 const FONDO = "#111318";
@@ -175,7 +177,9 @@ export default function VehiculoScreen() {
       >
         <View style={styles.topBar}>
           <Pressable onPress={volver} style={styles.btnBack}>
-            <Text style={styles.btnBackText}>← Volver</Text>
+            <TextoIcono icono="arrow-back" style={styles.btnBackText}>
+              Volver
+            </TextoIcono>
           </Pressable>
         </View>
 
@@ -309,7 +313,9 @@ export default function VehiculoScreen() {
                     v.tecnomecanicaExento && styles.checkActivo,
                   ]}
                 >
-                  {v.tecnomecanicaExento && <Text style={styles.checkMarca}>✓</Text>}
+                  {v.tecnomecanicaExento && (
+                    <Icono nombre="checkmark" tamano={15} color="#FFFFFF" />
+                  )}
                 </View>
                 <Text style={styles.textoCheck}>
                   Vehículo nuevo, exento de revisión técnico-mecánica
@@ -406,7 +412,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   checkActivo: { backgroundColor: AZUL, borderColor: AZUL },
-  checkMarca: { color: "#FFFFFF", fontSize: 13, fontWeight: "900" },
   textoCheck: { flex: 1, color: "#E7F0F4", fontSize: 13, lineHeight: 18 },
   banner: { padding: 14, borderRadius: 16, borderWidth: 1, gap: 4 },
   bannerOk: {

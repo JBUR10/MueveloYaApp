@@ -8,10 +8,9 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
+import { Text, TextInput } from "../components/ui/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { aviso, confirmar } from "../components/ui/AlertaPantalla";
@@ -32,6 +31,8 @@ import {
   revisarDocumentos,
   Vehiculo,
 } from "../services/vehiculoService";
+import Icono from "../components/ui/Icono";
+import TextoIcono from "../components/ui/TextoIcono";
 
 const AZUL = "#2969e9";
 const FONDO = "#111318";
@@ -335,7 +336,7 @@ export default function PerfilScreen() {
                     styles.botonFoto,
                     pressed && styles.presionado,
                   ]}>
-                  <Text style={styles.iconoFoto}>✎</Text>
+                  <Icono nombre="pencil" tamano={16} color="#FFFFFF" />
                 </Pressable>
               </View>
             </View>
@@ -508,7 +509,7 @@ export default function PerfilScreen() {
                           : "Documentos al día"}
                     </Text>
                   </View>
-                  <Text style={styles.flechaOpcion}>›</Text>
+                  <Icono nombre="chevron-forward" tamano={22} color="#8395B0" />
                 </Pressable>
               )}
 
@@ -520,9 +521,13 @@ export default function PerfilScreen() {
                     styles.botonPanelTransportista,
                     pressed && styles.presionado,
                   ]}>
-                  <Text style={styles.textoPanelTransportista}>
-                    Ver solicitudes de servicio ›
-                  </Text>
+                  <TextoIcono
+                    icono="chevron-forward"
+                    alFinal
+                    style={styles.textoPanelTransportista}
+                  >
+                    Ver solicitudes de servicio
+                  </TextoIcono>
                 </Pressable>
               )}
             </View>
@@ -535,9 +540,13 @@ export default function PerfilScreen() {
                   styles.botonPanelTransportista,
                   pressed && styles.presionado,
                 ]}>
-                <Text style={styles.textoPanelTransportista}>
-                  Panel de administración ›
-                </Text>
+                <TextoIcono
+                  icono="chevron-forward"
+                  alFinal
+                  style={styles.textoPanelTransportista}
+                >
+                  Panel de administración
+                </TextoIcono>
               </Pressable>
             )}
 
@@ -549,7 +558,7 @@ export default function PerfilScreen() {
                 styles.botonCerrarSesion,
                 pressed && styles.presionado,
               ]}>
-              <Text style={styles.iconoCerrarSesion}>⇥</Text>
+              <Icono nombre="log-out-outline" tamano={20} color="#FF8794" />
               <Text style={styles.textoCerrarSesion}>Cerrar sesión</Text>
             </Pressable>
 
@@ -659,10 +668,6 @@ const styles = StyleSheet.create({
     borderColor: FONDO,
   },
 
-  iconoFoto: {
-    color: "#FFFFFF",
-    fontSize: 16,
-  },
 
   // Formulario
   formulario: {
@@ -739,12 +744,6 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
 
-  flechaOpcion: {
-    color: "#8395B0",
-    fontSize: 25,
-    fontWeight: "300",
-    paddingHorizontal: 3,
-  },
 
   tarjetaPreferencias: {
     flexDirection: "row",
@@ -802,10 +801,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,80,100,0.065)",
   },
 
-  iconoCerrarSesion: {
-    color: "#FF8794",
-    fontSize: 19,
-  },
 
   textoCerrarSesion: {
     color: "#FF9CA7",

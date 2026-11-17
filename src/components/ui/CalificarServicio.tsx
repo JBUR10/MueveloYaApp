@@ -12,15 +12,15 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
+import { Text, TextInput } from "./Texto";
 
 import {
   calificarServicio,
   DatosCalificacion,
 } from "../../services/calificacionService";
+import Icono from "./Icono";
 
 const AZUL = "#2969e9";
 
@@ -56,9 +56,11 @@ function Estrellas({
             accessibilityRole="button"
             accessibilityLabel={`${n} estrella${n > 1 ? "s" : ""}`}
           >
-            <Text style={[styles.estrella, n <= valor && styles.estrellaActiva]}>
-              ★
-            </Text>
+            <Icono
+              nombre={n <= valor ? "star" : "star-outline"}
+              tamano={36}
+              color={n <= valor ? "#fbbf24" : "rgba(255,255,255,0.35)"}
+            />
           </Pressable>
         ))}
       </View>
@@ -174,7 +176,12 @@ export default function CalificarServicio({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.icono}>{esCliente ? "🎉" : "🤝"}</Text>
+            <Icono
+              nombre={esCliente ? "happy-outline" : "people-outline"}
+              tamano={44}
+              color="#FFFFFF"
+              style={styles.icono}
+            />
             <Text style={styles.titulo}>
               {esCliente ? "¿Qué tal el servicio?" : "Califica al cliente"}
             </Text>
@@ -274,14 +281,12 @@ const styles = StyleSheet.create({
     borderColor: "#374151",
   },
   contenido: { padding: 22, gap: 16 },
-  icono: { fontSize: 34, textAlign: "center" },
+  icono: { textAlign: "center", alignSelf: "center" },
   titulo: { color: "#FFFFFF", fontSize: 19, fontWeight: "800", textAlign: "center" },
   subtitulo: { color: "#9BA7BA", fontSize: 13, textAlign: "center", marginTop: -10 },
   bloque: { gap: 8 },
   pregunta: { color: "#E7F0F4", fontSize: 13, fontWeight: "700" },
   filaEstrellas: { flexDirection: "row", gap: 8 },
-  estrella: { fontSize: 32, color: "rgba(255,255,255,0.18)" },
-  estrellaActiva: { color: "#fbbf24" },
   filaSiNo: { flexDirection: "row", gap: 10 },
   opcion: {
     flex: 1,

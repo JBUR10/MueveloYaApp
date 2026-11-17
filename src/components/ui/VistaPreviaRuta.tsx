@@ -4,10 +4,12 @@
 // El cliente puede arrastrar los pines si quedaron mal ubicados.
 // Si las direcciones se escribieron a mano, se ubican con Nominatim (gratis).
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "./Texto";
 
 import { buscarLugares } from "./BuscadorDestino";
 import MapaPrincipal, { Coordenadas, InfoRuta } from "./MapaPrincipal";
+import TextoIcono from "./TextoIcono";
 
 type Props = {
   origen: Coordenadas | null;
@@ -68,7 +70,9 @@ export default function VistaPreviaRuta({
     const hayTexto = (!origen && textoOrigen.trim()) || (!destino && textoDestino.trim());
     return (
       <View style={styles.tarjeta}>
-        <Text style={styles.titulo}>🗺️ Vista previa de la ruta</Text>
+        <TextoIcono icono="map-outline" style={styles.titulo}>
+          Vista previa de la ruta
+        </TextoIcono>
         <Text style={styles.texto}>
           Marca los dos puntos en el mapa o escribe las direcciones para ver la
           ruta y ajustar los pines.
@@ -99,7 +103,9 @@ export default function VistaPreviaRuta({
   return (
     <View style={styles.tarjeta}>
       <View style={styles.filaTitulo}>
-        <Text style={styles.titulo}>🗺️ Vista previa de la ruta</Text>
+        <TextoIcono icono="map-outline" style={styles.titulo}>
+          Vista previa de la ruta
+        </TextoIcono>
         {info && (
           <Text style={styles.info}>
             {info.distanciaKm.toFixed(1).replace(".", ",")} km · {info.duracionMin} min

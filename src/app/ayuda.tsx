@@ -9,10 +9,9 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
+import { Text, TextInput } from "../components/ui/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -20,6 +19,8 @@ import {
   PREGUNTAS_FRECUENTES,
   SECCIONES_TUTORIAL,
 } from "../constants/ayudaContenido";
+import Icono from "../components/ui/Icono";
+import TextoIcono from "../components/ui/TextoIcono";
 
 const AZUL = "#2969e9";
 const FONDO = "#111318";
@@ -66,7 +67,7 @@ export default function AyudaScreen() {
           accessibilityLabel="Volver"
           style={styles.botonVolver}
         >
-          <Text style={styles.textoVolver}>←</Text>
+          <Icono nombre="arrow-back" tamano={20} color="#FFFFFF" />
         </Pressable>
 
         <View>
@@ -140,7 +141,11 @@ function Tutorial() {
               onPress={() => irASeccion(s.id)}
               style={[styles.chip, activa && styles.chipActivo]}
             >
-              <Text style={styles.chipIcono}>{s.icono}</Text>
+              <Icono
+                nombre={s.icono}
+                tamano={16}
+                color={activa ? "#FFFFFF" : "rgba(255,255,255,0.65)"}
+              />
               <Text style={[styles.chipTexto, activa && styles.chipTextoActivo]}>
                 {s.nombre}
               </Text>
@@ -173,7 +178,7 @@ function Tutorial() {
 
         <View style={styles.tarjetaPaso}>
           <View style={styles.iconoPaso}>
-            <Text style={styles.iconoPasoTexto}>{seccion.icono}</Text>
+            <Icono nombre={seccion.icono} tamano={26} color="#FFFFFF" />
           </View>
 
           <Text style={styles.tituloPaso}>{paso.titulo}</Text>
@@ -181,7 +186,7 @@ function Tutorial() {
 
           {paso.consejos?.map((consejo) => (
             <View key={consejo} style={styles.consejo}>
-              <Text style={styles.consejoIcono}>💡</Text>
+              <Icono nombre="bulb-outline" tamano={16} color="#FBBF24" style={styles.consejoIcono} />
               <Text style={styles.consejoTexto}>{consejo}</Text>
             </View>
           ))}
@@ -191,7 +196,9 @@ function Tutorial() {
               onPress={() => router.push(paso.ruta as Href)}
               style={styles.botonIr}
             >
-              <Text style={styles.textoIr}>Ir a {seccion.nombre} ›</Text>
+              <TextoIcono icono="chevron-forward" alFinal style={styles.textoIr}>
+                Ir a {seccion.nombre}
+              </TextoIcono>
             </Pressable>
           ) : null}
         </View>
@@ -204,7 +211,9 @@ function Tutorial() {
           disabled={indice === 0}
           style={[styles.botonAnterior, indice === 0 && styles.deshabilitado]}
         >
-          <Text style={styles.textoAnterior}>← Anterior</Text>
+          <TextoIcono icono="arrow-back" style={styles.textoAnterior}>
+            Anterior
+          </TextoIcono>
         </Pressable>
 
         <Pressable
@@ -214,9 +223,13 @@ function Tutorial() {
           }}
           style={styles.botonSiguiente}
         >
-          <Text style={styles.textoSiguiente}>
-            {esUltimo ? "Terminar" : "Siguiente →"}
-          </Text>
+          <TextoIcono
+            icono={esUltimo ? "checkmark" : "arrow-forward"}
+            alFinal
+            style={styles.textoSiguiente}
+          >
+            {esUltimo ? "Terminar" : "Siguiente"}
+          </TextoIcono>
         </Pressable>
       </View>
     </View>
@@ -337,7 +350,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: BORDE,
   },
-  textoVolver: { color: "#FFFFFF", fontSize: 18, fontWeight: "700" },
   etiquetaSuperior: {
     color: "rgba(255,255,255,0.55)",
     fontSize: 10,
@@ -364,7 +376,7 @@ const styles = StyleSheet.create({
   },
   opcionSelector: {
     flex: 1,
-    height: 40,
+    minHeight: 40,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -391,7 +403,6 @@ const styles = StyleSheet.create({
     borderColor: BORDE,
   },
   chipActivo: { backgroundColor: "rgba(41,105,233,0.22)", borderColor: AZUL },
-  chipIcono: { color: "#FFFFFF", fontSize: 13 },
   chipTexto: { color: "rgba(255,255,255,0.65)", fontSize: 13, fontWeight: "700" },
   chipTextoActivo: { color: "#FFFFFF" },
 
@@ -430,7 +441,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(41,105,233,0.2)",
     marginBottom: 16,
   },
-  iconoPasoTexto: { color: "#FFFFFF", fontSize: 24 },
   tituloPaso: {
     color: "#FFFFFF",
     fontSize: 19,
@@ -453,7 +463,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(251,191,36,0.25)",
   },
-  consejoIcono: { fontSize: 13 },
+  consejoIcono: { marginTop: 2 },
   consejoTexto: {
     flex: 1,
     color: "rgba(255,255,255,0.82)",
@@ -464,7 +474,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     marginTop: 18,
     paddingHorizontal: 16,
-    height: 40,
+    minHeight: 40,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -482,7 +492,7 @@ const styles = StyleSheet.create({
   },
   botonAnterior: {
     flex: 1,
-    height: 48,
+    minHeight: 48,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
@@ -492,7 +502,7 @@ const styles = StyleSheet.create({
   textoAnterior: { color: "#FFFFFF", fontWeight: "700", fontSize: 14 },
   botonSiguiente: {
     flex: 2,
-    height: 48,
+    minHeight: 48,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
@@ -502,7 +512,7 @@ const styles = StyleSheet.create({
 
   contenedorBusqueda: { paddingHorizontal: 20, marginTop: 14 },
   campoBusqueda: {
-    height: 44,
+    minHeight: 44,
     borderRadius: 14,
     paddingHorizontal: 14,
     color: "#FFFFFF",

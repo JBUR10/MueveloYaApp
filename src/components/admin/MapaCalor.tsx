@@ -5,7 +5,8 @@
 // barrios con más pedidos. Usa el mismo periodo (7 días, 30 días, todo) que el
 // resto del análisis.
 import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { Text } from "../ui/Texto";
 
 import {
   Estadisticas,

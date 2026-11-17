@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Animated, StyleSheet, Text } from "react-native";
+import { Animated, StyleSheet } from "react-native";
+import { Text } from "./Texto";
 
 type Props = {
   /** Texto a mostrar; null lo oculta. */

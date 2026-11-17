@@ -6,11 +6,12 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
+import { Text, TextInput } from "./Texto";
 import type { Destino, InfoRuta } from "./MapaPrincipal";
+import Icono from "./Icono";
+import TextoIcono from "./TextoIcono";
 
 const AZUL = "#2969e9";
 
@@ -239,7 +240,7 @@ export default function BuscadorDestino({
                   accessibilityRole="button"
                   accessibilityLabel="Borrar destino"
                 >
-                  <Text style={styles.cerrar}>✕</Text>
+                  <Icono nombre="close" tamano={18} color="rgba(255,255,255,0.75)" />
                 </Pressable>
               )}
 
@@ -253,7 +254,7 @@ export default function BuscadorDestino({
                   accessibilityRole="button"
                   accessibilityLabel="Buscar"
                 >
-                  <Text style={styles.flecha}>→</Text>
+                  <Icono nombre="arrow-forward" tamano={20} color="#FFFFFF" />
                 </Pressable>
               )}
             </>
@@ -307,9 +308,14 @@ export default function BuscadorDestino({
       {/* Ruta lista: tarjeta con precio y botón para pedir el servicio */}
       {!hayLista && !!destino && !!info && !!onSolicitar && (
         <View style={styles.tarjeta}>
-          <Text style={styles.tarjetaDestino} numberOfLines={1}>
-            📍 {destino.nombre}
-          </Text>
+          <TextoIcono
+            icono="location"
+            colorIcono="#EF4444"
+            style={styles.tarjetaDestino}
+            numberOfLines={1}
+          >
+            {destino.nombre}
+          </TextoIcono>
           <View style={styles.tarjetaFila}>
             <Text style={styles.tarjetaInfo}>
               {formatearDistancia(info.distanciaKm)} ·{" "}
@@ -338,7 +344,13 @@ export default function BuscadorDestino({
                 pressed && styles.presionado,
               ]}
             >
-              <Text style={styles.tarjetaTextoPrincipal}>Solicitar servicio →</Text>
+              <TextoIcono
+                icono="arrow-forward"
+                alFinal
+                style={styles.tarjetaTextoPrincipal}
+              >
+                Solicitar servicio
+              </TextoIcono>
             </Pressable>
           </View>
         </View>
@@ -428,11 +440,6 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
 
-  cerrar: {
-    color: "rgba(255,255,255,0.75)",
-    fontSize: 15,
-    fontWeight: "700",
-  },
 
   botonBuscar: {
     width: 30,
