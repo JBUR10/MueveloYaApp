@@ -1,9 +1,10 @@
 // src/services/consultasAdminService.ts
 //
-// Catálogo de consultas Q01–Q10 sobre la tabla "servicios" para el panel de
-// administrador. Cada consulta está escrita en SQL en la función
+// Reportes de tarifas y servicios para la pestaña "Reportes" del panel de
+// administrador. Cada reporte es una consulta SQL de la función
 // consulta_admin de Supabase (migración 009), que solo responde a
-// administradores. Aquí se define cómo se muestra cada resultado.
+// administradores; los códigos Q.. son internos. Total de servicios, por
+// tipo y por estado no están aquí porque ya los muestra "Estadísticas".
 import { supabase } from "../lib/supabase";
 
 export type CodigoConsulta =
@@ -47,8 +48,8 @@ const COL_TARIFA: Columna = {
   formato: "pesos",
 };
 const COL_ESTADO: Columna = { clave: "estado", titulo: "Estado", formato: "estado" };
-const COL_TOTAL: Columna = { clave: "total", titulo: "Total", formato: "numero" };
 
+/** Métricas en tarjeta (se cargan solas) y listados (con botón). */
 export const CONSULTAS: Consulta[] = [
   {
     codigo: "Q01",
@@ -72,16 +73,9 @@ export const CONSULTAS: Consulta[] = [
     columnas: [COL_ID, COL_TIPO, COL_ORIGEN, COL_TARIFA, COL_ESTADO],
   },
   {
-    codigo: "Q04",
-    titulo: "Por estado",
-    descripcion: "Cantidad de servicios en cada estado.",
-    tipo: "tabla",
-    columnas: [COL_ESTADO, COL_TOTAL],
-  },
-  {
     codigo: "Q05",
     titulo: "Tarifa promedio",
-    descripcion: "Promedio de la tarifa de todos los servicios.",
+    descripcion: "Promedio de las tarifas de todos los servicios.",
     tipo: "kpi",
     formatoKpi: "pesos",
   },
@@ -102,32 +96,18 @@ export const CONSULTAS: Consulta[] = [
     ],
   },
   {
-    codigo: "Q07",
-    titulo: "Total de servicios",
-    descripcion: "Cantidad de registros en la tabla de servicios.",
-    tipo: "kpi",
-    formatoKpi: "numero",
-  },
-  {
     codigo: "Q08",
-    titulo: "Suma de tarifas",
-    descripcion: "Valor total de todas las tarifas.",
+    titulo: "Valor total",
+    descripcion: "Suma de las tarifas de todos los servicios.",
     tipo: "kpi",
     formatoKpi: "pesos",
   },
   {
     codigo: "Q09",
-    titulo: "Tarifa más alta",
+    titulo: "Servicio más caro",
     descripcion: "El servicio con la tarifa más alta.",
     tipo: "tabla",
     columnas: [COL_ID, COL_TIPO, COL_ORIGEN, COL_DESTINO, COL_TARIFA, COL_ESTADO],
-  },
-  {
-    codigo: "Q10",
-    titulo: "Por tipo",
-    descripcion: "Cantidad de servicios de cada tipo.",
-    tipo: "tabla",
-    columnas: [COL_TIPO, COL_TOTAL],
   },
 ];
 

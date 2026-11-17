@@ -11,6 +11,7 @@ import { useSyncExternalStore } from "react";
 import { aviso, TipoAlerta } from "../components/ui/AlertaPantalla";
 import { supabase } from "../lib/supabase";
 import { deFila, type FilaServicio } from "./servicioService";
+import { obtenerModo } from "./modoStore";
 import { fechaDelServicio } from "./transportistaService";
 
 type Estado = { noLeidas: number; proximos: number; nuevasDisponibles: number };
@@ -63,12 +64,18 @@ export async function refrescarAvisos() {
         .is("iniciada_el", null)
         .or(`user_id.eq.${uid},transportista_id.eq.${uid}`),
       // RLS solo deja ver pendientes a conductores con documentos vigentes.
-      supabase
-        .from("servicios")
-        .select("id", { count: "exact", head: true })
-        .eq("estado", "pendiente")
-        .neq("user_id", uid)
-        .gt("fecha", vista),
+      // Sin ayudantes no cuentan las solicitudes que los piden.
+      (() => {
+        const consulta = supabase
+          .from("servicios")
+          .select("id", { count: "exact", head: true })
+          .eq("estado", "pendiente")
+          .neq("user_id", uid)
+          .gt("fecha", vista);
+        return obtenerModo().cuentaConAyudantes
+          ? consulta
+          : consulta.eq("ayudantes", 0);
+      })(),
     ]);
 
     if (uid !== uidActual) return;

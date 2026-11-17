@@ -1,9 +1,12 @@
-// src/components/admin/ConsultasSQL.tsx
+// src/components/admin/Reportes.tsx
 //
-// Sección "Consultas SQL" del panel de administrador: diez botones (Q01–Q10)
-// que ejecutan consultas sobre la tabla "servicios" y muestran el resultado
-// debajo, como tarjeta (métricas únicas) o como tabla (listados).
-import { useState } from "react";
+// Pestaña "Reportes" del panel de administrador:
+//  - Arriba, tarjetas con la tarifa promedio y el valor total (se cargan
+//    solas al entrar).
+//  - Abajo, listados de servicios (pendientes por tarifa, mudanzas, en
+//    curso, más de 5 km, el más caro): al tocar uno, su tabla sale debajo.
+// Total de servicios, por tipo y por estado están en "Estadísticas".
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -14,16 +17,18 @@ import {
 } from "react-native";
 
 import {
+  CodigoConsulta,
   Columna,
   CONSULTAS,
-  Consulta,
-  CodigoConsulta,
   ejecutarConsulta,
   FilaConsulta,
 } from "../../services/consultasAdminService";
 import { formatearPesos } from "../../services/tarifa";
 
 const AZUL = "#2969e9";
+
+const METRICAS = CONSULTAS.filter((c) => c.tipo === "kpi");
+const LISTADOS = CONSULTAS.filter((c) => c.tipo === "tabla");
 
 const ESTADOS: Record<string, { texto: string; color: string }> = {
   pendiente: { texto: "Pendiente", color: "#fbbf24" },
@@ -42,7 +47,6 @@ const ANCHO: Record<string, number> = {
   distancia_km: 80,
   tarifa_acordada: 110,
   estado: 110,
-  total: 80,
 };
 
 type Resultado =
@@ -88,7 +92,6 @@ function Tabla({ columnas, filas }: { columnas: Columna[]; filas: FilaConsulta[]
         {filas.map((fila, i) => (
           <View key={i} style={[styles.fila, i % 2 === 1 && styles.filaPar]}>
             {columnas.map((c) => {
-              const texto = formatearValor(fila[c.clave], c.formato);
               const colorEstado =
                 c.formato === "estado" ? ESTADOS[String(fila[c.clave])]?.color : undefined;
               return (
@@ -102,7 +105,7 @@ function Tabla({ columnas, filas }: { columnas: Columna[]; filas: FilaConsulta[]
                     !!colorEstado && { color: colorEstado, fontWeight: "800" },
                   ]}
                 >
-                  {texto}
+                  {formatearValor(fila[c.clave], c.formato)}
                 </Text>
               );
             })}
@@ -113,29 +116,34 @@ function Tabla({ columnas, filas }: { columnas: Columna[]; filas: FilaConsulta[]
   );
 }
 
-function Kpi({ consulta, filas }: { consulta: Consulta; filas: FilaConsulta[] }) {
-  const valor = filas[0]?.valor;
-  const texto =
-    consulta.formatoKpi === "pesos"
-      ? formatearPesos(valor == null ? null : Number(valor))
-      : formatearValor(valor, "numero");
-  return (
-    <View style={styles.kpi}>
-      <Text style={styles.kpiEtiqueta}>{consulta.titulo.toUpperCase()}</Text>
-      <Text style={styles.kpiValor}>{texto}</Text>
-      <Text style={styles.kpiDescripcion}>{consulta.descripcion}</Text>
-    </View>
+export default function Reportes() {
+  // Las métricas arrancan "cargando" y se piden al entrar.
+  const [metricas, setMetricas] = useState<Partial<Record<CodigoConsulta, Resultado>>>(
+    () => Object.fromEntries(METRICAS.map((m) => [m.codigo, { estado: "cargando" }])),
   );
-}
-
-export default function ConsultasSQL() {
-  const [seleccionada, setSeleccionada] = useState<CodigoConsulta | null>(null);
+  const [listado, setListado] = useState<CodigoConsulta | null>(null);
   const [resultados, setResultados] = useState<
     Partial<Record<CodigoConsulta, Resultado>>
   >({});
 
-  const ejecutar = async (codigo: CodigoConsulta) => {
-    setSeleccionada(codigo);
+  const cargarMetrica = async (codigo: CodigoConsulta) => {
+    try {
+      const filas = await ejecutarConsulta(codigo);
+      setMetricas((m) => ({ ...m, [codigo]: { estado: "listo", filas } }));
+    } catch (error: any) {
+      setMetricas((m) => ({
+        ...m,
+        [codigo]: { estado: "error", mensaje: error?.message || "Error." },
+      }));
+    }
+  };
+
+  useEffect(() => {
+    METRICAS.forEach((m) => cargarMetrica(m.codigo));
+  }, []);
+
+  const verListado = async (codigo: CodigoConsulta) => {
+    setListado(codigo);
     setResultados((r) => ({ ...r, [codigo]: { estado: "cargando" } }));
     try {
       const filas = await ejecutarConsulta(codigo);
@@ -148,42 +156,62 @@ export default function ConsultasSQL() {
     }
   };
 
-  const consulta = CONSULTAS.find((c) => c.codigo === seleccionada) ?? null;
-  const resultado = seleccionada ? resultados[seleccionada] : undefined;
+  const consulta = LISTADOS.find((c) => c.codigo === listado) ?? null;
+  const resultado = listado ? resultados[listado] : undefined;
 
   return (
     <View style={styles.contenedor}>
-      <Text style={styles.titulo}>Reportes y Consultas SQL</Text>
-      <Text style={styles.subtitulo}>
-        Toca una consulta para ejecutarla sobre la tabla de servicios.
-      </Text>
+      <Text style={styles.titulo}>Reportes de servicios</Text>
+      <Text style={styles.subtitulo}>Tarifas y listados de las solicitudes.</Text>
 
+      {/* Métricas */}
+      <View style={styles.filaMetricas}>
+        {METRICAS.map((m) => {
+          const r = metricas[m.codigo];
+          const valor = r?.estado === "listo" ? r.filas[0]?.valor : null;
+          return (
+            <View key={m.codigo} style={styles.metrica}>
+              <Text style={styles.metricaEtiqueta}>{m.titulo.toUpperCase()}</Text>
+              {r?.estado === "cargando" ? (
+                <ActivityIndicator color={AZUL} style={{ marginVertical: 8 }} />
+              ) : r?.estado === "error" ? (
+                <Pressable onPress={() => cargarMetrica(m.codigo)}>
+                  <Text style={styles.metricaError}>No se pudo cargar · Reintentar</Text>
+                </Pressable>
+              ) : (
+                <Text style={styles.metricaValor} numberOfLines={1} adjustsFontSizeToFit>
+                  {formatearPesos(valor == null ? null : Number(valor))}
+                </Text>
+              )}
+              <Text style={styles.metricaDescripcion}>{m.descripcion}</Text>
+            </View>
+          );
+        })}
+      </View>
+
+      {/* Listados */}
+      <Text style={styles.seccion}>Listados</Text>
       <View style={styles.rejilla}>
-        {CONSULTAS.map((c) => {
-          const activa = seleccionada === c.codigo;
+        {LISTADOS.map((c) => {
+          const activo = listado === c.codigo;
           const cargando = resultados[c.codigo]?.estado === "cargando";
           return (
             <Pressable
               key={c.codigo}
-              onPress={() => ejecutar(c.codigo)}
+              onPress={() => verListado(c.codigo)}
               disabled={cargando}
               accessibilityRole="button"
-              accessibilityLabel={`${c.codigo}: ${c.titulo}`}
+              accessibilityState={{ selected: activo }}
               style={({ pressed }) => [
                 styles.boton,
-                activa && styles.botonActivo,
+                activo && styles.botonActivo,
                 pressed && styles.presionado,
               ]}
             >
-              <View style={styles.botonFila}>
-                <Text style={[styles.codigo, activa && styles.codigoActivo]}>
-                  {c.codigo}
-                </Text>
-                {cargando && <ActivityIndicator size="small" color="#FFFFFF" />}
-              </View>
-              <Text style={styles.botonTitulo} numberOfLines={2}>
+              <Text style={[styles.botonTitulo, activo && styles.botonTituloActivo]}>
                 {c.titulo}
               </Text>
+              {cargando && <ActivityIndicator size="small" color="#FFFFFF" />}
             </Pressable>
           );
         })}
@@ -192,32 +220,26 @@ export default function ConsultasSQL() {
       {consulta && resultado && (
         <View style={styles.resultado}>
           <View style={styles.resultadoEncabezado}>
-            <Text style={styles.resultadoTitulo}>
-              {consulta.codigo} · {consulta.titulo}
-            </Text>
-            {resultado.estado === "listo" && consulta.tipo === "tabla" && (
+            <Text style={styles.resultadoTitulo}>{consulta.titulo}</Text>
+            {resultado.estado === "listo" && (
               <Text style={styles.contador}>
-                {resultado.filas.length} fila{resultado.filas.length === 1 ? "" : "s"}
+                {resultado.filas.length} servicio{resultado.filas.length === 1 ? "" : "s"}
               </Text>
             )}
           </View>
-          {consulta.tipo === "tabla" && (
-            <Text style={styles.descripcion}>{consulta.descripcion}</Text>
-          )}
+          <Text style={styles.descripcion}>{consulta.descripcion}</Text>
 
           {resultado.estado === "cargando" ? (
             <ActivityIndicator color={AZUL} style={{ marginVertical: 24 }} />
           ) : resultado.estado === "error" ? (
             <View style={styles.error}>
               <Text style={styles.errorTexto}>{resultado.mensaje}</Text>
-              <Pressable onPress={() => ejecutar(consulta.codigo)} style={styles.reintentar}>
+              <Pressable onPress={() => verListado(consulta.codigo)} style={styles.reintentar}>
                 <Text style={styles.reintentarTexto}>Reintentar</Text>
               </Pressable>
             </View>
-          ) : consulta.tipo === "kpi" ? (
-            <Kpi consulta={consulta} filas={resultado.filas} />
           ) : resultado.filas.length === 0 ? (
-            <Text style={styles.vacio}>La consulta no devolvió resultados.</Text>
+            <Text style={styles.vacio}>No hay servicios en este listado.</Text>
           ) : (
             <Tabla columnas={consulta.columnas ?? []} filas={resultado.filas} />
           )}
@@ -231,22 +253,36 @@ const styles = StyleSheet.create({
   contenedor: { gap: 12 },
   titulo: { color: "#FFFFFF", fontSize: 18, fontWeight: "900" },
   subtitulo: { color: "#9BA7BA", fontSize: 13, marginTop: -6 },
-  rejilla: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  boton: {
-    width: "48%",
-    flexGrow: 1,
-    padding: 12,
+  filaMetricas: { flexDirection: "row", gap: 10 },
+  metrica: {
+    flex: 1,
+    padding: 14,
     gap: 4,
-    borderRadius: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(41,105,233,0.35)",
+    backgroundColor: "rgba(41,105,233,0.12)",
+  },
+  metricaEtiqueta: { color: "#8DB2FF", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  metricaValor: { color: "#FFFFFF", fontSize: 22, fontWeight: "900" },
+  metricaDescripcion: { color: "#9BA7BA", fontSize: 11 },
+  metricaError: { color: "#fca5a5", fontSize: 12, fontWeight: "700", marginVertical: 6 },
+  seccion: { color: "#F0F3F8", fontSize: 15, fontWeight: "800", marginTop: 4 },
+  rejilla: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  boton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
     backgroundColor: "rgba(255,255,255,0.045)",
   },
-  botonActivo: { borderColor: AZUL, backgroundColor: "rgba(41,105,233,0.18)" },
-  botonFila: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  codigo: { color: "#8DB2FF", fontSize: 13, fontWeight: "900" },
-  codigoActivo: { color: "#FFFFFF" },
-  botonTitulo: { color: "#E7F0F4", fontSize: 12, fontWeight: "700" },
+  botonActivo: { borderColor: AZUL, backgroundColor: AZUL },
+  botonTitulo: { color: "#E7F0F4", fontSize: 13, fontWeight: "700" },
+  botonTituloActivo: { color: "#FFFFFF", fontWeight: "800" },
   presionado: { opacity: 0.75 },
   resultado: {
     padding: 14,
@@ -279,18 +315,6 @@ const styles = StyleSheet.create({
   },
   celdaEncabezado: { color: "#8DB2FF", fontWeight: "900", fontSize: 11 },
   celdaPesos: { color: "#34d399", fontWeight: "800", textAlign: "right" },
-  kpi: {
-    alignItems: "center",
-    paddingVertical: 18,
-    gap: 4,
-    borderRadius: 14,
-    backgroundColor: "rgba(41,105,233,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(41,105,233,0.35)",
-  },
-  kpiEtiqueta: { color: "#8DB2FF", fontSize: 11, fontWeight: "800", letterSpacing: 1 },
-  kpiValor: { color: "#FFFFFF", fontSize: 30, fontWeight: "900" },
-  kpiDescripcion: { color: "#9BA7BA", fontSize: 12, textAlign: "center" },
   error: { gap: 10, paddingVertical: 8 },
   errorTexto: { color: "#fca5a5", fontSize: 13 },
   reintentar: {

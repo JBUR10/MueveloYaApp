@@ -32,6 +32,10 @@ Pegar y ejecutar cada archivo en el SQL Editor. Todos se pueden volver a correr 
 8. [`008_estadisticas_admin.sql`](migraciones/008_estadisticas_admin.sql): estadísticas de pedidos (por tipo y por zona) para la sección «Estadísticas» del panel de administrador.
 9. [`009_tarifas_y_consultas.sql`](migraciones/009_tarifas_y_consultas.sql): tarifa de los servicios (120.000 por los primeros 5 km + 20.000 por km adicional + 20.000 por ayudante + 10.000 por piso), calculada en la base de datos, y las consultas Q01–Q10 de la sección «Consultas SQL» del panel de administrador. Los servicios que ya existían quedan con una distancia estimada en línea recta.
 10. [`010_rechazos_conductor.sql`](migraciones/010_rechazos_conductor.sql): el conductor puede rechazar solicitudes (dejan de aparecerle solo a él), y en ruta recibe push de las programadas nuevas.
+11. [`011_analisis_datos_admin.sql`](migraciones/011_analisis_datos_admin.sql): análisis de pedidos para la pestaña «Análisis» del panel de administrador (KPIs, series por día y hora, motivos de cancelación).
+12. [`012_analisis_negocio_admin.sql`](migraciones/012_analisis_negocio_admin.sql): análisis de negocio: mezcla de servicios y clientes (nuevos, recurrentes, inactivos).
+13. [`013_cupones_y_promociones.sql`](migraciones/013_cupones_y_promociones.sql): cupones de descuento y campañas de promoción por push; el descuento se aplica sobre la tarifa.
+14. [`014_ayudantes_conductor.sql`](migraciones/014_ayudantes_conductor.sql): el conductor indica si cuenta con ayudantes; sin ayudantes no le aparecen, no le llegan por push y no puede aceptar solicitudes que los piden.
 
 El detalle de lo que crea la 001 está abajo.
 

@@ -14,7 +14,9 @@ export type Modo = "usuario" | "transportista";
 
 type Estado = {
   modo: Modo;
-  /** El transportista indica si cuenta con ayudantes para el servicio. */
+  /** El transportista indica si cuenta con ayudantes para el servicio.
+   *  Se guarda en Supabase (perfiles.cuenta_con_ayudantes): sin ayudantes
+   *  no le aparecen ni le llegan solicitudes que los piden. */
   cuentaConAyudantes: boolean;
   /** true cuando ya se leyó lo guardado para la cuenta actual. */
   cargado: boolean;
@@ -63,10 +65,30 @@ export async function cargarModoDeUsuario(uid: string | null) {
   if (!uid) return;
 
   try {
-    const [modo, ayudantes] = await Promise.all([
+    const [modo, ayudantesLocal, perfil] = await Promise.all([
       AsyncStorage.getItem(claveModo(uid)),
       AsyncStorage.getItem(claveAyudantes(uid)),
+      supabase
+        .from("perfiles")
+        .select("cuenta_con_ayudantes")
+        .eq("id", uid)
+        .maybeSingle(),
     ]);
+
+    // Antes la opción solo se guardaba en el celular: si estaba activada, se
+    // pasa una vez a la base de datos. Sin la migración 014 se usa la local.
+    let cuentaConAyudantes = ayudantesLocal === "true";
+    if (!perfil.error && perfil.data) {
+      cuentaConAyudantes = !!perfil.data.cuenta_con_ayudantes;
+      if (ayudantesLocal === "true" && !cuentaConAyudantes) {
+        const { error } = await supabase
+          .from("perfiles")
+          .update({ cuenta_con_ayudantes: true })
+          .eq("id", uid);
+        if (!error) cuentaConAyudantes = true;
+      }
+      if (ayudantesLocal !== null) AsyncStorage.removeItem(claveAyudantes(uid));
+    }
     // Sin preferencia guardada: quien tiene el vehículo APROBADO es transportista.
     let modoInicial: Modo = modo === "transportista" ? "transportista" : "usuario";
     if (modo === null) {
@@ -82,7 +104,7 @@ export async function cargarModoDeUsuario(uid: string | null) {
     if (usuarioActual !== uid) return;
     actualizar({
       modo: modoInicial,
-      cuentaConAyudantes: ayudantes === "true",
+      cuentaConAyudantes,
       cargado: true,
     });
   } catch {
@@ -104,13 +126,23 @@ export const cambiarModo = async (modo: Modo) => {
   }
 };
 
+/** Lanza un error (y deja el valor anterior) si no se pudo guardar. */
 export const cambiarCuentaConAyudantes = async (valor: boolean) => {
+  const anterior = estado.cuentaConAyudantes;
   actualizar({ cuentaConAyudantes: valor });
   if (!usuarioActual) return;
-  try {
-    await AsyncStorage.setItem(claveAyudantes(usuarioActual), String(valor));
-  } catch (error) {
+  const { error } = await supabase
+    .from("perfiles")
+    .update({ cuenta_con_ayudantes: valor })
+    .eq("id", usuarioActual);
+  if (error) {
+    actualizar({ cuentaConAyudantes: anterior });
     console.error("No se pudo guardar la opción de ayudantes:", error);
+    throw new Error(
+      error.message?.includes("cuenta_con_ayudantes")
+        ? "Falta ejecutar la migración 014 en Supabase."
+        : "No se pudo guardar. Revisa tu conexión.",
+    );
   }
 };
 
