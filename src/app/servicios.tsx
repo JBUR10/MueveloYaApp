@@ -9,11 +9,10 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { Text, TextInput } from "../components/ui/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { aviso, confirmar, TipoAlerta } from "../components/ui/AlertaPantalla";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
@@ -43,6 +42,7 @@ import {
   useUbicaciones,
   type PuntoMapa,
 } from "../services/ubicacionStore";
+import TextoIcono from "../components/ui/TextoIcono";
 
 type Rol = "origen" | "destino";
 type Coords = { lat: number; lng: number };
@@ -102,9 +102,9 @@ function AccionesMapa({
 
       {tieneExacto && (
         <View style={styles.filaExacto}>
-          <Text style={styles.textoExacto}>
-            ✓ Punto exacto del mapa guardado
-          </Text>
+          <TextoIcono icono="checkmark-circle" style={styles.textoExacto}>
+            Punto exacto del mapa guardado
+          </TextoIcono>
           <TouchableOpacity onPress={onQuitar} hitSlop={10}>
             <Text style={styles.textoQuitar}>Quitar</Text>
           </TouchableOpacity>
@@ -542,7 +542,7 @@ export default function ServiciosScreen() {
       await registrarServicio(payload);
 
       mostrarAlertaPantalla(
-        "¡Servicio Solicitado! 🎉",
+        "¡Servicio solicitado!",
         "Tu servicio ha sido registrado con éxito. Puedes consultarlo en tus solicitudes.",
         "exito",
         () => {
@@ -581,7 +581,9 @@ export default function ServiciosScreen() {
           {/* Barra superior con Botón Retroceder y Pasos */}
           <View style={styles.topBar}>
             <TouchableOpacity onPress={handleAnterior} style={styles.btnBack}>
-              <Text style={styles.btnBackText}>← Volver</Text>
+              <TextoIcono icono="arrow-back" style={styles.btnBackText}>
+              Volver
+            </TextoIcono>
             </TouchableOpacity>
             <Text style={styles.stepIndicator}>Paso {paso} de 4</Text>
           </View>
@@ -631,7 +633,9 @@ export default function ServiciosScreen() {
                 style={styles.btnNext}
                 onPress={handleSiguiente}
               >
-                <Text style={styles.btnNextText}>Siguiente →</Text>
+                <TextoIcono icono="arrow-forward" alFinal style={styles.btnNextText}>
+                  Siguiente
+                </TextoIcono>
               </TouchableOpacity>
             </View>
           )}
@@ -642,7 +646,9 @@ export default function ServiciosScreen() {
               <Text style={styles.sectionTitle}>2. RUTA DEL SERVICIO</Text>
 
               <View style={styles.cardSection}>
-                <Text style={styles.labelPointBlue}>● Punto de Recogida</Text>
+                <TextoIcono icono="ellipse" tamanoIcono={10} style={styles.labelPointBlue}>
+                  Punto de recogida
+                </TextoIcono>
 
                 <AccionesMapa
                   disponible={origenDisponible}
@@ -679,7 +685,9 @@ export default function ServiciosScreen() {
               </View>
 
               <View style={styles.cardSection}>
-                <Text style={styles.labelPointGreen}>● Punto de Entrega</Text>
+                <TextoIcono icono="ellipse" tamanoIcono={10} style={styles.labelPointGreen}>
+                  Punto de entrega
+                </TextoIcono>
 
                 <AccionesMapa
                   disponible={ubic.destino}
@@ -727,7 +735,9 @@ export default function ServiciosScreen() {
                 {ubicandoRuta ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.btnNextText}>Siguiente →</Text>
+                  <TextoIcono icono="arrow-forward" alFinal style={styles.btnNextText}>
+                  Siguiente
+                </TextoIcono>
                 )}
               </TouchableOpacity>
             </View>
@@ -748,14 +758,15 @@ export default function ServiciosScreen() {
                       : styles.cardServicioNormal,
                   ]}
                 >
-                  <Text
+                  <TextoIcono
+                    icono="flash"
                     style={[
                       styles.cardTitle,
                       tipoProgramacion === "inmediato" && styles.textHighlight,
                     ]}
                   >
-                    ⚡ Inmediato
-                  </Text>
+                    Inmediato
+                  </TextoIcono>
                   <Text style={styles.cardDesc}>Recogida lo antes posible</Text>
                 </TouchableOpacity>
 
@@ -768,14 +779,15 @@ export default function ServiciosScreen() {
                       : styles.cardServicioNormal,
                   ]}
                 >
-                  <Text
+                  <TextoIcono
+                    icono="calendar"
                     style={[
                       styles.cardTitle,
                       tipoProgramacion === "programado" && styles.textHighlight,
                     ]}
                   >
-                    📅 Programado
-                  </Text>
+                    Programado
+                  </TextoIcono>
                   <Text style={styles.cardDesc}>Elegir fecha y hora</Text>
                 </TouchableOpacity>
               </View>
@@ -816,11 +828,14 @@ export default function ServiciosScreen() {
                       style={styles.pickerSelectorButton}
                       onPress={() => setShowDatePicker(true)}
                     >
-                      <Text style={styles.pickerSelectorText}>
+                      <TextoIcono
+                        icono="calendar-outline"
+                        style={styles.pickerSelectorText}
+                      >
                         {fechaEstablecida
-                          ? `📅 ${formatearFecha(fechaSeleccionada)}`
-                          : "📅 Seleccionar fecha en calendario"}
-                      </Text>
+                          ? formatearFecha(fechaSeleccionada)
+                          : "Seleccionar fecha en calendario"}
+                      </TextoIcono>
                     </TouchableOpacity>
                   )}
 
@@ -855,11 +870,14 @@ export default function ServiciosScreen() {
                       style={styles.pickerSelectorButton}
                       onPress={() => setShowTimePicker(true)}
                     >
-                      <Text style={styles.pickerSelectorText}>
+                      <TextoIcono
+                        icono="time-outline"
+                        style={styles.pickerSelectorText}
+                      >
                         {horaEstablecida
-                          ? `🕒 ${formatearHora(horaSeleccionada)}`
-                          : "🕒 Seleccionar hora en reloj"}
-                      </Text>
+                          ? formatearHora(horaSeleccionada)
+                          : "Seleccionar hora en reloj"}
+                      </TextoIcono>
                     </TouchableOpacity>
                   )}
 
@@ -890,7 +908,9 @@ export default function ServiciosScreen() {
                 style={styles.btnNext}
                 onPress={handleSiguiente}
               >
-                <Text style={styles.btnNextText}>Siguiente →</Text>
+                <TextoIcono icono="arrow-forward" alFinal style={styles.btnNextText}>
+                  Siguiente
+                </TextoIcono>
               </TouchableOpacity>
             </View>
           )}
@@ -1014,9 +1034,12 @@ export default function ServiciosScreen() {
                     )}
                     {cupon && descuento > 0 && (
                       <View style={styles.filaPrecio}>
-                        <Text style={[styles.textoPrecio, { color: "#34d399" }]}>
-                          🎁 Cupón {cupon.porcentaje} %
-                        </Text>
+                        <TextoIcono
+                          icono="gift-outline"
+                          style={[styles.textoPrecio, { color: "#34d399" }]}
+                        >
+                          Cupón {cupon.porcentaje} %
+                        </TextoIcono>
                         <Text style={[styles.valorPrecio, { color: "#34d399" }]}>
                           - {formatearPesos(descuento)}
                         </Text>
@@ -1224,8 +1247,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   textoExacto: {
+    flex: 1,
     color: "#34d399",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   textoQuitar: {

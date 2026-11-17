@@ -7,7 +7,8 @@
 // puede atacar con un descuento trae su botón «Enviar promoción» (cupón +
 // notificación push), y abajo se miden los resultados.
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "../ui/Texto";
 
 import { Negocio, obtenerNegocio } from "../../services/analisisService";
 import type { PeriodoEstadisticas } from "../../services/estadisticasService";
@@ -15,14 +16,16 @@ import type { MotivoPromocion } from "../../services/promocionesService";
 import { formatearPesos } from "../../services/tarifa";
 import FormularioPromocion from "./FormularioPromocion";
 import ResultadosPromociones from "./ResultadosPromociones";
+import Icono, { type NombreIcono } from "../ui/Icono";
+import TextoIcono from "../ui/TextoIcono";
 
 const AZUL = "#2969e9";
 const TIPOS = ["Envío", "Acarreo", "Trasteo", "Mudanza"];
-const ICONO: Record<string, string> = {
-  Envío: "📦",
-  Acarreo: "🚚",
-  Trasteo: "🛻",
-  Mudanza: "🏠",
+const ICONO: Record<string, NombreIcono> = {
+  Envío: "cube-outline",
+  Acarreo: "car-outline",
+  Trasteo: "bus-outline",
+  Mudanza: "home-outline",
 };
 
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
@@ -111,7 +114,7 @@ export default function PanelNegocio({ periodo }: { periodo: PeriodoEstadisticas
     tipos.forEach((t) => {
       if (t.anterior && t.anterior >= 3 && t.total < t.anterior) {
         out.push({
-          texto: `${t.tipo} bajó ${pct(t.anterior - t.total, t.anterior)} % frente al periodo anterior (${t.anterior} → ${t.total}).`,
+          texto: `${t.tipo} bajó ${pct(t.anterior - t.total, t.anterior)} % frente al periodo anterior (de ${t.anterior} a ${t.total}).`,
           promo: { motivo: "todos", tipo: t.tipo },
         });
       }
@@ -175,13 +178,17 @@ export default function PanelNegocio({ periodo }: { periodo: PeriodoEstadisticas
 
       {oportunidades.length > 0 && (
         <View style={styles.tarjeta}>
-          <Text style={styles.seccion}>🎯 Oportunidades</Text>
+          <TextoIcono icono="bulb-outline" colorIcono="#FBBF24" style={styles.seccion}>
+            Oportunidades
+          </TextoIcono>
           {oportunidades.map((o) => (
             <View key={o.texto} style={styles.oportunidad}>
               <Text style={styles.texto}>• {o.texto}</Text>
               {o.promo && (
                 <Pressable onPress={() => abrirPromo(o.promo!)} style={styles.botonPromo}>
-                  <Text style={styles.botonPromoTexto}>🎁 Enviar promoción</Text>
+                  <TextoIcono icono="gift-outline" style={styles.botonPromoTexto}>
+                    Enviar promoción
+                  </TextoIcono>
                 </Pressable>
               )}
             </View>
@@ -201,7 +208,9 @@ export default function PanelNegocio({ periodo }: { periodo: PeriodoEstadisticas
         <Pressable
           onPress={() => abrirPromo({ motivo: "todos", tipo: null })}
           style={styles.botonNueva}>
-          <Text style={styles.botonPromoTexto}>＋ Nueva promoción</Text>
+          <TextoIcono icono="add" style={styles.botonPromoTexto}>
+            Nueva promoción
+          </TextoIcono>
         </Pressable>
       )}
 
@@ -217,15 +226,23 @@ export default function PanelNegocio({ periodo }: { periodo: PeriodoEstadisticas
           return (
             <View key={t.tipo} style={styles.servicio}>
               <View style={styles.fila}>
-                <Text style={styles.nombre}>
-                  {ICONO[t.tipo] ?? "•"} {t.tipo}
-                </Text>
+                <TextoIcono
+                  icono={ICONO[t.tipo] ?? "ellipse-outline"}
+                  style={styles.nombre}
+                >
+                  {t.tipo}
+                </TextoIcono>
                 <Text style={styles.valor}>
                   {t.total} · {pct(t.total, totalPedidos)} %
                   {dv != null && (
                     <Text style={{ color: dv >= 0 ? "#34d399" : "#f87171" }}>
                       {"  "}
-                      {dv >= 0 ? "▲" : "▼"} {Math.abs(dv)} %
+                      <Icono
+                        nombre={dv >= 0 ? "caret-up" : "caret-down"}
+                        tamano={12}
+                        color={dv >= 0 ? "#34d399" : "#f87171"}
+                      />{" "}
+                      {Math.abs(dv)} %
                     </Text>
                   )}
                 </Text>
@@ -300,7 +317,7 @@ const styles = StyleSheet.create({
   botonPromoTexto: { color: "#FFFFFF", fontSize: 13, fontWeight: "800" },
   servicio: { gap: 3, paddingVertical: 4 },
   fila: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
-  nombre: { color: "#D5DCE8", fontSize: 14, fontWeight: "700" },
+  nombre: { color: "#D5DCE8", fontSize: 14, fontWeight: "700", flexShrink: 1 },
   valor: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
   detalle: { color: "#9BA7BA", fontSize: 12, lineHeight: 17 },
 });

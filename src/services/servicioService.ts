@@ -186,10 +186,13 @@ export const deFila = (f: FilaServicio): SolicitudServicioDTO => ({
   calificadoPor: (f.calificaciones ?? []).map((c) => c.autor_id),
 });
 
-/** Texto corto de una calificación: "★ 4.8 (12)" o "Sin calificaciones". */
+/**
+ * Texto corto de una calificación: "4,8 (12)" o "Sin calificaciones".
+ * La estrella se dibuja aparte con <TextoCalificacion />.
+ */
 export const textoCalificacion = (c?: Calificacion | null) =>
   c?.promedio != null
-    ? `★ ${c.promedio.toFixed(1).replace(".", ",")} (${c.total})`
+    ? `${c.promedio.toFixed(1).replace(".", ",")} (${c.total})`
     : "Sin calificaciones";
 
 export type { FilaServicio };

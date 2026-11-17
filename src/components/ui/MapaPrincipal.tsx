@@ -4,9 +4,9 @@ import {
   ActivityIndicator,
   Platform,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
+import { Text } from "./Texto";
 import { WebView } from "react-native-webview";
 
 const mapaHTML = `
@@ -176,11 +176,12 @@ const mapaHTML = `
 
     /* Camión que recorre la ruta (vista previa). */
     .camion {
-      font-size: 26px;
-      line-height: 30px;
+      line-height: 0;
       text-align: center;
       filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
     }
+
+    .camion svg { display: block; margin: 0 auto; }
 
     .camion.derecha { transform: scaleX(-1); }
 
@@ -326,7 +327,14 @@ const mapaHTML = `
 
       const icono = document.createElement('div');
       icono.className = 'camion';
-      icono.textContent = '🚚';
+      icono.innerHTML =
+        '<svg viewBox="0 0 32 24" width="32" height="24" xmlns="http://www.w3.org/2000/svg">' +
+        '<rect x="11" y="3" width="19" height="13" rx="2" fill="#2969e9" stroke="#ffffff" stroke-width="1.6"/>' +
+        '<path d="M11 8H6.2L1.6 12.6V16H11Z" fill="#2969e9" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"/>' +
+        '<path d="M6.8 9.8H9.2V13H4.2Z" fill="#cfe0ff"/>' +
+        '<circle cx="8" cy="18.5" r="3" fill="#111318" stroke="#ffffff" stroke-width="1.6"/>' +
+        '<circle cx="24" cy="18.5" r="3" fill="#111318" stroke="#ffffff" stroke-width="1.6"/>' +
+        '</svg>';
       marcadorCamion = L.marker(latlngs[0], {
         icon: L.divIcon({ className: '', html: icono, iconSize: [30, 30], iconAnchor: [15, 22] }),
         interactive: false,

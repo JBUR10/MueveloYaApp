@@ -21,10 +21,10 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { Text } from "../ui/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { aviso, confirmar } from "../ui/AlertaPantalla";
@@ -58,7 +58,6 @@ import {
 import {
   escucharCambiosServicios,
   SolicitudServicioDTO,
-  textoCalificacion,
 } from "../../services/servicioService";
 import { useSesion } from "../../services/sesionStore";
 import {
@@ -77,6 +76,9 @@ import {
 } from "../../services/transportistaService";
 import { formatearPesos } from "../../services/tarifa";
 import { obtenerMiVehiculo, revisarDocumentos } from "../../services/vehiculoService";
+import Icono, { type NombreIcono } from "../ui/Icono";
+import TextoIcono from "../ui/TextoIcono";
+import TextoCalificacion from "../ui/TextoCalificacion";
 
 const AZUL = "#2969e9";
 const FONDO = "#111318";
@@ -125,10 +127,17 @@ type ItemHistorial = {
   motivo?: string | null;
 };
 
-const TEXTO_HISTORIAL: Record<ItemHistorial["tipo"], { chip: string; fecha: string }> = {
-  completada: { chip: "✓ Finalizada", fecha: "Finalizada" },
-  cancelada: { chip: "✕ La cancelaste", fecha: "Cancelada" },
-  cancelada_cliente: { chip: "✕ Canceló el cliente", fecha: "Cancelada" },
+const TEXTO_HISTORIAL: Record<
+  ItemHistorial["tipo"],
+  { icono: NombreIcono; chip: string; fecha: string }
+> = {
+  completada: { icono: "checkmark", chip: "Finalizada", fecha: "Finalizada" },
+  cancelada: { icono: "close", chip: "La cancelaste", fecha: "Cancelada" },
+  cancelada_cliente: {
+    icono: "close",
+    chip: "Canceló el cliente",
+    fecha: "Cancelada",
+  },
 };
 
 const formatearFecha = (iso?: string | null) => {
@@ -790,9 +799,14 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
     >
       {/* En el chip del mapa el texto no se estira (flex:1 lo encogería). */}
       <View style={compacto ? undefined : styles.ayudantesTexto}>
-        <Text style={styles.ayudantesTitulo}>
-          {disponible ? "🟢 Disponible" : "⚪ No disponible"}
-        </Text>
+        <TextoIcono
+          icono="ellipse"
+          tamanoIcono={10}
+          colorIcono={disponible ? "#34D399" : "#9BA7BA"}
+          style={styles.ayudantesTitulo}
+        >
+          {disponible ? "Disponible" : "No disponible"}
+        </TextoIcono>
         {!compacto && (
           <Text style={styles.ayudantesDescripcion}>
             {disponible
@@ -856,7 +870,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
       setRutaId(null);
       await cargarDatos();
       await aviso(
-        "¡Servicio finalizado! 🎉",
+        "¡Servicio finalizado!",
         "Buen trabajo. Ahora cuéntanos cómo te fue con el cliente.",
         "exito",
       );
@@ -894,13 +908,14 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
                 inmediato ? styles.chipImmediate : styles.chipScheduled,
               ]}
             >
-              <Text
+              <TextoIcono
+                icono={inmediato ? "flash" : "calendar-outline"}
                 style={[styles.statusChipText, { color: inmediato ? "#fbbf24" : AZUL }]}
               >
-                {inmediato ? "⚡ Inmediato" : `📅 ${item.fechaProgramada}`}
-              </Text>
+                {inmediato ? "Inmediato" : item.fechaProgramada}
+              </TextoIcono>
             </View>
-            {/* ✕: vuelve al mapa sin decidir */}
+            {/* X: vuelve al mapa sin decidir */}
             <Pressable
               onPress={() => setSeleccionadoId(null)}
               hitSlop={10}
@@ -908,7 +923,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
               accessibilityLabel="Cerrar"
               style={styles.btnCerrarX}
             >
-              <Text style={styles.btnCerrarXTexto}>✕</Text>
+              <Icono nombre="close" tamano={16} color="#FFFFFF" />
             </Pressable>
           </View>
         </View>
@@ -923,9 +938,11 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             .filter(Boolean)
             .join("  ·  ")}
         </Text>
-        <Text style={styles.calificacionCliente}>
-          Cliente: {textoCalificacion(item.cliente?.calificacion)}
-        </Text>
+        <TextoCalificacion
+          style={styles.calificacionCliente}
+          prefijo="Cliente: "
+          calificacion={item.cliente?.calificacion}
+        />
 
         <Ruta origen={item.origen} destino={item.destino} compacta />
 
@@ -965,7 +982,9 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             {procesando ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
-              <Text style={styles.btnPrimarioText}>✓ Aceptar solicitud</Text>
+              <TextoIcono icono="checkmark" style={styles.btnPrimarioText}>
+                Aceptar solicitud
+              </TextoIcono>
             )}
           </TouchableOpacity>
         </View>
@@ -1011,12 +1030,18 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
         )}
 
         <View style={styles.contactoRuta}>
-          <Text style={styles.contactName} numberOfLines={1}>
-            👤 {item.nombreContacto}
-          </Text>
+          <TextoIcono
+            icono="person-outline"
+            style={[styles.contactName, { flexShrink: 1 }]}
+            numberOfLines={1}
+          >
+            {item.nombreContacto}
+          </TextoIcono>
           {item.telefonoContacto ? (
             <TouchableOpacity onPress={() => llamar(item.telefonoContacto)}>
-              <Text style={styles.contactPhone}>📞 Llamar</Text>
+              <TextoIcono icono="call-outline" style={styles.contactPhone}>
+                Llamar
+              </TextoIcono>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -1031,9 +1056,12 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             {procesando ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
-              <Text style={styles.btnPrimarioText}>
-                {enCurso ? "✓ Finalizar servicio" : "📦 Ya recogí la carga"}
-              </Text>
+              <TextoIcono
+                icono={enCurso ? "checkmark" : "cube-outline"}
+                style={styles.btnPrimarioText}
+              >
+                {enCurso ? "Finalizar servicio" : "Ya recogí la carga"}
+              </TextoIcono>
             )}
           </TouchableOpacity>
         </View>
@@ -1041,7 +1069,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
     );
   };
 
-  // Aviso "Nueva solicitud" del mapa: resumen, botón Ver y ✕ para cerrarlo.
+  // Aviso "Nueva solicitud" del mapa: resumen, botón Ver y X para cerrarlo.
   // Si otro conductor la toma (o se rechaza), desaparece solo.
   const avisoNueva =
     nuevaSolicitud && disponiblesVisibles.some((s) => s.id === nuevaSolicitud.id)
@@ -1053,7 +1081,9 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
     return (
       <View style={[styles.panelInferior, styles.avisoNuevaTarjeta, arriba && styles.avisoArriba]}>
         <View style={styles.cardHeaderRow}>
-          <Text style={styles.avisoEtiqueta}>🆕 NUEVA SOLICITUD</Text>
+          <TextoIcono icono="notifications" style={styles.avisoEtiqueta}>
+            NUEVA SOLICITUD
+          </TextoIcono>
           <Pressable
             onPress={() => setNuevaSolicitud(null)}
             hitSlop={10}
@@ -1061,14 +1091,20 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             accessibilityLabel="Cerrar aviso"
             style={styles.btnCerrarX}
           >
-            <Text style={styles.btnCerrarXTexto}>✕</Text>
+            <Icono nombre="close" tamano={16} color="#FFFFFF" />
           </Pressable>
         </View>
-        <Text style={styles.avisoTitulo}>
-          {item.tipoServicio} · {inmediato ? "⚡ Inmediata" : `📅 ${item.fechaProgramada}`}
-        </Text>
+        <TextoIcono
+          icono={inmediato ? "flash" : "calendar-outline"}
+          alFinal
+          style={styles.avisoTitulo}
+        >
+          {item.tipoServicio} · {inmediato ? "Inmediata" : item.fechaProgramada}
+        </TextoIcono>
         <Text style={styles.avisoRuta} numberOfLines={1}>
-          {item.origen} → {item.destino}
+          {item.origen}{"  "}
+          <Icono nombre="arrow-forward" tamano={14} color="#E7F0F4" />
+          {"  "}{item.destino}
         </Text>
         {/* Datos a la izquierda y el botón a la derecha, con su tamaño natural. */}
         <View style={styles.filaAvisoBoton}>
@@ -1085,7 +1121,9 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             onPress={verNuevaSolicitud}
             activeOpacity={0.8}
           >
-            <Text style={styles.btnPrimarioText}>Ver solicitud ›</Text>
+            <TextoIcono icono="chevron-forward" alFinal style={styles.btnPrimarioText}>
+              Ver solicitud
+            </TextoIcono>
           </TouchableOpacity>
         </View>
       </View>
@@ -1115,11 +1153,14 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             style={styles.btnFlotante}
             activeOpacity={0.8}
           >
-            <Text style={styles.btnBackText}>
+            <TextoIcono
+              icono={conteos.disponibles > 0 ? "calendar-outline" : "list-outline"}
+              style={styles.btnBackText}
+            >
               {conteos.disponibles > 0
-                ? `📅 ${conteos.disponibles} programada${conteos.disponibles === 1 ? "" : "s"}`
+                ? `${conteos.disponibles} programada${conteos.disponibles === 1 ? "" : "s"}`
                 : "Ver solicitudes"}
-            </Text>
+            </TextoIcono>
           </TouchableOpacity>
         ) : enRuta ? (
           <TouchableOpacity
@@ -1127,7 +1168,9 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             style={[styles.btnFlotante, styles.btnMiRuta]}
             activeOpacity={0.8}
           >
-            <Text style={styles.btnBackText}>← Mi ruta</Text>
+            <TextoIcono icono="arrow-back" style={styles.btnBackText}>
+              Mi ruta
+            </TextoIcono>
           </TouchableOpacity>
         ) : (
           renderInterruptorDisponible(true)
@@ -1141,14 +1184,18 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
               activeOpacity={0.8}
               accessibilityLabel="Volver a modo usuario"
             >
-              <Text style={styles.btnBackText}>⇄ Usuario</Text>
+              <TextoIcono icono="swap-horizontal" style={styles.btnBackText}>
+                Usuario
+              </TextoIcono>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => irALista()}
               style={styles.btnFlotante}
               activeOpacity={0.8}
             >
-              <Text style={styles.btnBackText}>☰ Lista</Text>
+              <TextoIcono icono="menu" style={styles.btnBackText}>
+                Lista
+              </TextoIcono>
             </TouchableOpacity>
           </View>
         )}
@@ -1184,10 +1231,14 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
                 style={styles.btnAceptadas}
                 activeOpacity={0.8}
               >
-                <Text style={styles.btnPrimarioText}>
+                <TextoIcono
+                  icono="chevron-forward"
+                  alFinal
+                  style={styles.btnPrimarioText}
+                >
                   Tienes {conteos.aceptadas} aceptada
-                  {conteos.aceptadas === 1 ? "" : "s"} ›
-                </Text>
+                  {conteos.aceptadas === 1 ? "" : "s"}
+                </TextoIcono>
               </TouchableOpacity>
             )}
           </View>
@@ -1211,7 +1262,9 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           {procesando ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <Text style={styles.btnAceptarText}>✓ Aceptar</Text>
+            <TextoIcono icono="checkmark" style={styles.btnAceptarText}>
+              Aceptar
+            </TextoIcono>
           )}
         </TouchableOpacity>
       );
@@ -1225,7 +1278,9 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           style={styles.btnAceptar}
           activeOpacity={0.7}
         >
-          <Text style={styles.btnAceptarText}>Ver ruta ›</Text>
+          <TextoIcono icono="chevron-forward" alFinal style={styles.btnAceptarText}>
+            Ver ruta
+          </TextoIcono>
         </TouchableOpacity>
       );
     }
@@ -1240,7 +1295,9 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           activeOpacity={0.7}
           disabled={procesando}
         >
-          <Text style={styles.btnAceptarText}>▶ Iniciar</Text>
+          <TextoIcono icono="play" style={styles.btnAceptarText}>
+            Iniciar
+          </TextoIcono>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => handleCancelar(item)}
@@ -1252,11 +1309,12 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           {procesando ? (
             <ActivityIndicator size="small" color="#fca5a5" />
           ) : (
-            <Text
+            <TextoIcono
+              icono={bloqueado ? "lock-closed-outline" : "close"}
               style={[styles.btnCancelarText, bloqueado && styles.btnBloqueadoText]}
             >
-              {bloqueado ? "🔒 Cancelar" : "✕ Cancelar"}
-            </Text>
+              Cancelar
+            </TextoIcono>
           )}
         </TouchableOpacity>
       </View>
@@ -1286,9 +1344,12 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           </Text>
           {estaIniciado(item) && seccion === "aceptadas" ? (
             <View style={[styles.statusChip, styles.chipAceptada]}>
-              <Text style={[styles.statusChipText, { color: "#86E8BD" }]}>
-                🚚 {item.estado === "en_curso" ? "Hacia la entrega" : "Hacia la recogida"}
-              </Text>
+              <TextoIcono
+                icono="navigate-outline"
+                style={[styles.statusChipText, { color: "#86E8BD" }]}
+              >
+                {item.estado === "en_curso" ? "Hacia la entrega" : "Hacia la recogida"}
+              </TextoIcono>
             </View>
           ) : (
             <View
@@ -1297,11 +1358,12 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
                 inmediato ? styles.chipImmediate : styles.chipScheduled,
               ]}
             >
-              <Text
+              <TextoIcono
+                icono={inmediato ? "flash" : "calendar-outline"}
                 style={[styles.statusChipText, { color: inmediato ? "#fbbf24" : AZUL }]}
               >
-                {inmediato ? "⚡ Inmediato" : `📅 ${item.fechaProgramada}`}
-              </Text>
+                {inmediato ? "Inmediato" : item.fechaProgramada}
+              </TextoIcono>
             </View>
           )}
         </View>
@@ -1342,20 +1404,30 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           <View style={styles.contactInfo}>
             {mostrarContacto ? (
               <>
-                <Text style={styles.contactName} numberOfLines={1}>
-                  👤 {item.nombreContacto}
-                </Text>
+                <TextoIcono
+                  icono="person-outline"
+                  style={styles.contactName}
+                  numberOfLines={1}
+                >
+                  {item.nombreContacto}
+                </TextoIcono>
                 {item.telefonoContacto ? (
-                  <Text style={styles.contactPhone} numberOfLines={1}>
-                    📞 {item.telefonoContacto}
-                  </Text>
+                  <TextoIcono
+                    icono="call-outline"
+                    style={styles.contactPhone}
+                    numberOfLines={1}
+                  >
+                    {item.telefonoContacto}
+                  </TextoIcono>
                 ) : null}
               </>
             ) : (
               <>
-                <Text style={styles.calificacionCliente}>
-                  Cliente: {textoCalificacion(item.cliente?.calificacion)}
-                </Text>
+                <TextoCalificacion
+                  style={styles.calificacionCliente}
+                  prefijo="Cliente: "
+                  calificacion={item.cliente?.calificacion}
+                />
                 <Text style={styles.createdAt}>
                   Verás los datos de contacto al aceptar.
                 </Text>
@@ -1385,7 +1457,9 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
               style={styles.btnCalificar}
               activeOpacity={0.8}
             >
-              <Text style={styles.btnCalificarText}>★ Calificar cliente</Text>
+              <TextoIcono icono="star" style={styles.btnCalificarText}>
+                Calificar cliente
+              </TextoIcono>
             </TouchableOpacity>
           ) : historialItem ? (
             <View
@@ -1396,7 +1470,8 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
                   : styles.chipCancelada,
               ]}
             >
-              <Text
+              <TextoIcono
+                icono={TEXTO_HISTORIAL[historialItem.tipo].icono}
                 style={[
                   styles.statusChipText,
                   {
@@ -1406,7 +1481,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
                 ]}
               >
                 {TEXTO_HISTORIAL[historialItem.tipo].chip}
-              </Text>
+              </TextoIcono>
             </View>
           ) : (
             renderAccion(item)
@@ -1449,7 +1524,9 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             style={styles.btnBack}
             activeOpacity={0.8}
           >
-            <Text style={styles.btnBackText}>← Ver mapa</Text>
+            <TextoIcono icono="arrow-back" style={styles.btnBackText}>
+              Ver mapa
+            </TextoIcono>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={volverAModoUsuario}
@@ -1459,7 +1536,13 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             accessibilityLabel="Volver a modo usuario"
           >
             <View style={styles.puntoModo} />
-            <Text style={styles.chipModoText}>Transportista · ⇄ Usuario</Text>
+            <TextoIcono
+              icono="swap-horizontal"
+              alFinal
+              style={styles.chipModoText}
+            >
+              Transportista · Usuario
+            </TextoIcono>
           </TouchableOpacity>
         </View>
 
@@ -1531,7 +1614,12 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           </View>
         ) : elementos.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🚚</Text>
+            <Icono
+              nombre="car-outline"
+              tamano={44}
+              color="rgba(255,255,255,0.7)"
+              style={styles.emptyIcon}
+            />
             <Text style={styles.emptyTitle}>{vacio.titulo}</Text>
             <Text style={styles.emptyText}>{vacio.texto}</Text>
           </View>
@@ -1561,13 +1649,19 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             accessibilityLabel="Ver la solicitud nueva"
             style={({ pressed }) => [styles.avisoNueva, pressed && { opacity: 0.85 }]}
           >
-            <Text style={styles.avisoNuevaTexto} numberOfLines={2}>
-              🆕 Nueva solicitud: {nuevaSolicitud.tipoServicio}{" "}
+            <TextoIcono
+              icono="notifications"
+              style={styles.avisoNuevaTexto}
+              numberOfLines={2}
+            >
+              Nueva solicitud: {nuevaSolicitud.tipoServicio}{" "}
               {esInmediato(nuevaSolicitud)
                 ? "inmediata"
                 : `programada · ${nuevaSolicitud.fechaProgramada}`}
-            </Text>
-            <Text style={styles.avisoNuevaVer}>Ver ›</Text>
+            </TextoIcono>
+            <TextoIcono icono="chevron-forward" alFinal style={styles.avisoNuevaVer}>
+              Ver
+            </TextoIcono>
           </Pressable>
         )}
 
@@ -1660,10 +1754,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.1)",
   },
-  btnCerrarXTexto: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
   btnRechazar: {
     flex: 1,
-    height: 46,
+    minHeight: 46,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
@@ -1695,7 +1788,7 @@ const styles = StyleSheet.create({
   },
   btnVerSolicitud: {
     paddingHorizontal: 18,
-    height: 40,
+    minHeight: 40,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -1818,7 +1911,7 @@ const styles = StyleSheet.create({
   botonesPanel: { flexDirection: "row", gap: 10, marginTop: 12 },
   btnSecundario: {
     flex: 1,
-    height: 46,
+    minHeight: 46,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
@@ -1827,7 +1920,7 @@ const styles = StyleSheet.create({
   btnSecundarioText: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
   btnPrimario: {
     flex: 2,
-    height: 46,
+    minHeight: 46,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
@@ -2032,7 +2125,7 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 8,
   },
-  emptyIcon: { fontSize: 40, marginBottom: 10 },
+  emptyIcon: { marginBottom: 10 },
   emptyTitle: {
     color: "#FFFFFF",
     fontSize: 17,

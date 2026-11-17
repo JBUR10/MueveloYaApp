@@ -3,6 +3,8 @@
 // Contenido de la pantalla de ayuda: tutorial guiado y preguntas frecuentes.
 // Para cambiar un texto o agregar un paso/pregunta solo hay que editar este archivo.
 
+import type { NombreIcono } from "@/components/ui/Icono";
+
 export type PasoTutorial = {
   titulo: string;
   texto: string;
@@ -15,7 +17,7 @@ export type PasoTutorial = {
 export type SeccionTutorial = {
   id: string;
   nombre: string;
-  icono: string;
+  icono: NombreIcono;
   pasos: PasoTutorial[];
 };
 
@@ -23,7 +25,7 @@ export const SECCIONES_TUTORIAL: SeccionTutorial[] = [
   {
     id: "inicio",
     nombre: "Inicio",
-    icono: "⌂",
+    icono: "home-outline",
     pasos: [
       {
         titulo: "Tu ubicación en el mapa",
@@ -58,7 +60,7 @@ export const SECCIONES_TUTORIAL: SeccionTutorial[] = [
   {
     id: "servicios",
     nombre: "Servicios",
-    icono: "◇",
+    icono: "cube-outline",
     pasos: [
       {
         titulo: "Paso 1: ¿Qué necesitas mover?",
@@ -100,7 +102,7 @@ export const SECCIONES_TUTORIAL: SeccionTutorial[] = [
   {
     id: "solicitudes",
     nombre: "Solicitudes",
-    icono: "▤",
+    icono: "list-outline",
     pasos: [
       {
         titulo: "Sigue el estado de tu servicio",
@@ -133,7 +135,7 @@ export const SECCIONES_TUTORIAL: SeccionTutorial[] = [
   {
     id: "perfil",
     nombre: "Perfil",
-    icono: "○",
+    icono: "person-outline",
     pasos: [
       {
         titulo: "Tus datos personales",
@@ -158,7 +160,7 @@ export const SECCIONES_TUTORIAL: SeccionTutorial[] = [
   {
     id: "transportista",
     nombre: "Transportista",
-    icono: "🚚",
+    icono: "car-outline",
     pasos: [
       {
         titulo: "Activa el modo transportista",

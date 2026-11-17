@@ -8,9 +8,9 @@ import {
   Pressable,
   StatusBar,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
+import { Text } from "../components/ui/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
 import BotonAyuda from "../components/ui/BotonAyuda";
@@ -515,7 +515,7 @@ const styles = StyleSheet.create({
 
   botonCancelar: {
     flex: 1,
-    height: 44,
+    minHeight: 44,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
 
   botonConfirmar: {
     flex: 2,
-    height: 44,
+    minHeight: 44,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",

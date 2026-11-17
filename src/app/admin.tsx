@@ -11,10 +11,9 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
+import { Text, TextInput } from "../components/ui/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import PanelAnalisis from "../components/admin/PanelAnalisis";
@@ -31,6 +30,7 @@ import {
   estadoDocumento,
   formatearFechaCorta,
 } from "../services/vehiculoService";
+import TextoIcono from "../components/ui/TextoIcono";
 
 const AZUL = "#2969e9";
 const FONDO = "#111318";
@@ -219,7 +219,9 @@ export default function AdminScreen() {
       >
         <View style={styles.topBar}>
           <Pressable onPress={volver} style={styles.btnBack}>
-            <Text style={styles.btnBackText}>← Volver</Text>
+            <TextoIcono icono="arrow-back" style={styles.btnBackText}>
+              Volver
+            </TextoIcono>
           </Pressable>
         </View>
 
@@ -496,7 +498,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(17,19,24,0.94)",
   },
   nombre: { color: "#FFFFFF", fontSize: 17, fontWeight: "800" },
-  dato: { color: "#D5DCE8", fontSize: 13, lineHeight: 18 },
+  dato: { color: "#D5DCE8", fontSize: 13, lineHeight: 18, flexShrink: 1 },
   divisor: {
     height: 1,
     backgroundColor: "rgba(255,255,255,0.12)",

@@ -1,18 +1,20 @@
 // src/components/ui/TarjetaCupones.tsx
 //
 // Aviso con los cupones disponibles del cliente. No muestra nada si no hay.
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Text } from "./Texto";
 
 import { Cupon, diasRestantes } from "../../services/cuponesService";
+import TextoIcono from "./TextoIcono";
 
 export default function TarjetaCupones({ cupones }: { cupones: Cupon[] }) {
   if (!cupones.length) return null;
 
   return (
     <View style={styles.tarjeta}>
-      <Text style={styles.titulo}>
-        🎁 {cupones.length === 1 ? "Tienes un cupón" : `Tienes ${cupones.length} cupones`}
-      </Text>
+      <TextoIcono icono="gift-outline" style={styles.titulo}>
+        {cupones.length === 1 ? "Tienes un cupón" : `Tienes ${cupones.length} cupones`}
+      </TextoIcono>
       {cupones.slice(0, 3).map((c) => {
         const dias = diasRestantes(c.venceEl);
         return (

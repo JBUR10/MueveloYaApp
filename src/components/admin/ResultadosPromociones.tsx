@@ -4,7 +4,8 @@
 // cuántos se usaron, cuántos terminaron en servicio completado y cuánto se
 // ingresó frente al descuento regalado.
 import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { Text } from "../ui/Texto";
 
 import {
   NOMBRE_MOTIVO,

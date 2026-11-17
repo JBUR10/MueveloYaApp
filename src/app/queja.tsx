@@ -9,15 +9,15 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
+import { Text, TextInput } from "../components/ui/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BotonPrincipal } from "../components/auth/FormularioAuth";
 import { aviso } from "../components/ui/AlertaPantalla";
 import { enviarQueja, TIPOS_QUEJA } from "../services/calificacionService";
+import TextoIcono from "../components/ui/TextoIcono";
 
 const AZUL = "#2969e9";
 const FONDO = "#111318";
@@ -69,7 +69,9 @@ export default function QuejaScreen() {
       >
         <View style={styles.topBar}>
           <Pressable onPress={volver} style={styles.btnBack}>
-            <Text style={styles.btnBackText}>← Volver</Text>
+            <TextoIcono icono="arrow-back" style={styles.btnBackText}>
+              Volver
+            </TextoIcono>
           </Pressable>
         </View>
 

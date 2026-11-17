@@ -5,7 +5,8 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "./Texto";
 
 import {
   estadoDocumento,
@@ -13,6 +14,7 @@ import {
   formatearFechaCorta,
   textoDeFecha,
 } from "../../services/vehiculoService";
+import TextoIcono from "./TextoIcono";
 
 const TEXTO_ESTADO = {
   vigente: { texto: "Vigente", color: "#86E8BD" },
@@ -86,9 +88,12 @@ export default function CampoFecha({
           accessibilityRole="button"
           style={[styles.selector, !!error && styles.selectorError]}
         >
-          <Text style={[styles.textoSelector, !valor && styles.placeholder]}>
-            {valor ? `📅 ${formatearFechaCorta(valor)}` : "📅 Seleccionar fecha"}
-          </Text>
+          <TextoIcono
+            icono="calendar-outline"
+            style={[styles.textoSelector, !valor && styles.placeholder]}
+          >
+            {valor ? formatearFechaCorta(valor) : "Seleccionar fecha"}
+          </TextoIcono>
           {opcional && !!valor && (
             <Pressable onPress={() => onCambiar(null)} hitSlop={10}>
               <Text style={styles.quitar}>Quitar</Text>

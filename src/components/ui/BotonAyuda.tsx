@@ -2,7 +2,8 @@
 //
 // Botón redondo con el símbolo "?" que abre la pantalla de ayuda.
 import { Href, useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, StyleSheet } from "react-native";
+import { Text } from "./Texto";
 
 export default function BotonAyuda() {
   const router = useRouter();

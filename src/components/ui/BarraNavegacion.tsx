@@ -8,21 +8,42 @@ import {
   PanResponder,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
+import { Text } from "./Texto";
 
 import { useAvisos } from "../../services/avisosStore";
 import { useModo } from "../../services/modoStore";
+import Icono, { type NombreIcono } from "./Icono";
 
 type Pestaña = "Inicio" | "Servicios" | "Solicitudes" | "Perfil";
 
 const PESTAÑAS = [
-  { id: "Inicio", icono: "⌂", ruta: "/" },
-  { id: "Servicios", icono: "◇", ruta: "/servicios" },
-  { id: "Solicitudes", icono: "▤", ruta: "/solicitudes" },
-  { id: "Perfil", icono: "○", ruta: "/perfil" },
-] as const;
+  { id: "Inicio", icono: "home-outline", iconoActivo: "home", ruta: "/" },
+  {
+    id: "Servicios",
+    icono: "cube-outline",
+    iconoActivo: "cube",
+    ruta: "/servicios",
+  },
+  {
+    id: "Solicitudes",
+    icono: "list-outline",
+    iconoActivo: "list",
+    ruta: "/solicitudes",
+  },
+  {
+    id: "Perfil",
+    icono: "person-outline",
+    iconoActivo: "person",
+    ruta: "/perfil",
+  },
+] as const satisfies readonly {
+  id: string;
+  icono: NombreIcono;
+  iconoActivo: NombreIcono;
+  ruta: string;
+}[];
 
 const TOTAL = PESTAÑAS.length;
 
@@ -293,14 +314,12 @@ export default function BarraNavegacion() {
                 accessibilityLabel={pestaña.id}
               >
                 <View>
-                  <Text
-                    style={[
-                      styles.simboloNavegacion,
-                      activa && styles.simboloNavegacionActivo,
-                    ]}
-                  >
-                    {pestaña.icono}
-                  </Text>
+                  <Icono
+                    nombre={activa ? pestaña.iconoActivo : pestaña.icono}
+                    tamano={24}
+                    color={activa ? "#FFFFFF" : "#F0F3F5"}
+                    style={styles.simboloNavegacion}
+                  />
 
                   {pestaña.id === "Solicitudes" && pendientesPorVer > 0 && (
                     <View
@@ -315,6 +334,9 @@ export default function BarraNavegacion() {
                 </View>
 
                 <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.85}
                   style={[
                     styles.textoNavegacion,
                     activa && styles.textoNavegacionActivo,
@@ -423,16 +445,9 @@ const styles = StyleSheet.create({
   },
 
   simboloNavegacion: {
-    color: "#F0F3F5",
-    fontSize: 23,
-    lineHeight: 27,
     textShadowColor: "rgba(0,0,0,0.45)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
-  },
-
-  simboloNavegacionActivo: {
-    color: "#FFFFFF",
   },
 
   textoNavegacion: {
