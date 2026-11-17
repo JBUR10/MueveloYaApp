@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import ConsultasSQL from "../components/admin/ConsultasSQL";
+import Reportes from "../components/admin/Reportes";
 import PanelEstadisticas from "../components/admin/PanelEstadisticas";
 import { aviso, confirmar } from "../components/ui/AlertaPantalla";
 import {
@@ -41,12 +41,12 @@ const FILTROS: { id: EstadoVerificacion; titulo: string }[] = [
   { id: "rechazado", titulo: "Rechazados" },
 ];
 
-type Seccion = "transportistas" | "estadisticas" | "consultas";
+type Seccion = "transportistas" | "estadisticas" | "reportes";
 
 const SECCIONES: { id: Seccion; titulo: string }[] = [
   { id: "transportistas", titulo: "Transportistas" },
   { id: "estadisticas", titulo: "Estadísticas" },
-  { id: "consultas", titulo: "Consultas SQL" },
+  { id: "reportes", titulo: "Reportes" },
 ];
 
 const VACIO: Record<EstadoVerificacion, string> = {
@@ -235,8 +235,8 @@ export default function AdminScreen() {
 
         {seccion === "estadisticas" ? (
           <PanelEstadisticas />
-        ) : seccion === "consultas" ? (
-          <ConsultasSQL />
+        ) : seccion === "reportes" ? (
+          <Reportes />
         ) : (
           <>
         <Text style={styles.subtitulo}>PANEL DE ADMINISTRACIÓN</Text>

@@ -42,6 +42,7 @@ import {
   marcarDisponiblesVistas,
   alLlegarAviso,
   mostrarAvisosPendientes,
+  refrescarAvisos,
 } from "../../services/avisosStore";
 import {
   cambiarDisponibilidad,
@@ -50,6 +51,7 @@ import {
 import { usePush } from "../../services/notificacionesPush";
 import {
   cambiarCuentaConAyudantes,
+  obtenerModo,
   cambiarModo,
   useModo,
 } from "../../services/modoStore";
@@ -226,8 +228,11 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
       // ¿Llegó una solicitud nueva desde la última carga? (no en la primera)
       // En un servicio en curso solo cuentan las programadas.
       const enRutaAhora = nuevos.asignadas.some(estaIniciado);
+      // Sin ayudantes tampoco cuentan las que los piden.
+      const conAyudantes = obtenerModo().cuentaConAyudantes;
       const visibles = nuevos.disponibles.filter(
-        (s) => !enRutaAhora || !esInmediato(s),
+        (s) =>
+          (!enRutaAhora || !esInmediato(s)) && (conAyudantes || !s.ayudantes),
       );
       if (idsVistos.current) {
         const vistos = idsVistos.current;
@@ -360,10 +365,14 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
   // Con un servicio en curso no se pueden aceptar inmediatas (la base de
   // datos lo impide): en el mapa y en la lista solo se ven las programadas.
   const enRuta = datos.asignadas.some(estaIniciado);
+  // Sin ayudantes, tampoco se ven las solicitudes que los piden.
   const disponiblesVisibles = useMemo(
     () =>
-      enRuta ? datos.disponibles.filter((s) => !esInmediato(s)) : datos.disponibles,
-    [datos.disponibles, enRuta],
+      datos.disponibles.filter(
+        (s) =>
+          (!enRuta || !esInmediato(s)) && (cuentaConAyudantes || !s.ayudantes),
+      ),
+    [datos.disponibles, enRuta, cuentaConAyudantes],
   );
 
   const conteos: Record<Seccion, number> = {
@@ -600,16 +609,24 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
     const ok = await confirmar({
       titulo: "Ayudantes",
       mensaje: nuevoValor
-        ? "¿Confirmas que ahora cuentas con ayudantes para tus servicios?"
-        : "¿Confirmas que ya no cuentas con ayudantes para tus servicios?",
+        ? "¿Confirmas que ahora cuentas con ayudantes? Te aparecerán también las solicitudes que piden ayudantes."
+        : "¿Confirmas que ya no cuentas con ayudantes? Dejarán de aparecerte las solicitudes que piden ayudantes.",
       textoAceptar: "Confirmar",
       tipo: "info",
     });
     if (!ok) return;
 
-    await cambiarCuentaConAyudantes(nuevoValor);
+    try {
+      await cambiarCuentaConAyudantes(nuevoValor);
+    } catch (error: any) {
+      await aviso("No se pudo cambiar", error?.message || "Inténtalo de nuevo.", "error");
+      return;
+    }
+    refrescarAvisos();
     setMensaje(
-      nuevoValor ? "Ahora cuentas con ayudantes" : "Ahora trabajas sin ayudantes",
+      nuevoValor
+        ? "Ahora ves también las solicitudes con ayudantes"
+        : "Ya no verás solicitudes que piden ayudantes",
     );
   };
 
@@ -1460,8 +1477,8 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             <Text style={styles.ayudantesTitulo}>Cuento con ayudantes</Text>
             <Text style={styles.ayudantesDescripcion}>
               {cuentaConAyudantes
-                ? "Ofreces ayudantes en tus servicios"
-                : "Por ahora trabajas sin ayudantes"}
+                ? "Ves todas las solicitudes, también las que piden ayudantes"
+                : "Solo ves solicitudes que no piden ayudantes"}
             </Text>
           </View>
 
