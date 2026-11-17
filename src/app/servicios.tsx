@@ -21,6 +21,13 @@ import { buscarLugares } from "../components/ui/BuscadorDestino";
 import VistaPreviaRuta from "../components/ui/VistaPreviaRuta";
 import { obtenerDireccion } from "../services/geocodificacion";
 import { obtenerMiPerfil } from "../services/perfilService";
+import TarjetaCupones from "../components/ui/TarjetaCupones";
+import {
+  Cupon,
+  descuentoDe,
+  mejorCupon,
+  obtenerCuponesDisponibles,
+} from "../services/cuponesService";
 import { registrarServicio } from "../services/servicioService";
 import {
   calcularTarifa,
@@ -207,6 +214,21 @@ export default function ServiciosScreen() {
 
   const tarifa =
     distanciaKm != null ? calcularTarifa(distanciaKm, ayudantes, pisosEscaleras) : null;
+
+  // Cupones del cliente. La base de datos aplica el mejor al crear la solicitud;
+  // aquí solo se calcula lo mismo para mostrarle el precio con descuento.
+  const [cupones, setCupones] = useState<Cupon[]>([]);
+  useFocusEffect(
+    useCallback(() => {
+      let vigente = true;
+      obtenerCuponesDisponibles().then((c) => vigente && setCupones(c));
+      return () => {
+        vigente = false;
+      };
+    }, []),
+  );
+  const cupon = mejorCupon(cupones, tipoServicio);
+  const descuento = tarifa && cupon ? descuentoDe(tarifa.total, cupon.porcentaje) : 0;
 
   // El contacto se llena con los datos de la cuenta (se pueden cambiar).
   const contactoPerfil = useRef({ nombre: "", telefono: "" });
@@ -575,6 +597,7 @@ export default function ServiciosScreen() {
           {/* ================= PASO 1: TIPO DE SERVICIO ================= */}
           {paso === 1 && (
             <View>
+              <TarjetaCupones cupones={cupones} />
               <Text style={styles.sectionTitle}>1. ¿QUÉ NECESITAS MOVER?</Text>
               <View style={styles.gridServicios}>
                 {serviciosList.map((item) => {
@@ -989,11 +1012,23 @@ export default function ServiciosScreen() {
                         valor={tarifa.valorPisos}
                       />
                     )}
+                    {cupon && descuento > 0 && (
+                      <View style={styles.filaPrecio}>
+                        <Text style={[styles.textoPrecio, { color: "#34d399" }]}>
+                          🎁 Cupón {cupon.porcentaje} %
+                        </Text>
+                        <Text style={[styles.valorPrecio, { color: "#34d399" }]}>
+                          - {formatearPesos(descuento)}
+                        </Text>
+                      </View>
+                    )}
                     <View style={styles.filaTotal}>
                       <Text style={styles.textoTotal}>
                         Total · {distanciaKm?.toFixed(1).replace(".", ",")} km de ruta
                       </Text>
-                      <Text style={styles.valorTotal}>{formatearPesos(tarifa.total)}</Text>
+                      <Text style={styles.valorTotal}>
+                        {formatearPesos(tarifa.total - descuento)}
+                      </Text>
                     </View>
                   </>
                 ) : (

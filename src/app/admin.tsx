@@ -18,13 +18,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import ConsultasSQL from "../components/admin/ConsultasSQL";
-import PanelEstadisticas from "../components/admin/PanelEstadisticas";
+import PanelAnalisis from "../components/admin/PanelAnalisis";
 import { aviso, confirmar } from "../components/ui/AlertaPantalla";
 import {
+  SolicitudTransportista,
   obtenerTransportistas,
   revisarTransportista,
   soyAdmin,
-  SolicitudTransportista,
 } from "../services/adminService";
 import {
   EstadoVerificacion,
@@ -41,11 +41,11 @@ const FILTROS: { id: EstadoVerificacion; titulo: string }[] = [
   { id: "rechazado", titulo: "Rechazados" },
 ];
 
-type Seccion = "transportistas" | "estadisticas" | "consultas";
+type Seccion = "transportistas" | "analisis" | "consultas";
 
 const SECCIONES: { id: Seccion; titulo: string }[] = [
   { id: "transportistas", titulo: "Transportistas" },
-  { id: "estadisticas", titulo: "Estadísticas" },
+  { id: "analisis", titulo: "Análisis" },
   { id: "consultas", titulo: "Consultas SQL" },
 ];
 
@@ -123,7 +123,11 @@ export default function AdminScreen() {
     try {
       setItems(await obtenerTransportistas(estado));
     } catch (e: any) {
-      await aviso("Error", e?.message || "No se pudo cargar la lista.", "error");
+      await aviso(
+        "Error",
+        e?.message || "No se pudo cargar la lista.",
+        "error",
+      );
     } finally {
       setCargando(false);
       setRefrescando(false);
@@ -183,7 +187,11 @@ export default function AdminScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle="light-content" backgroundColor={FONDO} />
-        <ActivityIndicator color={AZUL} size="large" style={{ marginTop: 80 }} />
+        <ActivityIndicator
+          color={AZUL}
+          size="large"
+          style={{ marginTop: 80 }}
+        />
       </SafeAreaView>
     );
   }
@@ -207,7 +215,8 @@ export default function AdminScreen() {
               }}
             />
           ) : undefined
-        }>
+        }
+      >
         <View style={styles.topBar}>
           <Pressable onPress={volver} style={styles.btnBack}>
             <Text style={styles.btnBackText}>← Volver</Text>
@@ -223,9 +232,14 @@ export default function AdminScreen() {
                 onPress={() => setSeccion(s.id)}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: activa }}
-                style={[styles.seccion, activa && styles.seccionActiva]}>
+                style={[styles.seccion, activa && styles.seccionActiva]}
+              >
                 <Text
-                  style={[styles.seccionTexto, activa && styles.seccionTextoActivo]}>
+                  style={[
+                    styles.seccionTexto,
+                    activa && styles.seccionTextoActivo,
+                  ]}
+                >
                   {s.titulo}
                 </Text>
               </Pressable>
@@ -233,147 +247,171 @@ export default function AdminScreen() {
           })}
         </View>
 
-        {seccion === "estadisticas" ? (
-          <PanelEstadisticas />
+        {seccion === "analisis" ? (
+          <PanelAnalisis />
         ) : seccion === "consultas" ? (
           <ConsultasSQL />
         ) : (
           <>
-        <Text style={styles.subtitulo}>PANEL DE ADMINISTRACIÓN</Text>
-        <Text style={styles.titulo}>
-          Revisión de <Text style={styles.azul}>transportistas</Text>
-        </Text>
-        <Text style={styles.descripcion}>
-          Revisa los datos del vehículo y los documentos. Hasta que apruebes el
-          perfil, el transportista no puede recibir pedidos.
-        </Text>
+            <Text style={styles.subtitulo}>PANEL DE ADMINISTRACIÓN</Text>
+            <Text style={styles.titulo}>
+              Revisión de <Text style={styles.azul}>transportistas</Text>
+            </Text>
+            <Text style={styles.descripcion}>
+              Revisa los datos del vehículo y los documentos. Hasta que apruebes
+              el perfil, el transportista no puede recibir pedidos.
+            </Text>
 
-        <View style={styles.chips}>
-          {FILTROS.map((f) => {
-            const activo = filtro === f.id;
-            return (
-              <Pressable
-                key={f.id}
-                onPress={() => setFiltro(f.id)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: activo }}
-                style={[styles.chip, activo && styles.chipActivo]}>
-                <Text style={[styles.chipTexto, activo && styles.chipTextoActivo]}>
-                  {f.titulo}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {cargando ? (
-          <ActivityIndicator color={AZUL} size="large" style={{ marginTop: 30 }} />
-        ) : items.length === 0 ? (
-          <Text style={styles.vacio}>{VACIO[filtro]}</Text>
-        ) : (
-          items.map((item) => {
-            const v = item.vehiculo;
-            const ocupado = procesando === item.transportistaId;
-            const rechazando = rechazandoId === item.transportistaId;
-            return (
-              <View key={item.transportistaId} style={styles.tarjeta}>
-                <Text style={styles.nombre}>{item.nombre || "Sin nombre"}</Text>
-                <Text style={styles.dato}>Teléfono: {item.telefono || "—"}</Text>
-
-                <View style={styles.divisor} />
-
-                <Text style={styles.dato}>
-                  {v.tipo} · {v.placa}
-                  {v.marcaModelo ? ` · ${v.marcaModelo}` : ""}
-                </Text>
-                <Text style={styles.dato}>
-                  Licencia de tránsito: {v.licenciaTransitoNumero}
-                </Text>
-
-                <Documento nombre="SOAT" vence={v.soatVence} />
-                <Documento
-                  nombre="Licencia de conducción"
-                  vence={v.licenciaConduccionVence}
-                />
-                {v.tecnomecanicaExento ? (
-                  <View style={styles.filaDoc}>
-                    <Text style={styles.dato}>Técnico-mecánica</Text>
-                    <Text style={[styles.docEstado, { color: "#9BA7BA" }]}>
-                      Exento
+            <View style={styles.chips}>
+              {FILTROS.map((f) => {
+                const activo = filtro === f.id;
+                return (
+                  <Pressable
+                    key={f.id}
+                    onPress={() => setFiltro(f.id)}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: activo }}
+                    style={[styles.chip, activo && styles.chipActivo]}
+                  >
+                    <Text
+                      style={[
+                        styles.chipTexto,
+                        activo && styles.chipTextoActivo,
+                      ]}
+                    >
+                      {f.titulo}
                     </Text>
-                  </View>
-                ) : (
-                  <Documento
-                    nombre="Técnico-mecánica"
-                    vence={v.tecnomecanicaVence}
-                  />
-                )}
-                <Documento nombre="Seguro RC" vence={v.seguroRcVence} opcional />
+                  </Pressable>
+                );
+              })}
+            </View>
 
-                {filtro === "rechazado" && !!v.motivoRechazo && (
-                  <Text style={styles.motivo}>Motivo: {v.motivoRechazo}</Text>
-                )}
+            {cargando ? (
+              <ActivityIndicator
+                color={AZUL}
+                size="large"
+                style={{ marginTop: 30 }}
+              />
+            ) : items.length === 0 ? (
+              <Text style={styles.vacio}>{VACIO[filtro]}</Text>
+            ) : (
+              items.map((item) => {
+                const v = item.vehiculo;
+                const ocupado = procesando === item.transportistaId;
+                const rechazando = rechazandoId === item.transportistaId;
+                return (
+                  <View key={item.transportistaId} style={styles.tarjeta}>
+                    <Text style={styles.nombre}>
+                      {item.nombre || "Sin nombre"}
+                    </Text>
+                    <Text style={styles.dato}>
+                      Teléfono: {item.telefono || "—"}
+                    </Text>
 
-                {rechazando ? (
-                  <>
-                    <TextInput
-                      value={motivo}
-                      onChangeText={setMotivo}
-                      placeholder="Motivo del rechazo (obligatorio)"
-                      placeholderTextColor="#657187"
-                      multiline
-                      maxLength={300}
-                      style={styles.input}
+                    <View style={styles.divisor} />
+
+                    <Text style={styles.dato}>
+                      {v.tipo} · {v.placa}
+                      {v.marcaModelo ? ` · ${v.marcaModelo}` : ""}
+                    </Text>
+                    <Text style={styles.dato}>
+                      Licencia de tránsito: {v.licenciaTransitoNumero}
+                    </Text>
+
+                    <Documento nombre="SOAT" vence={v.soatVence} />
+                    <Documento
+                      nombre="Licencia de conducción"
+                      vence={v.licenciaConduccionVence}
                     />
-                    <View style={styles.filaBotones}>
-                      <Pressable
-                        disabled={ocupado}
-                        onPress={() => {
-                          setRechazandoId(null);
-                          setMotivo("");
-                        }}
-                        style={[styles.boton, styles.botonNeutro]}>
-                        <Text style={styles.botonTexto}>Cancelar</Text>
-                      </Pressable>
-                      <Pressable
-                        disabled={ocupado}
-                        onPress={() => rechazar(item)}
-                        style={[styles.boton, styles.botonRechazo]}>
-                        <Text style={styles.botonTexto}>
-                          {ocupado ? "Guardando…" : "Confirmar rechazo"}
+                    {v.tecnomecanicaExento ? (
+                      <View style={styles.filaDoc}>
+                        <Text style={styles.dato}>Técnico-mecánica</Text>
+                        <Text style={[styles.docEstado, { color: "#9BA7BA" }]}>
+                          Exento
                         </Text>
-                      </Pressable>
-                    </View>
-                  </>
-                ) : (
-                  <View style={styles.filaBotones}>
-                    {filtro !== "rechazado" && (
-                      <Pressable
-                        disabled={ocupado}
-                        onPress={() => {
-                          setRechazandoId(item.transportistaId);
-                          setMotivo("");
-                        }}
-                        style={[styles.boton, styles.botonRechazo]}>
-                        <Text style={styles.botonTexto}>Rechazar</Text>
-                      </Pressable>
+                      </View>
+                    ) : (
+                      <Documento
+                        nombre="Técnico-mecánica"
+                        vence={v.tecnomecanicaVence}
+                      />
                     )}
-                    {filtro !== "aprobado" && (
-                      <Pressable
-                        disabled={ocupado}
-                        onPress={() => aprobar(item)}
-                        style={[styles.boton, styles.botonAprobar]}>
-                        <Text style={styles.botonTexto}>
-                          {ocupado ? "Guardando…" : "Aprobar"}
-                        </Text>
-                      </Pressable>
+                    <Documento
+                      nombre="Seguro RC"
+                      vence={v.seguroRcVence}
+                      opcional
+                    />
+
+                    {filtro === "rechazado" && !!v.motivoRechazo && (
+                      <Text style={styles.motivo}>
+                        Motivo: {v.motivoRechazo}
+                      </Text>
+                    )}
+
+                    {rechazando ? (
+                      <>
+                        <TextInput
+                          value={motivo}
+                          onChangeText={setMotivo}
+                          placeholder="Motivo del rechazo (obligatorio)"
+                          placeholderTextColor="#657187"
+                          multiline
+                          maxLength={300}
+                          style={styles.input}
+                        />
+                        <View style={styles.filaBotones}>
+                          <Pressable
+                            disabled={ocupado}
+                            onPress={() => {
+                              setRechazandoId(null);
+                              setMotivo("");
+                            }}
+                            style={[styles.boton, styles.botonNeutro]}
+                          >
+                            <Text style={styles.botonTexto}>Cancelar</Text>
+                          </Pressable>
+                          <Pressable
+                            disabled={ocupado}
+                            onPress={() => rechazar(item)}
+                            style={[styles.boton, styles.botonRechazo]}
+                          >
+                            <Text style={styles.botonTexto}>
+                              {ocupado ? "Guardando…" : "Confirmar rechazo"}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </>
+                    ) : (
+                      <View style={styles.filaBotones}>
+                        {filtro !== "rechazado" && (
+                          <Pressable
+                            disabled={ocupado}
+                            onPress={() => {
+                              setRechazandoId(item.transportistaId);
+                              setMotivo("");
+                            }}
+                            style={[styles.boton, styles.botonRechazo]}
+                          >
+                            <Text style={styles.botonTexto}>Rechazar</Text>
+                          </Pressable>
+                        )}
+                        {filtro !== "aprobado" && (
+                          <Pressable
+                            disabled={ocupado}
+                            onPress={() => aprobar(item)}
+                            style={[styles.boton, styles.botonAprobar]}
+                          >
+                            <Text style={styles.botonTexto}>
+                              {ocupado ? "Guardando…" : "Aprobar"}
+                            </Text>
+                          </Pressable>
+                        )}
+                      </View>
                     )}
                   </View>
-                )}
-              </View>
-            );
-          })
-        )}
+                );
+              })
+            )}
           </>
         )}
       </ScrollView>
@@ -383,7 +421,12 @@ export default function AdminScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: FONDO },
-  contenido: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40, gap: 16 },
+  contenido: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 40,
+    gap: 16,
+  },
   topBar: { flexDirection: "row" },
   btnBack: {
     backgroundColor: "rgba(255,255,255,0.1)",
@@ -399,9 +442,18 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: "rgba(255,255,255,0.06)",
   },
-  seccion: { flex: 1, paddingVertical: 10, borderRadius: 11, alignItems: "center" },
+  seccion: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 11,
+    alignItems: "center",
+  },
   seccionActiva: { backgroundColor: AZUL },
-  seccionTexto: { color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: "800" },
+  seccionTexto: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 13,
+    fontWeight: "800",
+  },
   seccionTextoActivo: { color: "#FFFFFF" },
   subtitulo: {
     color: "rgba(255,255,255,0.6)",
@@ -412,7 +464,12 @@ const styles = StyleSheet.create({
   },
   titulo: { color: "#eeecec", fontSize: 28, fontWeight: "900" },
   azul: { color: AZUL },
-  descripcion: { color: "#9BA7BA", fontSize: 13, lineHeight: 19, marginTop: -8 },
+  descripcion: {
+    color: "#9BA7BA",
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: -8,
+  },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     paddingHorizontal: 14,
@@ -423,7 +480,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.04)",
   },
   chipActivo: { backgroundColor: AZUL, borderColor: AZUL },
-  chipTexto: { color: "rgba(255,255,255,0.75)", fontSize: 13, fontWeight: "700" },
+  chipTexto: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 13,
+    fontWeight: "700",
+  },
   chipTextoActivo: { color: "#FFFFFF" },
   vacio: { color: "#9BA7BA", fontSize: 14, textAlign: "center", marginTop: 30 },
   tarjeta: {
