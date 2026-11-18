@@ -8,6 +8,11 @@ import {
 } from "react-native";
 import { Text } from "./Texto";
 import { WebView } from "react-native-webview";
+import {
+  useEstilos,
+  usePaleta,
+  type Paleta,
+} from "../../services/temaStore";
 
 const mapaHTML = `
 <!DOCTYPE html>
@@ -49,6 +54,27 @@ const mapaHTML = `
     .etiquetas-claras {
       filter: brightness(2.8) grayscale(1);
       opacity: 1;
+    }
+
+    /* Tema claro: teselas claras, etiquetas sin filtro y paneles blancos. */
+    body[data-tema="claro"],
+    body[data-tema="claro"] #mapa {
+      background: #e9ecf1;
+    }
+
+    body[data-tema="claro"] .etiquetas-claras {
+      filter: none;
+    }
+
+    body[data-tema="claro"] .leaflet-control-attribution {
+      background: rgba(249, 251, 254, 0.85) !important;
+      color: #5a677c !important;
+    }
+
+    body[data-tema="claro"] .leaflet-popup-content-wrapper,
+    body[data-tema="claro"] .leaflet-popup-tip {
+      background: #f9fbfe;
+      color: #0f1b2d;
     }
 
     .leaflet-control-attribution {
@@ -204,7 +230,7 @@ const mapaHTML = `
   </style>
 </head>
 
-<body>
+<body data-tema="__TEMA__">
   <div id="mapa"></div>
   <div id="pin-seleccion"></div>
 
@@ -238,8 +264,16 @@ const mapaHTML = `
       maxZoom: 18
     }).setView([6.2442, -75.5812], 13);
 
-    L.tileLayer(
-      'https://basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}{r}.png?key=cb1_4ltt_1_cf9d541803ae070b75ff17f2',
+    const CLAVE_TESELAS = '?key=cb1_4ltt_1_cf9d541803ae070b75ff17f2';
+    const urlTeselas = function (tema, capa) {
+      return 'https://basemaps.cartocdn.com/rastertiles/' +
+        (tema === 'claro' ? 'light_' : 'dark_') + capa +
+        '/{z}/{x}/{y}{r}.png' + CLAVE_TESELAS;
+    };
+    const temaInicial = document.body.getAttribute('data-tema') === 'claro' ? 'claro' : 'oscuro';
+
+    const capaBase = L.tileLayer(
+      urlTeselas(temaInicial, 'nolabels'),
       {
         maxZoom: 18,
         className: 'mapa-oscuro',
@@ -248,8 +282,8 @@ const mapaHTML = `
       }
     ).addTo(mapa);
 
-    L.tileLayer(
-      'https://basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}{r}.png?key=cb1_4ltt_1_cf9d541803ae070b75ff17f2',
+    const capaEtiquetas = L.tileLayer(
+      urlTeselas(temaInicial, 'only_labels'),
       {
         maxZoom: 18,
         className: 'etiquetas-claras',
@@ -528,9 +562,22 @@ const mapaHTML = `
       emitirCentro();
     };
 
+    // Cambia entre tema oscuro y claro sin recargar el mapa.
+    window.aplicarTema = function (tema) {
+      const t = tema === 'claro' ? 'claro' : 'oscuro';
+      document.body.setAttribute('data-tema', t);
+      capaBase.setUrl(urlTeselas(t, 'nolabels'));
+      capaEtiquetas.setUrl(urlTeselas(t, 'only_labels'));
+    };
+
     // Punto único de entrada de mensajes desde React Native (o desde el padre en web).
     window.recibir = function (d) {
       if (!d) return;
+
+      if (d.tipo === 'TEMA') {
+        window.aplicarTema(d.tema);
+        return;
+      }
 
       if (d.tipo === 'UBICACION' && Number.isFinite(d.lat) && Number.isFinite(d.lng)) {
         window.mostrarUbicacion(d.lat, d.lng);
@@ -625,7 +672,12 @@ export default function MapaPrincipal({
   onMoverPunto,
   animarRuta = false,
 }: Props) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const webViewRef = useRef<WebView>(null);
+  // El HTML se fija con el tema del primer render (si cambiara el HTML, el mapa
+  // se recargaría); los cambios posteriores se envían como mensaje "TEMA".
+  const [htmlMapa] = useState(() => mapaHTML.replace("__TEMA__", p.tema));
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const habiaRuta = useRef(false);
 
@@ -883,6 +935,12 @@ export default function MapaPrincipal({
     });
   }, [seleccionando, mapaListo, enviarAlMapa]);
 
+  // 5) Cambia el tema del mapa (teselas claras u oscuras) sin recargarlo.
+  useEffect(() => {
+    if (!mapaListo) return;
+    enviarAlMapa({ tipo: "TEMA", tema: p.tema });
+  }, [p.tema, mapaListo, enviarAlMapa]);
+
   const mensajeError = errorUbicacion || errorRuta;
 
   return (
@@ -891,7 +949,7 @@ export default function MapaPrincipal({
         <iframe
           ref={iframeRef}
           title="Mapa de Muévelo Ya"
-          srcDoc={mapaHTML}
+          srcDoc={htmlMapa}
           onLoad={() => setMapaListo(true)}
           style={{
             width: "100%",
@@ -903,7 +961,7 @@ export default function MapaPrincipal({
         <WebView
           ref={webViewRef}
           originWhitelist={["*"]}
-          source={{ html: mapaHTML }}
+          source={{ html: htmlMapa }}
           javaScriptEnabled
           domStorageEnabled
           onLoadEnd={() => setMapaListo(true)}
@@ -914,7 +972,7 @@ export default function MapaPrincipal({
 
       {(cargando || calculandoRuta) && (
         <View style={styles.estado}>
-          <ActivityIndicator color="#FFFFFF" />
+          <ActivityIndicator color={p.texto} />
         </View>
       )}
 
@@ -927,7 +985,7 @@ export default function MapaPrincipal({
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   contenedor: {
     position: "absolute",
     top: 0,
@@ -935,11 +993,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     overflow: "hidden",
-    backgroundColor: "#111111",
+    backgroundColor: p.fondoMapa,
   },
   mapa: {
     flex: 1,
-    backgroundColor: "#111111",
+    backgroundColor: p.fondoMapa,
   },
   estado: {
     position: "absolute",
@@ -950,7 +1008,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "rgba(17,17,17,0.85)",
+    backgroundColor: p.panelMapa,
   },
   aviso: {
     position: "absolute",
@@ -959,10 +1017,10 @@ const styles = StyleSheet.create({
     right: 16,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: "rgba(28,28,28,0.95)",
+    backgroundColor: p.avisoMapa,
   },
   textoAviso: {
-    color: "#ffffff",
+    color: p.texto,
     fontSize: 13,
   },
 });

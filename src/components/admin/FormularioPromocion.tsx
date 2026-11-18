@@ -19,6 +19,7 @@ import {
   MOTIVOS,
 } from "../../services/promocionesService";
 import Icono from "../ui/Icono";
+import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 const AZUL = "#2969e9";
 const TIPOS = ["Envío", "Acarreo", "Trasteo", "Mudanza"];
@@ -50,6 +51,7 @@ function Chips<T extends string | number | null>({
   valor: T;
   onElegir: (v: T) => void;
 }) {
+  const styles = useEstilos(crearEstilos);
   return (
     <View style={styles.chips}>
       {opciones.map((o) => {
@@ -76,6 +78,8 @@ export default function FormularioPromocion({
   onCerrar,
   onEnviada,
 }: Props) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const [motivo, setMotivo] = useState<MotivoPromocion>(motivoInicial);
   const [tipo, setTipo] = useState<string | null>(tipoInicial);
   const [porcentaje, setPorcentaje] = useState(15);
@@ -169,7 +173,7 @@ export default function FormularioPromocion({
           accessibilityLabel="Cerrar"
           style={styles.cerrar}
         >
-          <Icono nombre="close" tamano={22} color="#9BA7BA" />
+          <Icono nombre="close" tamano={22} color={p.textoTenue} />
         </Pressable>
       </View>
 
@@ -234,7 +238,7 @@ export default function FormularioPromocion({
             <Text style={styles.botonTexto}>Volver</Text>
           </Pressable>
           <Pressable onPress={enviar} style={[styles.boton, { flex: 1 }]}>
-            <Text style={styles.botonTexto}>
+            <Text style={[styles.botonTexto, styles.botonTextoAcento]}>
               Confirmar: enviar a {audiencia}{" "}
               {audiencia === 1 ? "cliente" : "clientes"}
             </Text>
@@ -252,7 +256,9 @@ export default function FormularioPromocion({
           {bloqueado ? (
             <ActivityIndicator color="#FFF" />
           ) : (
-            <Text style={styles.botonTexto}>Revisar y enviar</Text>
+            <Text style={[styles.botonTexto, styles.botonTextoAcento]}>
+              Revisar y enviar
+            </Text>
           )}
         </Pressable>
       )}
@@ -260,43 +266,43 @@ export default function FormularioPromocion({
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   tarjeta: {
     padding: 16,
     gap: 10,
     borderRadius: 19,
     borderWidth: 1,
     borderColor: "rgba(41,105,233,0.6)",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    backgroundColor: p.panel(0.94),
   },
   encabezado: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  titulo: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
+  titulo: { color: p.texto, fontSize: 16, fontWeight: "800" },
   cerrar: { paddingHorizontal: 6 },
-  etiqueta: { color: "#9BA7BA", fontSize: 12, fontWeight: "700", marginTop: 4 },
+  etiqueta: { color: p.textoTenue, fontSize: 12, fontWeight: "700", marginTop: 4 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.velo(0.04),
   },
   chipActivo: { backgroundColor: AZUL, borderColor: AZUL },
   chipTexto: {
-    color: "rgba(255,255,255,0.75)",
+    color: p.textoAlfa(0.75),
     fontSize: 13,
     fontWeight: "700",
   },
   resumen: { gap: 6, marginTop: 4 },
-  texto: { color: "#D5DCE8", fontSize: 13, lineHeight: 19 },
-  audiencia: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
-  nota: { color: "#9BA7BA", fontSize: 11, lineHeight: 16 },
-  error: { color: "#f87171", fontSize: 13 },
+  texto: { color: p.textoDato, fontSize: 13, lineHeight: 19 },
+  audiencia: { color: p.texto, fontSize: 14, fontWeight: "800" },
+  nota: { color: p.textoTenue, fontSize: 11, lineHeight: 16 },
+  error: { color: p.textoError2, fontSize: 13 },
   fila: { flexDirection: "row", gap: 10 },
   boton: {
     paddingVertical: 12,
@@ -305,6 +311,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: AZUL,
   },
-  botonSecundario: { backgroundColor: "rgba(255,255,255,0.1)" },
-  botonTexto: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
+  botonSecundario: { backgroundColor: p.velo(0.1) },
+  botonTexto: { color: p.texto, fontSize: 14, fontWeight: "800" },
+  // Sobre el botón azul sólido el texto va siempre blanco.
+  botonTextoAcento: { color: "#FFFFFF" },
 });

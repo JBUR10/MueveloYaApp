@@ -31,9 +31,9 @@ import {
   formatearFechaCorta,
 } from "../services/vehiculoService";
 import TextoIcono from "../components/ui/TextoIcono";
+import { usePaleta, useEstilos, type Paleta } from "../services/temaStore";
 
 const AZUL = "#2969e9";
-const FONDO = "#111318";
 
 const FILTROS: { id: EstadoVerificacion; titulo: string }[] = [
   { id: "pendiente", titulo: "Pendientes" },
@@ -64,15 +64,17 @@ function Documento({
   vence: string | null;
   opcional?: boolean;
 }) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const estado = estadoDocumento(vence);
   const color =
     estado === "vigente"
-      ? "#34d399"
+      ? p.textoExito
       : estado === "por_vencer"
-        ? "#fbbf24"
+        ? p.textoAviso
         : opcional && estado === "falta"
-          ? "#9BA7BA"
-          : "#f87171";
+          ? p.textoTenue
+          : p.textoError2;
   const texto =
     estado === "falta"
       ? opcional
@@ -88,6 +90,8 @@ function Documento({
 }
 
 export default function AdminScreen() {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const router = useRouter();
   const [esAdmin, setEsAdmin] = useState<boolean | null>(null);
   const [seccion, setSeccion] = useState<Seccion>("transportistas");
@@ -186,7 +190,7 @@ export default function AdminScreen() {
   if (esAdmin !== true) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor={FONDO} />
+        <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
         <ActivityIndicator
           color={AZUL}
           size="large"
@@ -198,7 +202,7 @@ export default function AdminScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle="light-content" backgroundColor={FONDO} />
+      <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
 
       <ScrollView
         contentContainerStyle={styles.contenido}
@@ -208,7 +212,7 @@ export default function AdminScreen() {
           seccion === "transportistas" ? (
             <RefreshControl
               refreshing={refrescando}
-              tintColor="#FFFFFF"
+              tintColor={p.texto}
               onRefresh={() => {
                 setRefrescando(true);
                 cargar(filtro);
@@ -328,7 +332,7 @@ export default function AdminScreen() {
                     {v.tecnomecanicaExento ? (
                       <View style={styles.filaDoc}>
                         <Text style={styles.dato}>Técnico-mecánica</Text>
-                        <Text style={[styles.docEstado, { color: "#9BA7BA" }]}>
+                        <Text style={[styles.docEstado, { color: p.textoTenue }]}>
                           Exento
                         </Text>
                       </View>
@@ -356,7 +360,7 @@ export default function AdminScreen() {
                           value={motivo}
                           onChangeText={setMotivo}
                           placeholder="Motivo del rechazo (obligatorio)"
-                          placeholderTextColor="#657187"
+                          placeholderTextColor={p.textoPista2}
                           multiline
                           maxLength={300}
                           style={styles.input}
@@ -377,7 +381,7 @@ export default function AdminScreen() {
                             onPress={() => rechazar(item)}
                             style={[styles.boton, styles.botonRechazo]}
                           >
-                            <Text style={styles.botonTexto}>
+                            <Text style={[styles.botonTexto, styles.botonTextoAcento]}>
                               {ocupado ? "Guardando…" : "Confirmar rechazo"}
                             </Text>
                           </Pressable>
@@ -394,7 +398,7 @@ export default function AdminScreen() {
                             }}
                             style={[styles.boton, styles.botonRechazo]}
                           >
-                            <Text style={styles.botonTexto}>Rechazar</Text>
+                            <Text style={[styles.botonTexto, styles.botonTextoAcento]}>Rechazar</Text>
                           </Pressable>
                         )}
                         {filtro !== "aprobado" && (
@@ -403,7 +407,7 @@ export default function AdminScreen() {
                             onPress={() => aprobar(item)}
                             style={[styles.boton, styles.botonAprobar]}
                           >
-                            <Text style={styles.botonTexto}>
+                            <Text style={[styles.botonTexto, styles.botonTextoAcento]}>
                               {ocupado ? "Guardando…" : "Aprobar"}
                             </Text>
                           </Pressable>
@@ -421,8 +425,8 @@ export default function AdminScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: FONDO },
+const crearEstilos = (p: Paleta) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: p.fondo },
   contenido: {
     paddingHorizontal: 20,
     paddingTop: 16,
@@ -431,18 +435,18 @@ const styles = StyleSheet.create({
   },
   topBar: { flexDirection: "row" },
   btnBack: {
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: p.velo(0.1),
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 14,
   },
-  btnBackText: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
+  btnBackText: { color: p.texto, fontWeight: "700", fontSize: 13 },
   secciones: {
     flexDirection: "row",
     padding: 4,
     gap: 4,
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: p.velo(0.06),
   },
   seccion: {
     flex: 1,
@@ -452,22 +456,22 @@ const styles = StyleSheet.create({
   },
   seccionActiva: { backgroundColor: AZUL },
   seccionTexto: {
-    color: "rgba(255,255,255,0.7)",
+    color: p.textoAlfa(0.7),
     fontSize: 13,
     fontWeight: "800",
   },
   seccionTextoActivo: { color: "#FFFFFF" },
   subtitulo: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.5,
     marginBottom: -12,
   },
-  titulo: { color: "#eeecec", fontSize: 28, fontWeight: "900" },
+  titulo: { color: p.textoTitulo, fontSize: 28, fontWeight: "900" },
   azul: { color: AZUL },
   descripcion: {
-    color: "#9BA7BA",
+    color: p.textoTenue,
     fontSize: 13,
     lineHeight: 19,
     marginTop: -8,
@@ -478,30 +482,30 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.velo(0.04),
   },
   chipActivo: { backgroundColor: AZUL, borderColor: AZUL },
   chipTexto: {
-    color: "rgba(255,255,255,0.75)",
+    color: p.textoAlfa(0.75),
     fontSize: 13,
     fontWeight: "700",
   },
   chipTextoActivo: { color: "#FFFFFF" },
-  vacio: { color: "#9BA7BA", fontSize: 14, textAlign: "center", marginTop: 30 },
+  vacio: { color: p.textoTenue, fontSize: 14, textAlign: "center", marginTop: 30 },
   tarjeta: {
     padding: 16,
     gap: 8,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.panel(0.94),
   },
-  nombre: { color: "#FFFFFF", fontSize: 17, fontWeight: "800" },
-  dato: { color: "#D5DCE8", fontSize: 13, lineHeight: 18, flexShrink: 1 },
+  nombre: { color: p.texto, fontSize: 17, fontWeight: "800" },
+  dato: { color: p.textoDato, fontSize: 13, lineHeight: 18, flexShrink: 1 },
   divisor: {
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: p.velo(0.12),
     marginVertical: 4,
   },
   filaDoc: {
@@ -511,15 +515,15 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   docEstado: { fontSize: 12, fontWeight: "800" },
-  motivo: { color: "#f87171", fontSize: 13, lineHeight: 18 },
+  motivo: { color: p.textoError2, fontSize: 13, lineHeight: 18 },
   input: {
     minHeight: 70,
     padding: 12,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    backgroundColor: "rgba(255,255,255,0.05)",
-    color: "#FFFFFF",
+    borderColor: p.linea(0.2),
+    backgroundColor: p.velo(0.05),
+    color: p.texto,
     fontSize: 14,
     textAlignVertical: "top",
   },
@@ -530,8 +534,10 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
   },
-  botonAprobar: { backgroundColor: "#10b981" },
-  botonRechazo: { backgroundColor: "#ef4444" },
-  botonNeutro: { backgroundColor: "rgba(255,255,255,0.12)" },
-  botonTexto: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
+  botonAprobar: { backgroundColor: p.rellenoExito },
+  botonRechazo: { backgroundColor: p.rellenoError },
+  botonNeutro: { backgroundColor: p.velo(0.12) },
+  botonTexto: { color: p.texto, fontWeight: "800", fontSize: 14 },
+  // Sobre los botones de color sólido (verde / rojo) el texto va siempre blanco.
+  botonTextoAcento: { color: "#FFFFFF" },
 });

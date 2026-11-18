@@ -36,50 +36,66 @@ import {
 import Icono, { type NombreIcono } from "../components/ui/Icono";
 import TextoIcono from "../components/ui/TextoIcono";
 import TextoCalificacion from "../components/ui/TextoCalificacion";
+import { usePaleta, useEstilos, type Paleta } from "../services/temaStore";
 
 const AZUL = "#2969e9";
-const FONDO = "#111318";
 
 const ESTADOS: Record<
   EstadoServicio,
-  { icono: NombreIcono; texto: string; color: string; fondo: string; borde: string }
+  { icono: NombreIcono; texto: string }
 > = {
   pendiente: {
     icono: "hourglass-outline",
     texto: "Buscando transportista",
-    color: "#fbbf24",
-    fondo: "rgba(251,191,36,0.10)",
-    borde: "rgba(251,191,36,0.35)",
   },
   aceptada: {
     icono: "checkmark-circle-outline",
     texto: "Aceptada · el transportista va a recoger",
-    color: "#8DB2FF",
-    fondo: "rgba(41,105,233,0.12)",
-    borde: "rgba(41,105,233,0.4)",
   },
   en_curso: {
     icono: "navigate-outline",
     texto: "En camino al destino",
-    color: "#86E8BD",
-    fondo: "rgba(80,220,164,0.10)",
-    borde: "rgba(80,220,164,0.35)",
   },
   completada: {
     icono: "checkmark-done-outline",
     texto: "Completada",
-    color: "#86E8BD",
-    fondo: "rgba(80,220,164,0.10)",
-    borde: "rgba(80,220,164,0.35)",
   },
   cancelada: {
     icono: "close-circle-outline",
     texto: "Cancelaste este servicio",
-    color: "#fca5a5",
+  },
+};
+
+/** Colores de cada estado (el texto cambia según el tema; fondo y borde son translúcidos). */
+const coloresEstado = (
+  p: Paleta,
+): Record<EstadoServicio, { color: string; fondo: string; borde: string }> => ({
+  pendiente: {
+    color: p.textoAviso,
+    fondo: "rgba(251,191,36,0.10)",
+    borde: "rgba(251,191,36,0.35)",
+  },
+  aceptada: {
+    color: p.acento,
+    fondo: "rgba(41,105,233,0.12)",
+    borde: "rgba(41,105,233,0.4)",
+  },
+  en_curso: {
+    color: p.textoExito2,
+    fondo: "rgba(80,220,164,0.10)",
+    borde: "rgba(80,220,164,0.35)",
+  },
+  completada: {
+    color: p.textoExito2,
+    fondo: "rgba(80,220,164,0.10)",
+    borde: "rgba(80,220,164,0.35)",
+  },
+  cancelada: {
+    color: p.textoError,
     fondo: "rgba(239,68,68,0.10)",
     borde: "rgba(239,68,68,0.35)",
   },
-};
+});
 
 /** Texto del estado según si el servicio programado ya se inició. */
 const textoEstado = (
@@ -107,6 +123,8 @@ const formatearFecha = (iso?: string) => {
 };
 
 export default function SolicitudesScreen() {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const router = useRouter();
   const [servicios, setServicios] = useState<SolicitudServicioDTO[]>([]);
   const [loading, setLoading] = useState(true);
@@ -241,7 +259,7 @@ export default function SolicitudesScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle="light-content" backgroundColor={FONDO} />
+      <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
 
       <View style={styles.mainContainer}>
         <ScrollView
@@ -301,7 +319,7 @@ export default function SolicitudesScreen() {
               <Icono
                 nombre="cube-outline"
                 tamano={44}
-                color="rgba(255,255,255,0.7)"
+                color={p.textoAlfa(0.7)}
                 style={styles.emptyIcon}
               />
               <Text style={styles.emptyTitle}>Aún no tienes solicitudes</Text>
@@ -324,7 +342,10 @@ export default function SolicitudesScreen() {
               const inmediato = esInmediato(item);
               const borrando = eliminandoId === item.id;
               const estadoItem = item.estado ?? "pendiente";
-              const estado = ESTADOS[estadoItem];
+              const estado = {
+                ...ESTADOS[estadoItem],
+                ...coloresEstado(p)[estadoItem],
+              };
               const t = item.transportista;
               // Aceptada y sin iniciar: se puede cancelar (con 48 h de margen).
               const cancelable = estadoItem === "aceptada" && !estaIniciado(item);
@@ -354,7 +375,7 @@ export default function SolicitudesScreen() {
                         icono={inmediato ? "flash" : "calendar-outline"}
                         style={[
                           styles.statusChipText,
-                          { color: inmediato ? "#fbbf24" : AZUL },
+                          { color: inmediato ? p.textoAviso : p.azulTexto },
                         ]}
                       >
                         {inmediato ? "Inmediato" : item.fechaProgramada}
@@ -529,7 +550,7 @@ export default function SolicitudesScreen() {
                         accessibilityState={{ disabled: cancelacionBloqueada }}
                       >
                         {borrando ? (
-                          <ActivityIndicator size="small" color="#fca5a5" />
+                          <ActivityIndicator size="small" color={p.textoError} />
                         ) : (
                           <TextoIcono
                             icono={
@@ -570,7 +591,7 @@ export default function SolicitudesScreen() {
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
                         {borrando ? (
-                          <ActivityIndicator size="small" color="#fca5a5" />
+                          <ActivityIndicator size="small" color={p.textoError} />
                         ) : (
                           <TextoIcono icono="trash-outline" style={styles.btnDeleteText}>
                             Eliminar
@@ -613,10 +634,10 @@ export default function SolicitudesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: FONDO },
-  mainContainer: { flex: 1, backgroundColor: FONDO },
-  container: { flex: 1, backgroundColor: FONDO },
+const crearEstilos = (p: Paleta) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: p.fondo },
+  mainContainer: { flex: 1, backgroundColor: p.fondo },
+  container: { flex: 1, backgroundColor: p.fondo },
   contentContainer: {
     paddingHorizontal: 20, // Igualado a los 20 de la pantalla principal
     paddingTop: 16,
@@ -631,12 +652,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   btnBack: {
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: p.velo(0.1),
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 14,
   },
-  btnBackText: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
+  btnBackText: { color: p.texto, fontWeight: "700", fontSize: 13 },
   btnNew: {
     backgroundColor: AZUL,
     paddingHorizontal: 16,
@@ -648,22 +669,22 @@ const styles = StyleSheet.create({
   // Encabezado
   headerContainer: { marginBottom: 20 },
   subtitleHeader: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.5,
   },
   titleHeader: {
-    color: "#eeecec",
+    color: p.textoTitulo,
     fontSize: 28,
     fontWeight: "900",
     marginTop: 2,
-    textShadowColor: "rgba(0,0,0,0.65)",
+    textShadowColor: p.sombraTexto(0.65),
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 5,
   },
   titleHighlight: { color: AZUL },
-  counterText: { color: "#9ca3af", fontSize: 13, marginTop: 4 },
+  counterText: { color: p.textoTenue2, fontSize: 13, marginTop: 4 },
 
   loaderContainer: { marginTop: 50, alignItems: "center" },
 
@@ -671,11 +692,11 @@ const styles = StyleSheet.create({
   emptyContainer: {
     marginTop: 30,
     alignItems: "center",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    backgroundColor: p.panel(0.94),
     padding: 28,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderColor: p.linea(0.2),
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
@@ -684,16 +705,16 @@ const styles = StyleSheet.create({
   },
   emptyIcon: { marginBottom: 10 },
   emptyTitle: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 17,
     fontWeight: "800",
     marginBottom: 6,
-    textShadowColor: "rgba(0,0,0,0.55)",
+    textShadowColor: p.sombraTexto(0.55),
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   emptyText: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 13,
     textAlign: "center",
     marginBottom: 18,
@@ -709,10 +730,10 @@ const styles = StyleSheet.create({
 
   // Tarjeta (Igualando la sombra y bordes del panelPunto de la pantalla inicial)
   cardService: {
-    backgroundColor: "rgba(17,19,24,0.94)",
+    backgroundColor: p.panel(0.94),
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
+    borderColor: p.linea(0.15),
     padding: 16,
     marginBottom: 16,
     shadowColor: "#000000",
@@ -758,11 +779,11 @@ const styles = StyleSheet.create({
   // Ruta
   routeContainer: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.03)",
+    backgroundColor: p.velo(0.03),
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: p.linea(0.08),
     marginBottom: 12,
   },
   timelineCol: { alignItems: "center", marginRight: 12, paddingVertical: 4 },
@@ -770,45 +791,45 @@ const styles = StyleSheet.create({
   timelineLine: {
     flex: 1,
     width: 2,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: p.velo(0.15),
     marginVertical: 4,
   },
   routeTexts: { flex: 1 },
   routeBlock: { marginBottom: 10 },
   routeLabel: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1,
     marginBottom: 2,
   },
-  routeValue: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
+  routeValue: { color: p.texto, fontSize: 14, fontWeight: "700" },
 
   // Detalle
   descBox: { marginBottom: 12 },
   descLabel: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1,
     marginBottom: 3,
   },
-  cardDesc: { color: "#E7F0F4", fontSize: 13, lineHeight: 18 },
+  cardDesc: { color: p.textoSuave, fontSize: 13, lineHeight: 18 },
 
   // Métricas
   metricsRow: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.03)",
+    backgroundColor: p.velo(0.03),
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: p.linea(0.08),
     paddingVertical: 10,
     marginBottom: 14,
   },
   metricBox: { flex: 1, alignItems: "center" },
-  metricValue: { color: "#FFFFFF", fontSize: 18, fontWeight: "800" },
-  metricLabel: { color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 1 },
-  metricDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.15)" },
+  metricValue: { color: p.texto, fontSize: 18, fontWeight: "800" },
+  metricLabel: { color: p.textoAlfa(0.6), fontSize: 11, marginTop: 1 },
+  metricDivider: { width: 1, backgroundColor: p.velo(0.15) },
 
   // Pie
   cardFooter: {
@@ -816,19 +837,19 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     justifyContent: "space-between",
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.1)",
+    borderTopColor: p.linea(0.1),
     paddingTop: 12,
     gap: 10,
   },
   contactInfo: { flex: 1 },
-  contactName: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
+  contactName: { color: p.texto, fontSize: 13, fontWeight: "700" },
   contactPhone: {
-    color: AZUL,
+    color: p.azulTexto,
     fontSize: 12,
     fontWeight: "700",
     marginTop: 2,
   },
-  createdAt: { color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 4 },
+  createdAt: { color: p.textoAlfa(0.5), fontSize: 11, marginTop: 4 },
   btnDelete: {
     backgroundColor: "rgba(239,68,68,0.15)",
     borderWidth: 1,
@@ -840,7 +861,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  btnDeleteText: { color: "#fca5a5", fontSize: 12, fontWeight: "800" },
+  btnDeleteText: { color: p.textoError, fontSize: 12, fontWeight: "800" },
 
   // Estado y transportista
   estadoBox: {
@@ -850,7 +871,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 12,
   },
-  motivoTexto: { color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 4 },
+  motivoTexto: { color: p.textoAlfa(0.7), fontSize: 12, marginTop: 4 },
   estadoTexto: { fontSize: 12, fontWeight: "800" },
   transportistaBox: {
     flexDirection: "row",
@@ -864,7 +885,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   transportistaDatos: { flex: 1 },
-  vehiculoTexto: { color: "#9BA7BA", fontSize: 12, marginTop: 2 },
+  vehiculoTexto: { color: p.textoTenue, fontSize: 12, marginTop: 2 },
   btnLlamar: {
     backgroundColor: AZUL,
     paddingHorizontal: 12,
@@ -872,7 +893,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   btnLlamarText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
-  calificacionTexto: { color: "#fbbf24", fontSize: 12, fontWeight: "700", marginTop: 2 },
+  calificacionTexto: { color: p.textoAviso, fontSize: 12, fontWeight: "700", marginTop: 2 },
   btnCalificar: {
     backgroundColor: "#fbbf24",
     paddingHorizontal: 12,
@@ -883,12 +904,12 @@ const styles = StyleSheet.create({
   },
   btnCalificarText: { color: "#1a1300", fontSize: 12, fontWeight: "900" },
   btnBloqueado: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: p.velo(0.05),
+    borderColor: p.linea(0.12),
   },
-  btnBloqueadoText: { color: "rgba(255,255,255,0.35)" },
+  btnBloqueadoText: { color: p.textoAlfa(0.35) },
   textoBloqueo: {
-    color: "rgba(255,255,255,0.5)",
+    color: p.textoAlfa(0.5),
     fontSize: 11,
     marginTop: 10,
     lineHeight: 16,

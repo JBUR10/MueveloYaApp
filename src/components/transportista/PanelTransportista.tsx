@@ -79,9 +79,9 @@ import { obtenerMiVehiculo, revisarDocumentos } from "../../services/vehiculoSer
 import Icono, { type NombreIcono } from "../ui/Icono";
 import TextoIcono from "../ui/TextoIcono";
 import TextoCalificacion from "../ui/TextoCalificacion";
+import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 const AZUL = "#2969e9";
-const FONDO = "#111318";
 
 /** Respaldo del tiempo real: las solicitudes que toma otro transportista
  *  dejan de ser visibles y Supabase no avisa de eso. */
@@ -173,6 +173,8 @@ const llamar = (telefono: string) =>
   );
 
 export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const router = useRouter();
   // Mapa: ?ruta=<id> abre la ruta de un servicio; ?ver=<id> abre una solicitud.
   // Lista: ?seccion=aceptadas abre esa sección.
@@ -802,7 +804,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
         <TextoIcono
           icono="ellipse"
           tamanoIcono={10}
-          colorIcono={disponible ? "#34D399" : "#9BA7BA"}
+          colorIcono={disponible ? p.textoExito : p.textoTenue}
           style={styles.ayudantesTitulo}
         >
           {disponible ? "Disponible" : "No disponible"}
@@ -816,7 +818,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
         )}
       </View>
       {cambiandoDisponible ? (
-        <ActivityIndicator size="small" color="#FFFFFF" />
+        <ActivityIndicator size="small" color={p.texto} />
       ) : (
         <View style={[styles.interruptor, disponible && styles.interruptorDisponible]}>
           <View
@@ -910,7 +912,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             >
               <TextoIcono
                 icono={inmediato ? "flash" : "calendar-outline"}
-                style={[styles.statusChipText, { color: inmediato ? "#fbbf24" : AZUL }]}
+                style={[styles.statusChipText, { color: inmediato ? p.textoAviso : p.azulTexto }]}
               >
                 {inmediato ? "Inmediato" : item.fechaProgramada}
               </TextoIcono>
@@ -923,7 +925,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
               accessibilityLabel="Cerrar"
               style={styles.btnCerrarX}
             >
-              <Icono nombre="close" tamano={16} color="#FFFFFF" />
+              <Icono nombre="close" tamano={16} color={p.texto} />
             </Pressable>
           </View>
         </View>
@@ -1091,7 +1093,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             accessibilityLabel="Cerrar aviso"
             style={styles.btnCerrarX}
           >
-            <Icono nombre="close" tamano={16} color="#FFFFFF" />
+            <Icono nombre="close" tamano={16} color={p.texto} />
           </Pressable>
         </View>
         <TextoIcono
@@ -1103,7 +1105,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
         </TextoIcono>
         <Text style={styles.avisoRuta} numberOfLines={1}>
           {item.origen}{"  "}
-          <Icono nombre="arrow-forward" tamano={14} color="#E7F0F4" />
+          <Icono nombre="arrow-forward" tamano={14} color={p.textoSuave} />
           {"  "}{item.destino}
         </Text>
         {/* Datos a la izquierda y el botón a la derecha, con su tamaño natural. */}
@@ -1168,7 +1170,10 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             style={[styles.btnFlotante, styles.btnMiRuta]}
             activeOpacity={0.8}
           >
-            <TextoIcono icono="arrow-back" style={styles.btnBackText}>
+            <TextoIcono
+              icono="arrow-back"
+              style={[styles.btnBackText, styles.btnMiRutaTexto]}
+            >
               Mi ruta
             </TextoIcono>
           </TouchableOpacity>
@@ -1307,7 +1312,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           accessibilityState={{ disabled: procesando || bloqueado }}
         >
           {procesando ? (
-            <ActivityIndicator size="small" color="#fca5a5" />
+            <ActivityIndicator size="small" color={p.textoError} />
           ) : (
             <TextoIcono
               icono={bloqueado ? "lock-closed-outline" : "close"}
@@ -1346,7 +1351,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             <View style={[styles.statusChip, styles.chipAceptada]}>
               <TextoIcono
                 icono="navigate-outline"
-                style={[styles.statusChipText, { color: "#86E8BD" }]}
+                style={[styles.statusChipText, { color: p.textoExito2 }]}
               >
                 {item.estado === "en_curso" ? "Hacia la entrega" : "Hacia la recogida"}
               </TextoIcono>
@@ -1360,7 +1365,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             >
               <TextoIcono
                 icono={inmediato ? "flash" : "calendar-outline"}
-                style={[styles.statusChipText, { color: inmediato ? "#fbbf24" : AZUL }]}
+                style={[styles.statusChipText, { color: inmediato ? p.textoAviso : p.azulTexto }]}
               >
                 {inmediato ? "Inmediato" : item.fechaProgramada}
               </TextoIcono>
@@ -1476,7 +1481,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
                   styles.statusChipText,
                   {
                     color:
-                      historialItem.tipo === "completada" ? "#86E8BD" : "#fca5a5",
+                      historialItem.tipo === "completada" ? p.textoExito2 : p.textoError,
                   },
                 ]}
               >
@@ -1617,7 +1622,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             <Icono
               nombre="car-outline"
               tamano={44}
-              color="rgba(255,255,255,0.7)"
+              color={p.textoAlfa(0.7)}
               style={styles.emptyIcon}
             />
             <Text style={styles.emptyTitle}>{vacio.titulo}</Text>
@@ -1632,7 +1637,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle="light-content" backgroundColor={FONDO} />
+      <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
 
       <View style={styles.mainContainer}>
         {vista === "mapa" ? renderVistaMapa() : renderVistaLista()}
@@ -1700,6 +1705,7 @@ function Ruta({
   destino: string;
   compacta?: boolean;
 }) {
+  const styles = useEstilos(crearEstilos);
   return (
     <View style={[styles.routeContainer, compacta && styles.routeCompacta]}>
       <View style={styles.timelineCol}>
@@ -1726,6 +1732,7 @@ function Ruta({
 }
 
 function Metrica({ valor, etiqueta }: { valor: number | string; etiqueta: string }) {
+  const styles = useEstilos(crearEstilos);
   return (
     <View style={styles.metricBox}>
       <Text style={styles.metricValue}>{valor}</Text>
@@ -1734,10 +1741,10 @@ function Metrica({ valor, etiqueta }: { valor: number | string; etiqueta: string
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: FONDO },
-  mainContainer: { flex: 1, backgroundColor: FONDO },
-  container: { flex: 1, backgroundColor: FONDO },
+const crearEstilos = (p: Paleta) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: p.fondo },
+  mainContainer: { flex: 1, backgroundColor: p.fondo },
+  container: { flex: 1, backgroundColor: p.fondo },
   contentContainer: {
     paddingHorizontal: 20,
     paddingTop: 16,
@@ -1752,7 +1759,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: p.velo(0.1),
   },
   btnRechazar: {
     flex: 1,
@@ -1764,21 +1771,21 @@ const styles = StyleSheet.create({
     borderColor: "rgba(239,68,68,0.55)",
     backgroundColor: "rgba(239,68,68,0.12)",
   },
-  btnRechazarText: { color: "#fca5a5", fontWeight: "800", fontSize: 13 },
+  btnRechazarText: { color: p.textoError, fontWeight: "800", fontSize: 13 },
   avisoNuevaTarjeta: {
     borderColor: "rgba(41,105,233,0.75)",
     gap: 4,
   },
   avisoArriba: { top: 64, bottom: undefined },
   avisoEtiqueta: {
-    color: "#8DB2FF",
+    color: p.acento,
     fontSize: 11,
     fontWeight: "900",
     letterSpacing: 1,
   },
-  avisoTitulo: { color: "#FFFFFF", fontSize: 16, fontWeight: "900" },
-  avisoRuta: { color: "#E7F0F4", fontSize: 13 },
-  avisoDatos: { color: "#10b981", fontSize: 14, fontWeight: "800" },
+  avisoTitulo: { color: p.texto, fontSize: 16, fontWeight: "900" },
+  avisoRuta: { color: p.textoSuave, fontSize: 13 },
+  avisoDatos: { color: p.textoExito3, fontSize: 14, fontWeight: "800" },
   filaAvisoBoton: {
     flexDirection: "row",
     alignItems: "center",
@@ -1795,7 +1802,7 @@ const styles = StyleSheet.create({
     backgroundColor: AZUL,
   },
   btnMiRuta: {
-    backgroundColor: "rgba(16,185,129,0.9)",
+    backgroundColor: p.rellenoExito,
     borderColor: "rgba(134,232,189,0.7)",
   },
   avisoNueva: {
@@ -1812,7 +1819,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: "#2969e9",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.35)",
+    borderColor: p.linea(0.35),
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -1828,9 +1835,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 14,
-    backgroundColor: "rgba(17,19,24,0.92)",
+    backgroundColor: p.panel(0.92),
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderColor: p.linea(0.18),
   },
   tarjetaDisponible: {
     flexDirection: "row",
@@ -1839,8 +1846,8 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.13)",
-    backgroundColor: "rgba(255,255,255,0.045)",
+    borderColor: p.linea(0.13),
+    backgroundColor: p.velo(0.045),
     marginBottom: 12,
   },
   disponibleActivo: {
@@ -1852,7 +1859,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(134,232,189,0.65)",
   },
   motivoHistorial: {
-    color: "rgba(255,255,255,0.7)",
+    color: p.textoAlfa(0.7),
     fontSize: 12,
     marginTop: 4,
   },
@@ -1868,9 +1875,9 @@ const styles = StyleSheet.create({
   },
   grupoBotones: { flexDirection: "row", gap: 8 },
   btnFlotante: {
-    backgroundColor: "rgba(17,19,24,0.92)",
+    backgroundColor: p.panel(0.92),
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderColor: p.linea(0.18),
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 14,
@@ -1884,8 +1891,8 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    backgroundColor: "rgba(17,19,24,0.96)",
+    borderColor: p.linea(0.2),
+    backgroundColor: p.panel(0.96),
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
@@ -1894,7 +1901,7 @@ const styles = StyleSheet.create({
   },
   panelRuta: { bottom: 16 },
   panelAyuda: { gap: 10 },
-  textoAyuda: { color: "rgba(255,255,255,0.75)", fontSize: 13, lineHeight: 18 },
+  textoAyuda: { color: p.textoAlfa(0.75), fontSize: 13, lineHeight: 18 },
   btnAceptadas: {
     backgroundColor: AZUL,
     borderRadius: 12,
@@ -1902,7 +1909,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   distancia: {
-    color: "#8DB2FF",
+    color: p.acento,
     fontSize: 12,
     fontWeight: "800",
     marginTop: -6,
@@ -1915,9 +1922,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: p.velo(0.1),
   },
-  btnSecundarioText: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
+  btnSecundarioText: { color: p.texto, fontWeight: "700", fontSize: 13 },
   btnPrimario: {
     flex: 2,
     minHeight: 46,
@@ -1945,16 +1952,16 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(16,185,129,0.15)",
     borderColor: "rgba(16,185,129,0.45)",
   },
-  faseTexto: { color: "#FFFFFF", fontSize: 11, fontWeight: "800" },
-  infoRuta: { color: "#8DB2FF", fontSize: 12, fontWeight: "800" },
+  faseTexto: { color: p.texto, fontSize: 11, fontWeight: "800" },
+  infoRuta: { color: p.acento, fontSize: 12, fontWeight: "800" },
   tituloRuta: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.3,
   },
   direccionRuta: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 15,
     fontWeight: "800",
     marginTop: 4,
@@ -1966,11 +1973,11 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.1)",
+    borderTopColor: p.linea(0.1),
     gap: 10,
   },
   calificacionCliente: {
-    color: "#fbbf24",
+    color: p.textoAviso,
     fontSize: 12,
     fontWeight: "700",
     marginBottom: 8,
@@ -1993,12 +2000,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   btnBack: {
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: p.velo(0.1),
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 14,
   },
-  btnBackText: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
+  btnBackText: { color: p.texto, fontWeight: "700", fontSize: 13 },
+  // "Mi ruta" va sobre el verde sólido: texto blanco.
+  btnMiRutaTexto: { color: "#FFFFFF" },
   chipModo: {
     flexDirection: "row",
     alignItems: "center",
@@ -2006,7 +2015,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 14,
-    backgroundColor: "rgba(17,19,24,0.92)",
+    backgroundColor: p.panel(0.92),
     borderWidth: 1,
     borderColor: "rgba(80,220,164,0.35)",
   },
@@ -2016,22 +2025,22 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: "#50DCA4",
   },
-  chipModoText: { color: "#86E8BD", fontSize: 12, fontWeight: "800" },
+  chipModoText: { color: p.textoExito2, fontSize: 12, fontWeight: "800" },
 
   // Encabezado
   headerContainer: { marginBottom: 20 },
   subtitleHeader: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.5,
   },
   titleHeader: {
-    color: "#eeecec",
+    color: p.textoTitulo,
     fontSize: 28,
     fontWeight: "900",
     marginTop: 2,
-    textShadowColor: "rgba(0,0,0,0.65)",
+    textShadowColor: p.sombraTexto(0.65),
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 5,
   },
@@ -2045,22 +2054,22 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.13)",
-    backgroundColor: "rgba(255,255,255,0.045)",
+    borderColor: p.linea(0.13),
+    backgroundColor: p.velo(0.045),
     marginBottom: 16,
   },
   ayudantesTexto: { flex: 1, gap: 6 },
-  ayudantesTitulo: { color: "#F0F3F8", fontSize: 12, fontWeight: "700" },
-  ayudantesDescripcion: { color: "#9BA7BA", fontSize: 10, lineHeight: 15 },
+  ayudantesTitulo: { color: p.textoFuerte2, fontSize: 12, fontWeight: "700" },
+  ayudantesDescripcion: { color: p.textoTenue, fontSize: 10, lineHeight: 15 },
   interruptor: {
     width: 44,
     height: 25,
     borderRadius: 14,
     padding: 3,
     justifyContent: "center",
-    backgroundColor: "#353A46",
+    backgroundColor: p.interruptor,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: p.linea(0.12),
   },
   interruptorActivo: {
     backgroundColor: "rgba(41,105,233,0.85)",
@@ -2070,7 +2079,7 @@ const styles = StyleSheet.create({
     width: 17,
     height: 17,
     borderRadius: 9,
-    backgroundColor: "#D4D9E1",
+    backgroundColor: p.interruptorPunto,
   },
   interruptorPuntoActivo: {
     alignSelf: "flex-end",
@@ -2084,8 +2093,8 @@ const styles = StyleSheet.create({
     padding: 4,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    borderColor: p.linea(0.1),
+    backgroundColor: p.velo(0.04),
     marginBottom: 16,
   },
   segmento: {
@@ -2096,13 +2105,13 @@ const styles = StyleSheet.create({
   },
   segmentoActivo: { backgroundColor: AZUL },
   segmentoText: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 11,
     fontWeight: "700",
   },
   segmentoTextActivo: { color: "#FFFFFF", fontWeight: "800" },
   notaCancelacion: {
-    color: "#9ca3af",
+    color: p.textoTenue2,
     fontSize: 12,
     marginBottom: 12,
     lineHeight: 17,
@@ -2114,11 +2123,11 @@ const styles = StyleSheet.create({
   emptyContainer: {
     marginTop: 10,
     alignItems: "center",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    backgroundColor: p.panel(0.94),
     padding: 28,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderColor: p.linea(0.2),
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
@@ -2127,14 +2136,14 @@ const styles = StyleSheet.create({
   },
   emptyIcon: { marginBottom: 10 },
   emptyTitle: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 17,
     fontWeight: "800",
     marginBottom: 6,
     textAlign: "center",
   },
   emptyText: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 13,
     textAlign: "center",
     lineHeight: 19,
@@ -2142,10 +2151,10 @@ const styles = StyleSheet.create({
 
   // Tarjeta
   cardService: {
-    backgroundColor: "rgba(17,19,24,0.94)",
+    backgroundColor: p.panel(0.94),
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
+    borderColor: p.linea(0.15),
     padding: 16,
     marginBottom: 16,
     shadowColor: "#000000",
@@ -2199,11 +2208,11 @@ const styles = StyleSheet.create({
   // Ruta
   routeContainer: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.03)",
+    backgroundColor: p.velo(0.03),
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: p.linea(0.08),
     marginBottom: 12,
   },
   routeCompacta: { padding: 10, marginBottom: 10 },
@@ -2212,45 +2221,45 @@ const styles = StyleSheet.create({
   timelineLine: {
     flex: 1,
     width: 2,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: p.velo(0.15),
     marginVertical: 4,
   },
   routeTexts: { flex: 1 },
   routeBlock: { marginBottom: 10 },
   routeLabel: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1,
     marginBottom: 2,
   },
-  routeValue: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
+  routeValue: { color: p.texto, fontSize: 14, fontWeight: "700" },
 
   // Detalle
   descBox: { marginBottom: 12 },
   descLabel: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1,
     marginBottom: 3,
   },
-  cardDesc: { color: "#E7F0F4", fontSize: 13, lineHeight: 18 },
+  cardDesc: { color: p.textoSuave, fontSize: 13, lineHeight: 18 },
 
   // Métricas
   metricsRow: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.03)",
+    backgroundColor: p.velo(0.03),
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: p.linea(0.08),
     paddingVertical: 10,
     marginBottom: 14,
   },
   metricBox: { flex: 1, alignItems: "center" },
-  metricValue: { color: "#FFFFFF", fontSize: 18, fontWeight: "800" },
-  metricLabel: { color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 1 },
-  metricDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.15)" },
+  metricValue: { color: p.texto, fontSize: 18, fontWeight: "800" },
+  metricLabel: { color: p.textoAlfa(0.6), fontSize: 11, marginTop: 1 },
+  metricDivider: { width: 1, backgroundColor: p.velo(0.15) },
 
   // Pie
   cardFooter: {
@@ -2258,19 +2267,19 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     justifyContent: "space-between",
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.1)",
+    borderTopColor: p.linea(0.1),
     paddingTop: 12,
     gap: 10,
   },
   contactInfo: { flex: 1 },
-  contactName: { color: "#FFFFFF", fontSize: 13, fontWeight: "700", flexShrink: 1 },
+  contactName: { color: p.texto, fontSize: 13, fontWeight: "700", flexShrink: 1 },
   contactPhone: {
-    color: AZUL,
+    color: p.azulTexto,
     fontSize: 12,
     fontWeight: "700",
     marginTop: 2,
   },
-  createdAt: { color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 4 },
+  createdAt: { color: p.textoAlfa(0.5), fontSize: 11, marginTop: 4 },
 
   // Acciones
   btnAceptar: {
@@ -2294,14 +2303,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  btnCancelarText: { color: "#fca5a5", fontSize: 12, fontWeight: "800" },
+  btnCancelarText: { color: p.textoError, fontSize: 12, fontWeight: "800" },
   btnBloqueado: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: p.velo(0.05),
+    borderColor: p.linea(0.12),
   },
-  btnBloqueadoText: { color: "rgba(255,255,255,0.35)" },
+  btnBloqueadoText: { color: p.textoAlfa(0.35) },
   textoBloqueo: {
-    color: "rgba(255,255,255,0.5)",
+    color: p.textoAlfa(0.5),
     fontSize: 11,
     marginTop: 10,
     lineHeight: 16,

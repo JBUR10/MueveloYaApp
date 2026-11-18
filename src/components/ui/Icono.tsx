@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
 import type { StyleProp, TextStyle } from "react-native";
+import { usePaleta } from "../../services/temaStore";
 
 /** Nombres válidos de Ionicons (autocompletado y verificación de tipos). */
 export type NombreIcono = ComponentProps<typeof Ionicons>["name"];
@@ -22,14 +23,15 @@ type Props = {
 export default function Icono({
   nombre,
   tamano = 18,
-  color = "#FFFFFF",
+  color,
   style,
 }: Props) {
+  const p = usePaleta();
   return (
     <Ionicons
       name={nombre}
       size={tamano}
-      color={color}
+      color={color ?? p.texto}
       style={style}
       allowFontScaling={false}
       accessible={false}

@@ -4,6 +4,7 @@ import type { Calificacion } from "../../services/servicioService";
 import { textoCalificacion } from "../../services/servicioService";
 import { Text } from "./Texto";
 import TextoIcono from "./TextoIcono";
+import { usePaleta } from "../../services/temaStore";
 
 type Props = TextProps & {
   calificacion?: Calificacion | null;
@@ -17,6 +18,7 @@ export default function TextoCalificacion({
   prefijo = "",
   ...resto
 }: Props) {
+  const p = usePaleta();
   if (calificacion?.promedio == null) {
     return (
       <Text {...resto}>
@@ -27,7 +29,7 @@ export default function TextoCalificacion({
   }
 
   return (
-    <TextoIcono icono="star" colorIcono="#FBBF24" {...resto}>
+    <TextoIcono icono="star" colorIcono={p.estrella} {...resto}>
       {prefijo}
       {textoCalificacion(calificacion)}
     </TextoIcono>

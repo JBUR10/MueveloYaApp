@@ -17,9 +17,9 @@ import {
 } from "react-native";
 import { Text, TextInput } from "../ui/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 export const AZUL = "#2969e9";
-const FONDO = "#111318";
 
 export function PantallaAuth({
   etiqueta,
@@ -34,9 +34,11 @@ export function PantallaAuth({
   descripcion?: string;
   children: ReactNode;
 }) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle="light-content" backgroundColor={FONDO} />
+      <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -80,6 +82,8 @@ export function Campo({
   clave = false,
   ...props
 }: TextInputProps & { etiqueta: string; error?: string; clave?: boolean }) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const [visible, setVisible] = useState(false);
   const [enfocado, setEnfocado] = useState(false);
 
@@ -94,7 +98,7 @@ export function Campo({
         ]}
       >
         <TextInput
-          placeholderTextColor="rgba(255,255,255,0.35)"
+          placeholderTextColor={p.textoAlfa(0.35)}
           secureTextEntry={clave && !visible}
           autoCorrect={false}
           {...props}
@@ -141,6 +145,7 @@ export function BotonPrincipal({
   cargando?: boolean;
   deshabilitado?: boolean;
 }) {
+  const styles = useEstilos(crearEstilos);
   const inactivo = cargando || deshabilitado;
   return (
     <Pressable
@@ -172,6 +177,7 @@ export function Enlace({
   accion: string;
   onPress: () => void;
 }) {
+  const styles = useEstilos(crearEstilos);
   return (
     <Pressable
       onPress={onPress}
@@ -190,8 +196,8 @@ export function Enlace({
 export const esCorreoValido = (correo: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(correo.trim());
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: FONDO },
+const crearEstilos = (p: Paleta) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: p.fondo },
   flex: { flex: 1 },
   contenido: {
     flexGrow: 1,
@@ -214,26 +220,26 @@ const styles = StyleSheet.create({
   },
   imagenLogo: { width: 42, height: 42 },
   nombreApp: {
-    color: "#eeecec",
+    color: p.textoTitulo,
     fontSize: 22,
     fontWeight: "800",
     letterSpacing: -0.5,
   },
   azul: { color: AZUL },
   etiqueta: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.5,
   },
   titulo: {
-    color: "#eeecec",
+    color: p.textoTitulo,
     fontSize: 28,
     fontWeight: "900",
     marginTop: 2,
   },
   descripcion: {
-    color: "#9BA7BA",
+    color: p.textoTenue,
     fontSize: 13,
     lineHeight: 19,
     marginTop: 8,
@@ -244,12 +250,12 @@ const styles = StyleSheet.create({
     gap: 14,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.panel(0.94),
   },
   campo: { gap: 6 },
   etiquetaCampo: {
-    color: "rgba(255,255,255,0.7)",
+    color: p.textoAlfa(0.7),
     fontSize: 12,
     fontWeight: "700",
   },
@@ -260,19 +266,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1f2937",
-    backgroundColor: "#0b0e14",
+    borderColor: p.bordeCampo,
+    backgroundColor: p.fondoProfundo,
   },
   cajaEnfocada: { borderColor: AZUL },
   cajaError: { borderColor: "rgba(239,68,68,0.7)" },
   input: {
     flex: 1,
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 14,
     paddingVertical: 12,
   },
-  verClave: { color: "#8DB2FF", fontSize: 12, fontWeight: "700" },
-  textoError: { color: "#fca5a5", fontSize: 11 },
+  verClave: { color: p.acento, fontSize: 12, fontWeight: "700" },
+  textoError: { color: p.textoError, fontSize: 11 },
   boton: {
     minHeight: 48,
     borderRadius: 14,
@@ -284,7 +290,7 @@ const styles = StyleSheet.create({
   botonInactivo: { opacity: 0.55 },
   textoBoton: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
   enlace: { alignSelf: "center", paddingVertical: 4 },
-  textoEnlace: { color: "#9BA7BA", fontSize: 13, textAlign: "center" },
-  accionEnlace: { color: "#8DB2FF", fontWeight: "800" },
+  textoEnlace: { color: p.textoTenue, fontSize: 13, textAlign: "center" },
+  accionEnlace: { color: p.acento, fontWeight: "800" },
   presionado: { opacity: 0.75 },
 });

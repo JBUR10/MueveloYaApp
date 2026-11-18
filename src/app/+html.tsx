@@ -23,8 +23,21 @@ export default function Root({ children }: PropsWithChildren) {
         {/* Hace que el ScrollView ocupe toda la página, como en el celular. */}
         <ScrollViewStyleReset />
 
-        {/* Fondo oscuro desde el primer instante (evita un destello blanco). */}
-        <style dangerouslySetInnerHTML={{ __html: "body{background-color:#111318;}" }} />
+        {/* Fondo del tema desde el primer instante (evita un destello blanco).
+            El oscuro es el principal; si la persona eligió el claro, este
+            script lo detecta antes de que cargue la app. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(localStorage.getItem('@mueveloya_tema')==='claro'){document.documentElement.setAttribute('data-tema','claro');document.documentElement.style.colorScheme='light';}}catch(e){}",
+          }}
+        />
+        <style
+          dangerouslySetInnerHTML={{
+            __html:
+              "body{background-color:#111318;}html[data-tema=claro] body{background-color:#EEF2F8;}",
+          }}
+        />
       </head>
       <body className="notranslate">{children}</body>
     </html>

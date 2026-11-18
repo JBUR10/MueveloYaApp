@@ -10,6 +10,7 @@ import { useSyncExternalStore } from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "./Texto";
 import Icono, { type NombreIcono } from "./Icono";
+import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 export type TipoAlerta = "exito" | "error" | "advertencia" | "info";
 
@@ -105,13 +106,20 @@ const COLORES: Record<TipoAlerta, string> = {
 };
 
 export default function AlertaPantalla() {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const actual = useSyncExternalStore(
     suscribir,
     () => cola[0],
     () => cola[0],
   );
 
-  const color = actual ? COLORES[actual.tipo] : COLORES.info;
+  // El ámbar se oscurece en el tema claro para que el icono se vea.
+  const color = actual
+    ? actual.tipo === "advertencia"
+      ? p.estrella
+      : COLORES[actual.tipo]
+    : COLORES.info;
   const esConfirmacion = !!actual?.textoCancelar;
 
   return (
@@ -165,9 +173,9 @@ export default function AlertaPantalla() {
                   styles.boton,
                   {
                     backgroundColor: actual.destructivo
-                      ? "#ef4444"
+                      ? p.rellenoError
                       : actual.tipo === "exito"
-                        ? "#10b981"
+                        ? p.rellenoExito
                         : "#2969e9",
                   },
                   pressed && styles.presionado,
@@ -183,7 +191,7 @@ export default function AlertaPantalla() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.75)",
@@ -194,11 +202,11 @@ const styles = StyleSheet.create({
   contenedor: {
     width: "100%",
     maxWidth: 340,
-    backgroundColor: "#161b22",
+    backgroundColor: p.superficie,
     borderRadius: 20,
     padding: 24,
     borderWidth: 1,
-    borderColor: "#374151",
+    borderColor: p.bordeFuerte,
     alignItems: "center",
   },
   icono: {
@@ -211,14 +219,14 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   titulo: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 18,
     fontWeight: "800",
     marginBottom: 10,
     textAlign: "center",
   },
   mensaje: {
-    color: "#d1d5db",
+    color: p.textoDato2,
     fontSize: 14,
     textAlign: "center",
     marginBottom: 20,
@@ -231,8 +239,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
   },
-  botonSecundario: { backgroundColor: "rgba(255,255,255,0.1)" },
+  botonSecundario: { backgroundColor: p.velo(0.1) },
+  // El botón principal siempre es de color sólido (azul, verde o rojo).
   textoPrincipal: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
-  textoSecundario: { color: "#FFFFFF", fontWeight: "700", fontSize: 14 },
+  textoSecundario: { color: p.texto, fontWeight: "700", fontSize: 14 },
   presionado: { opacity: 0.75 },
 });

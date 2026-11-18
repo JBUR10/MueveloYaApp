@@ -20,6 +20,7 @@ import MapaCalor from "./MapaCalor";
 import PanelNegocio from "./PanelNegocio";
 import TextoIcono from "../ui/TextoIcono";
 import { type NombreIcono } from "../ui/Icono";
+import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 const AZUL = "#2969e9";
 const NOMBRE_DIA = ["", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -51,6 +52,8 @@ function Kpi({
   /** Icono que acompaña al valor (por ejemplo una estrella). */
   iconoValor?: NombreIcono;
 }) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   return (
     <View style={styles.kpi}>
       <Text style={styles.kpiTitulo}>{titulo}</Text>
@@ -58,7 +61,7 @@ function Kpi({
         <TextoIcono
           icono={iconoValor}
           alFinal
-          colorIcono="#FBBF24"
+          colorIcono={p.estrella}
           style={styles.kpiValor}
           numberOfLines={1}
           adjustsFontSizeToFit
@@ -73,7 +76,7 @@ function Kpi({
       {delta != null && (
         <TextoIcono
           icono={delta >= 0 ? "caret-up" : "caret-down"}
-          style={[styles.delta, { color: delta >= 0 ? "#34d399" : "#f87171" }]}
+          style={[styles.delta, { color: delta >= 0 ? p.textoExito : p.textoError2 }]}
         >
           {Math.abs(delta)} % vs. periodo anterior
         </TextoIcono>
@@ -84,6 +87,7 @@ function Kpi({
 
 /** Barras verticales simples. `resaltar` pinta de otro color la barra más alta. */
 function Barras({ datos }: { datos: { etiqueta: string; valor: number }[] }) {
+  const styles = useEstilos(crearEstilos);
   const max = Math.max(1, ...datos.map((d) => d.valor));
   const mayor = datos.reduce((m, d) => (d.valor > m ? d.valor : m), 0);
   return (
@@ -109,6 +113,7 @@ function Barras({ datos }: { datos: { etiqueta: string; valor: number }[] }) {
 }
 
 export default function PanelAnalisis() {
+  const styles = useEstilos(crearEstilos);
   const [periodo, setPeriodo] = useState<PeriodoEstadisticas>(30);
   const [datos, setDatos] = useState<Analisis | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -337,26 +342,26 @@ export default function PanelAnalisis() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   raiz: { gap: 16 },
-  titulo: { color: "#eeecec", fontSize: 28, fontWeight: "900" },
-  descripcion: { color: "#9BA7BA", fontSize: 13, lineHeight: 19 },
+  titulo: { color: p.textoTitulo, fontSize: 28, fontWeight: "900" },
+  descripcion: { color: p.textoTenue, fontSize: 13, lineHeight: 19 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.velo(0.04),
   },
   chipActivo: { backgroundColor: AZUL, borderColor: AZUL },
   chipTexto: {
-    color: "rgba(255,255,255,0.75)",
+    color: p.textoAlfa(0.75),
     fontSize: 13,
     fontWeight: "700",
   },
-  error: { color: "#f87171", fontSize: 13, textAlign: "center", marginTop: 10 },
+  error: { color: p.textoError2, fontSize: 13, textAlign: "center", marginTop: 10 },
   kpis: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   kpi: {
     flexGrow: 1,
@@ -365,23 +370,23 @@ const styles = StyleSheet.create({
     gap: 4,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.panel(0.94),
   },
-  kpiTitulo: { color: "#9BA7BA", fontSize: 12 },
-  kpiValor: { color: "#FFFFFF", fontSize: 22, fontWeight: "900" },
+  kpiTitulo: { color: p.textoTenue, fontSize: 12 },
+  kpiValor: { color: p.texto, fontSize: 22, fontWeight: "900" },
   delta: { fontSize: 11, fontWeight: "700" },
   tarjeta: {
     padding: 16,
     gap: 10,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.panel(0.94),
   },
-  seccion: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
-  conclusion: { color: "#D5DCE8", fontSize: 13, lineHeight: 19 },
-  nota: { color: "#9BA7BA", fontSize: 12 },
+  seccion: { color: p.texto, fontSize: 16, fontWeight: "800" },
+  conclusion: { color: p.textoDato, fontSize: 13, lineHeight: 19 },
+  nota: { color: p.textoTenue, fontSize: 12 },
   barras: { flexDirection: "row", alignItems: "flex-end", gap: 3, height: 130 },
   barraCol: {
     flex: 1,
@@ -390,9 +395,9 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   barraV: { width: "100%", borderRadius: 3 },
-  barraValor: { color: "#D5DCE8", fontSize: 9 },
-  barraEtiqueta: { color: "#9BA7BA", fontSize: 9 },
+  barraValor: { color: p.textoDato, fontSize: 9 },
+  barraEtiqueta: { color: p.textoTenue, fontSize: 9 },
   fila: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
-  motivo: { color: "#D5DCE8", fontSize: 14, flexShrink: 1 },
-  valor: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
+  motivo: { color: p.textoDato, fontSize: 14, flexShrink: 1 },
+  valor: { color: p.texto, fontSize: 14, fontWeight: "800" },
 });

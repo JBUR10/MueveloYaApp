@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Animated, StyleSheet } from "react-native";
 import { Text } from "./Texto";
+import { useEstilos, type Paleta } from "../../services/temaStore";
 
 type Props = {
   /** Texto a mostrar; null lo oculta. */
@@ -16,6 +17,7 @@ export default function MensajeTemporal({
   alTerminar,
   duracion = 2200,
 }: Props) {
+  const styles = useEstilos(crearEstilos);
   const [opacidad] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
@@ -66,7 +68,7 @@ export default function MensajeTemporal({
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   contenedor: {
     position: "absolute",
     top: 12,
@@ -78,8 +80,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(141,178,255,0.65)",
-    backgroundColor: "rgba(23,40,78,0.96)",
+    borderColor: p.toastBorde,
+    backgroundColor: p.toastFondo,
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
@@ -88,7 +90,7 @@ const styles = StyleSheet.create({
   },
 
   texto: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 13,
     fontWeight: "800",
   },

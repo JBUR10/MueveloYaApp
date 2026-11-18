@@ -8,6 +8,7 @@ import AlertaPantalla from '../components/ui/AlertaPantalla';
 import { cambiarModo, obtenerModo } from '../services/modoStore';
 import { escucharToquesNotificacion } from '../services/notificacionesPush';
 import { useSesion } from '../services/sesionStore';
+import { useEstadoTema, usePaleta } from "../services/temaStore";
 
 /** Al tocar una notificación push, abre la pantalla que corresponde. */
 function AbrirDesdeNotificacion() {
@@ -31,16 +32,19 @@ function AbrirDesdeNotificacion() {
 }
 
 export default function RootLayout() {
+  const p = usePaleta();
+  const { cargado: temaCargado } = useEstadoTema();
   const { sesion, cargado, recuperandoClave } = useSesion();
   const conSesion = !!sesion && !recuperandoClave;
 
   // Mientras se lee la sesión guardada, evita mostrar el login por un instante.
-  if (!cargado) {
+  // También espera el tema guardado, para no mostrar un destello del tema equivocado.
+  if (!cargado || !temaCargado) {
     return (
       <View
         style={{
           flex: 1,
-          backgroundColor: '#111318',
+          backgroundColor: p.fondo,
           alignItems: 'center',
           justifyContent: 'center',
         }}>
@@ -51,7 +55,11 @@ export default function RootLayout() {
 
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: p.fondo },
+        }}>
         {/* Sin sesión: solo las pantallas de acceso. */}
         <Stack.Protected guard={!conSesion}>
           <Stack.Screen name="login" />

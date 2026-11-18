@@ -9,7 +9,7 @@
 }
 
 /* Chrome pinta de blanco/celeste los campos autocompletados (correo, contraseña).
-   Se mantiene el fondo oscuro de la app y el texto blanco. */
+   Se mantiene el fondo de la app y el color del texto según el tema. */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
@@ -17,4 +17,13 @@ input:-webkit-autofill:focus {
   -webkit-text-fill-color: #ffffff !important;
   caret-color: #ffffff;
   transition: background-color 9999s ease-out 0s;
+}
+
+/* Tema claro */
+html[data-tema='claro'] input:-webkit-autofill,
+html[data-tema='claro'] input:-webkit-autofill:hover,
+html[data-tema='claro'] input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #e7ecf4 inset !important;
+  -webkit-text-fill-color: #0f1b2d !important;
+  caret-color: #0f1b2d;
 }

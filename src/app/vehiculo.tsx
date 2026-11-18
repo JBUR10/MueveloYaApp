@@ -30,9 +30,9 @@ import {
 } from "../services/vehiculoService";
 import TextoIcono from "../components/ui/TextoIcono";
 import Icono from "../components/ui/Icono";
+import { usePaleta, useEstilos, type Paleta } from "../services/temaStore";
 
 const AZUL = "#2969e9";
-const FONDO = "#111318";
 
 const VACIO: Vehiculo = {
   tipo: "Camioneta",
@@ -53,6 +53,8 @@ const ERROR_UN_ANIO =
   "No puede vencer en más de 1 año: revisa la fecha del documento.";
 
 export default function VehiculoScreen() {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const router = useRouter();
   // ?activar=1 cuando se llega desde el interruptor del modo transportista.
   const { activar } = useLocalSearchParams<{ activar?: string }>();
@@ -168,7 +170,7 @@ export default function VehiculoScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle="light-content" backgroundColor={FONDO} />
+      <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
 
       <ScrollView
         contentContainerStyle={styles.contenido}
@@ -353,38 +355,38 @@ export default function VehiculoScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: FONDO },
+const crearEstilos = (p: Paleta) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: p.fondo },
   contenido: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40, gap: 16 },
   topBar: { flexDirection: "row" },
   btnBack: {
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: p.velo(0.1),
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 14,
   },
-  btnBackText: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
+  btnBackText: { color: p.texto, fontWeight: "700", fontSize: 13 },
   subtitulo: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.5,
     marginBottom: -12,
   },
-  titulo: { color: "#eeecec", fontSize: 28, fontWeight: "900" },
+  titulo: { color: p.textoTitulo, fontSize: 28, fontWeight: "900" },
   azul: { color: AZUL },
-  descripcion: { color: "#9BA7BA", fontSize: 13, lineHeight: 19, marginTop: -8 },
+  descripcion: { color: p.textoTenue, fontSize: 13, lineHeight: 19, marginTop: -8 },
   tarjeta: {
     padding: 16,
     gap: 14,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.panel(0.94),
   },
-  tituloTarjeta: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
+  tituloTarjeta: { color: p.texto, fontSize: 15, fontWeight: "800" },
   etiqueta: {
-    color: "rgba(255,255,255,0.7)",
+    color: p.textoAlfa(0.7),
     fontSize: 12,
     fontWeight: "700",
     marginBottom: -6,
@@ -395,11 +397,11 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.velo(0.04),
   },
   chipActivo: { backgroundColor: AZUL, borderColor: AZUL },
-  chipTexto: { color: "rgba(255,255,255,0.75)", fontSize: 13, fontWeight: "700" },
+  chipTexto: { color: p.textoAlfa(0.75), fontSize: 13, fontWeight: "700" },
   chipTextoActivo: { color: "#FFFFFF" },
   filaCheck: { flexDirection: "row", alignItems: "center", gap: 10 },
   check: {
@@ -407,12 +409,12 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 7,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
+    borderColor: p.linea(0.3),
     alignItems: "center",
     justifyContent: "center",
   },
   checkActivo: { backgroundColor: AZUL, borderColor: AZUL },
-  textoCheck: { flex: 1, color: "#E7F0F4", fontSize: 13, lineHeight: 18 },
+  textoCheck: { flex: 1, color: p.textoSuave, fontSize: 13, lineHeight: 18 },
   banner: { padding: 14, borderRadius: 16, borderWidth: 1, gap: 4 },
   bannerOk: {
     borderColor: "rgba(52,199,89,0.5)",
@@ -426,6 +428,6 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,196,0,0.5)",
     backgroundColor: "rgba(255,196,0,0.1)",
   },
-  bannerTitulo: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
-  bannerTexto: { color: "#D5DCE8", fontSize: 13, lineHeight: 18 },
+  bannerTitulo: { color: p.texto, fontSize: 14, fontWeight: "800" },
+  bannerTexto: { color: p.textoDato, fontSize: 13, lineHeight: 18 },
 });

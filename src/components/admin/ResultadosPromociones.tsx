@@ -13,6 +13,7 @@ import {
   ResultadoCampana,
 } from "../../services/promocionesService";
 import { formatearPesos } from "../../services/tarifa";
+import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 
@@ -22,17 +23,19 @@ const fecha = (iso: string) => {
 };
 
 /** Lectura rápida del resultado, para quien no quiere interpretar números. */
-function veredicto(c: ResultadoCampana): { texto: string; color: string } {
+function veredicto(c: ResultadoCampana, p: Paleta): { texto: string; color: string } {
   const vigente = new Date(c.venceEl).getTime() > Date.now();
   const uso = pct(c.usados, c.enviados);
-  if (vigente && c.usados === 0) return { texto: "En curso · aún sin usos", color: "#fbbf24" };
-  if (vigente) return { texto: `En curso · ${uso} % usado`, color: "#60a5fa" };
-  if (uso >= 15) return { texto: `Funcionó · ${uso} % de uso`, color: "#34d399" };
-  if (uso > 0) return { texto: `Poco uso · ${uso} %`, color: "#fbbf24" };
-  return { texto: "Nadie la usó", color: "#f87171" };
+  if (vigente && c.usados === 0) return { texto: "En curso · aún sin usos", color: p.textoAviso };
+  if (vigente) return { texto: `En curso · ${uso} % usado`, color: p.acento2 };
+  if (uso >= 15) return { texto: `Funcionó · ${uso} % de uso`, color: p.textoExito };
+  if (uso > 0) return { texto: `Poco uso · ${uso} %`, color: p.textoAviso };
+  return { texto: "Nadie la usó", color: p.textoError2 };
 }
 
 export default function ResultadosPromociones({ version }: { version: number }) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const [filas, setFilas] = useState<ResultadoCampana[] | null>(null);
   const [error, setError] = useState("");
 
@@ -59,7 +62,7 @@ export default function ResultadosPromociones({ version }: { version: number }) 
         </Text>
       ) : (
         filas?.map((c) => {
-          const v = veredicto(c);
+          const v = veredicto(c, p);
           return (
             <View key={c.id} style={styles.campana}>
               <View style={styles.fila}>
@@ -88,20 +91,20 @@ export default function ResultadosPromociones({ version }: { version: number }) 
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   tarjeta: {
     padding: 16,
     gap: 12,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.panel(0.94),
   },
-  seccion: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
-  campana: { gap: 3, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)" },
+  seccion: { color: p.texto, fontSize: 16, fontWeight: "800" },
+  campana: { gap: 3, paddingTop: 10, borderTopWidth: 1, borderTopColor: p.linea(0.08) },
   fila: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
-  nombre: { color: "#D5DCE8", fontSize: 14, fontWeight: "700", flexShrink: 1 },
+  nombre: { color: p.textoDato, fontSize: 14, fontWeight: "700", flexShrink: 1 },
   veredicto: { fontSize: 12, fontWeight: "800" },
-  detalle: { color: "#9BA7BA", fontSize: 12, lineHeight: 17 },
-  error: { color: "#f87171", fontSize: 13 },
+  detalle: { color: p.textoTenue, fontSize: 12, lineHeight: 17 },
+  error: { color: p.textoError2, fontSize: 13 },
 });

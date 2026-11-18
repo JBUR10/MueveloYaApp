@@ -15,13 +15,26 @@ import {
   textoDeFecha,
 } from "../../services/vehiculoService";
 import TextoIcono from "./TextoIcono";
+import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 const TEXTO_ESTADO = {
-  vigente: { texto: "Vigente", color: "#86E8BD" },
-  por_vencer: { texto: "Por vencer", color: "#fbbf24" },
-  vencido: { texto: "Vencido", color: "#fca5a5" },
-  falta: { texto: "", color: "transparent" },
+  vigente: "Vigente",
+  por_vencer: "Por vencer",
+  vencido: "Vencido",
+  falta: "",
 } as const;
+
+const colorEstado = (
+  estado: keyof typeof TEXTO_ESTADO,
+  p: Paleta,
+): string =>
+  estado === "vigente"
+    ? p.textoExito2
+    : estado === "por_vencer"
+      ? p.textoAviso
+      : estado === "vencido"
+        ? p.textoError
+        : "transparent";
 
 export default function CampoFecha({
   etiqueta,
@@ -42,8 +55,14 @@ export default function CampoFecha({
   /** Texto de ayuda bajo el campo. */
   ayuda?: string;
 }) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const [abierto, setAbierto] = useState(false);
-  const estado = TEXTO_ESTADO[estadoDocumento(valor)];
+  const claveEstado = estadoDocumento(valor);
+  const estado = {
+    texto: TEXTO_ESTADO[claveEstado],
+    color: colorEstado(claveEstado, p),
+  };
 
   const alCambiar = (evento: DateTimePickerEvent, fecha?: Date) => {
     setAbierto(Platform.OS === "ios");
@@ -71,15 +90,15 @@ export default function CampoFecha({
           max={maximo ? textoDeFecha(maximo) : undefined}
           onChange={(e) => onCambiar(e.target.value || null)}
           style={{
-            backgroundColor: "#0b0e14",
-            color: "#ffffff",
+            backgroundColor: p.fondoProfundo,
+            color: p.texto,
             padding: "12px",
             borderRadius: "12px",
-            border: `1px solid ${error ? "rgba(239,68,68,0.7)" : "#1f2937"}`,
+            border: `1px solid ${error ? "rgba(239,68,68,0.7)" : p.bordeCampo}`,
             fontSize: "14px",
             width: "100%",
             boxSizing: "border-box",
-            colorScheme: "dark",
+            colorScheme: p.esClaro ? "light" : "dark",
           }}
         />
       ) : (
@@ -115,21 +134,21 @@ export default function CampoFecha({
           mode="date"
           display={Platform.OS === "ios" ? "inline" : "default"}
           onChange={alCambiar}
-          themeVariant="dark"
+          themeVariant={p.esClaro ? "light" : "dark"}
         />
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   campo: { gap: 6 },
   filaEtiqueta: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  etiqueta: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "700" },
+  etiqueta: { color: p.textoAlfa(0.7), fontSize: 12, fontWeight: "700" },
   estado: { fontSize: 11, fontWeight: "800" },
   selector: {
     flexDirection: "row",
@@ -139,13 +158,13 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1f2937",
-    backgroundColor: "#0b0e14",
+    borderColor: p.bordeCampo,
+    backgroundColor: p.fondoProfundo,
   },
   selectorError: { borderColor: "rgba(239,68,68,0.7)" },
-  textoSelector: { color: "#FFFFFF", fontSize: 14 },
-  placeholder: { color: "rgba(255,255,255,0.45)" },
-  quitar: { color: "#fca5a5", fontSize: 12, fontWeight: "700" },
-  error: { color: "#fca5a5", fontSize: 11 },
-  ayuda: { color: "rgba(255,255,255,0.45)", fontSize: 11 },
+  textoSelector: { color: p.texto, fontSize: 14 },
+  placeholder: { color: p.textoAlfa(0.45) },
+  quitar: { color: p.textoError, fontSize: 12, fontWeight: "700" },
+  error: { color: p.textoError, fontSize: 11 },
+  ayuda: { color: p.textoAlfa(0.45), fontSize: 11 },
 });

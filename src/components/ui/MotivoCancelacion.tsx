@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { Text, TextInput } from "./Texto";
+import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 const MOTIVOS = {
   conductor: [
@@ -49,6 +50,8 @@ export default function MotivoCancelacion({
   onCerrar,
   onConfirmar,
 }: Props) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const [elegido, setElegido] = useState<string | null>(null);
   const [otro, setOtro] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -133,7 +136,7 @@ export default function MotivoCancelacion({
                 value={otro}
                 onChangeText={setOtro}
                 placeholder="Escribe el motivo…"
-                placeholderTextColor="rgba(255,255,255,0.35)"
+                placeholderTextColor={p.textoAlfa(0.35)}
                 multiline
                 maxLength={200}
                 autoFocus
@@ -164,7 +167,9 @@ export default function MotivoCancelacion({
                 {enviando ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.textoBoton}>Cancelar servicio</Text>
+                  <Text style={[styles.textoBoton, styles.textoBotonAcento]}>
+                      Cancelar servicio
+                    </Text>
                 )}
               </Pressable>
             </View>
@@ -175,7 +180,7 @@ export default function MotivoCancelacion({
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.75)",
@@ -187,15 +192,15 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 380,
     maxHeight: "92%",
-    backgroundColor: "#161b22",
+    backgroundColor: p.superficie,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#374151",
+    borderColor: p.bordeFuerte,
   },
   contenido: { padding: 22, gap: 10 },
-  titulo: { color: "#FFFFFF", fontSize: 19, fontWeight: "800", textAlign: "center" },
+  titulo: { color: p.texto, fontSize: 19, fontWeight: "800", textAlign: "center" },
   subtitulo: {
-    color: "#9BA7BA",
+    color: p.textoTenue,
     fontSize: 13,
     lineHeight: 18,
     textAlign: "center",
@@ -209,8 +214,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    backgroundColor: "rgba(255,255,255,0.03)",
+    borderColor: p.linea(0.12),
+    backgroundColor: p.velo(0.03),
   },
   opcionActiva: {
     borderColor: "rgba(239,68,68,0.6)",
@@ -221,29 +226,31 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 9,
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.35)",
+    borderColor: p.linea(0.35),
     alignItems: "center",
     justifyContent: "center",
   },
   radioActivo: { borderColor: "#ef4444" },
-  radioPunto: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#ef4444" },
-  textoOpcion: { color: "#E7F0F4", fontSize: 14, fontWeight: "600", flex: 1 },
+  radioPunto: { width: 8, height: 8, borderRadius: 4, backgroundColor: p.rellenoError },
+  textoOpcion: { color: p.textoSuave, fontSize: 14, fontWeight: "600", flex: 1 },
   input: {
     minHeight: 70,
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 14,
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1f2937",
-    backgroundColor: "#0b0e14",
+    borderColor: p.bordeCampo,
+    backgroundColor: p.fondoProfundo,
     textAlignVertical: "top",
   },
-  error: { color: "#fca5a5", fontSize: 13, textAlign: "center" },
+  error: { color: p.textoError, fontSize: 13, textAlign: "center" },
   botones: { flexDirection: "row", gap: 10, marginTop: 8 },
   boton: { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center" },
-  botonSecundario: { backgroundColor: "rgba(255,255,255,0.1)" },
-  botonCancelar: { backgroundColor: "#ef4444" },
+  botonSecundario: { backgroundColor: p.velo(0.1) },
+  botonCancelar: { backgroundColor: p.rellenoError },
   inactivo: { opacity: 0.5 },
-  textoBoton: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
+  textoBoton: { color: p.texto, fontWeight: "800", fontSize: 14 },
+  // "Cancelar servicio" va sobre el botón rojo sólido: texto blanco.
+  textoBotonAcento: { color: "#FFFFFF" },
 });

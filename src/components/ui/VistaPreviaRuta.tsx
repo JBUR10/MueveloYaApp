@@ -10,6 +10,7 @@ import { Text } from "./Texto";
 import { buscarLugares } from "./BuscadorDestino";
 import MapaPrincipal, { Coordenadas, InfoRuta } from "./MapaPrincipal";
 import TextoIcono from "./TextoIcono";
+import { useEstilos, type Paleta } from "../../services/temaStore";
 
 type Props = {
   origen: Coordenadas | null;
@@ -31,6 +32,7 @@ export default function VistaPreviaRuta({
   textoDestino,
   onPunto,
 }: Props) {
+  const styles = useEstilos(crearEstilos);
   const [ubicando, setUbicando] = useState(false);
   const [noEncontradas, setNoEncontradas] = useState<string[]>([]);
   const [info, setInfo] = useState<InfoRuta | null>(null);
@@ -131,14 +133,14 @@ export default function VistaPreviaRuta({
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   tarjeta: {
     padding: 16,
     gap: 10,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#1f2937",
-    backgroundColor: "#161b22",
+    borderColor: p.bordeCampo,
+    backgroundColor: p.superficie,
     marginBottom: 16,
   },
   filaTitulo: {
@@ -146,10 +148,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  titulo: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
-  info: { color: "#8DB2FF", fontSize: 12, fontWeight: "800" },
-  texto: { color: "#9BA7BA", fontSize: 12, lineHeight: 17 },
-  a: { color: "#10b981", fontWeight: "900" },
+  titulo: { color: p.texto, fontSize: 14, fontWeight: "800" },
+  info: { color: p.acento, fontSize: 12, fontWeight: "800" },
+  texto: { color: p.textoTenue, fontSize: 12, lineHeight: 17 },
+  a: { color: p.textoExito3, fontWeight: "900" },
   mapa: {
     height: 280,
     borderRadius: 14,
@@ -162,6 +164,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   textoBoton: { color: "#FFFFFF", fontWeight: "800", fontSize: 13 },
-  error: { color: "#fca5a5", fontSize: 12 },
+  error: { color: p.textoError, fontSize: 12 },
   presionado: { opacity: 0.75 },
 });

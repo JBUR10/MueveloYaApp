@@ -8,6 +8,8 @@ import { Platform, StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 
 import type { ZonaPedidos } from "../../services/estadisticasService";
+import { useEstilos, usePaleta, type Paleta } from "../../services/temaStore";
+import type { NombreTema } from "../../constants/paleta";
 
 export const COLOR_ZONA_MEDIA = "#facc15";
 export const COLOR_ZONA_ALTA = "#ef4444";
@@ -21,7 +23,9 @@ export const umbralZonaAlta = (zonas: ZonaPedidos[]) => {
 // Centro por defecto: Medellín.
 const CENTRO = { lat: 6.2442, lng: -75.5812 };
 
-const crearHTML = (zonas: ZonaPedidos[]) => {
+const crearHTML = (zonas: ZonaPedidos[], tema: NombreTema) => {
+  const claro = tema === "claro";
+  const prefijo = claro ? "light" : "dark";
   const umbral = umbralZonaAlta(zonas);
   const datos = zonas.map((z) => ({
     lat: z.lat,
@@ -41,12 +45,12 @@ const crearHTML = (zonas: ZonaPedidos[]) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    html, body, #mapa { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background: #111111; }
-    .etiquetas-claras { filter: brightness(2.8) grayscale(1); }
-    .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #1c1c1c; color: #ffffff; }
+    html, body, #mapa { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background: ${claro ? "#e9ecf1" : "#111111"}; }
+    .etiquetas-claras { filter: ${claro ? "none" : "brightness(2.8) grayscale(1)"}; }
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: ${claro ? "#f9fbfe" : "#1c1c1c"}; color: ${claro ? "#0f1b2d" : "#ffffff"}; }
     .leaflet-popup-content { font-size: 13px; }
-    .leaflet-control-attribution { background: rgba(17,17,17,0.8) !important; color: #c7c7c7 !important; font-size: 9px !important; }
-    .leaflet-control-attribution a { color: #8DB2FF !important; }
+    .leaflet-control-attribution { background: ${claro ? "rgba(249,251,254,0.85)" : "rgba(17,17,17,0.8)"} !important; color: ${claro ? "#5a677c" : "#c7c7c7"} !important; font-size: 9px !important; }
+    .leaflet-control-attribution a { color: ${claro ? "#1d4fd7" : "#8DB2FF"} !important; }
   </style>
 </head>
 <body>
@@ -58,11 +62,11 @@ const crearHTML = (zonas: ZonaPedidos[]) => {
     const mapa = L.map('mapa', { zoomControl: true, maxZoom: 17 }).setView(CENTRO, 12);
 
     L.tileLayer(
-      'https://basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}{r}.png?key=cb1_4ltt_1_cf9d541803ae070b75ff17f2',
+      'https://basemaps.cartocdn.com/rastertiles/${prefijo}_nolabels/{z}/{x}/{y}{r}.png?key=cb1_4ltt_1_cf9d541803ae070b75ff17f2',
       { maxZoom: 17, attribution: '&copy; OpenStreetMap &copy; CARTO' }
     ).addTo(mapa);
     L.tileLayer(
-      'https://basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}{r}.png?key=cb1_4ltt_1_cf9d541803ae070b75ff17f2',
+      'https://basemaps.cartocdn.com/rastertiles/${prefijo}_only_labels/{z}/{x}/{y}{r}.png?key=cb1_4ltt_1_cf9d541803ae070b75ff17f2',
       { maxZoom: 17, className: 'etiquetas-claras' }
     ).addTo(mapa);
 
@@ -97,7 +101,9 @@ const crearHTML = (zonas: ZonaPedidos[]) => {
 };
 
 export default function MapaZonas({ zonas }: { zonas: ZonaPedidos[] }) {
-  const html = useMemo(() => crearHTML(zonas), [zonas]);
+  const styles = useEstilos(crearEstilos);
+  const { tema } = usePaleta();
+  const html = useMemo(() => crearHTML(zonas, tema), [zonas, tema]);
 
   return (
     <View style={styles.contenedor}>
@@ -121,12 +127,12 @@ export default function MapaZonas({ zonas }: { zonas: ZonaPedidos[] }) {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   contenedor: {
     height: 300,
     borderRadius: 14,
     overflow: "hidden",
-    backgroundColor: "#111111",
+    backgroundColor: p.fondoMapa,
   },
-  mapa: { flex: 1, backgroundColor: "#111111" },
+  mapa: { flex: 1, backgroundColor: p.fondoMapa },
 });

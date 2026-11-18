@@ -18,6 +18,7 @@ import FormularioPromocion from "./FormularioPromocion";
 import ResultadosPromociones from "./ResultadosPromociones";
 import Icono, { type NombreIcono } from "../ui/Icono";
 import TextoIcono from "../ui/TextoIcono";
+import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 const AZUL = "#2969e9";
 const TIPOS = ["Envío", "Acarreo", "Trasteo", "Mudanza"];
@@ -41,6 +42,8 @@ interface Oportunidad {
 }
 
 export default function PanelNegocio({ periodo }: { periodo: PeriodoEstadisticas }) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const [datos, setDatos] = useState<Negocio | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -178,7 +181,7 @@ export default function PanelNegocio({ periodo }: { periodo: PeriodoEstadisticas
 
       {oportunidades.length > 0 && (
         <View style={styles.tarjeta}>
-          <TextoIcono icono="bulb-outline" colorIcono="#FBBF24" style={styles.seccion}>
+          <TextoIcono icono="bulb-outline" colorIcono={p.estrella} style={styles.seccion}>
             Oportunidades
           </TextoIcono>
           {oportunidades.map((o) => (
@@ -235,12 +238,12 @@ export default function PanelNegocio({ periodo }: { periodo: PeriodoEstadisticas
                 <Text style={styles.valor}>
                   {t.total} · {pct(t.total, totalPedidos)} %
                   {dv != null && (
-                    <Text style={{ color: dv >= 0 ? "#34d399" : "#f87171" }}>
+                    <Text style={{ color: dv >= 0 ? p.textoExito : p.textoError2 }}>
                       {"  "}
                       <Icono
                         nombre={dv >= 0 ? "caret-up" : "caret-down"}
                         tamano={12}
-                        color={dv >= 0 ? "#34d399" : "#f87171"}
+                        color={dv >= 0 ? p.textoExito : p.textoError2}
                       />{" "}
                       {Math.abs(dv)} %
                     </Text>
@@ -264,6 +267,7 @@ export default function PanelNegocio({ periodo }: { periodo: PeriodoEstadisticas
 }
 
 function Kpi({ titulo, valor }: { titulo: string; valor: string }) {
+  const styles = useEstilos(crearEstilos);
   return (
     <View style={styles.kpi}>
       <Text style={styles.kpiTitulo}>{titulo}</Text>
@@ -272,10 +276,10 @@ function Kpi({ titulo, valor }: { titulo: string; valor: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   raiz: { gap: 16 },
-  titulo: { color: "#eeecec", fontSize: 24, fontWeight: "900", marginTop: 8 },
-  error: { color: "#f87171", fontSize: 13, textAlign: "center" },
+  titulo: { color: p.textoTitulo, fontSize: 24, fontWeight: "900", marginTop: 8 },
+  error: { color: p.textoError2, fontSize: 13, textAlign: "center" },
   kpis: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   kpi: {
     flexGrow: 1,
@@ -284,21 +288,21 @@ const styles = StyleSheet.create({
     gap: 4,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.panel(0.94),
   },
-  kpiTitulo: { color: "#9BA7BA", fontSize: 12 },
-  kpiValor: { color: "#FFFFFF", fontSize: 22, fontWeight: "900" },
+  kpiTitulo: { color: p.textoTenue, fontSize: 12 },
+  kpiValor: { color: p.texto, fontSize: 22, fontWeight: "900" },
   tarjeta: {
     padding: 16,
     gap: 10,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.panel(0.94),
   },
-  seccion: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
-  texto: { color: "#D5DCE8", fontSize: 13, lineHeight: 19 },
+  seccion: { color: p.texto, fontSize: 16, fontWeight: "800" },
+  texto: { color: p.textoDato, fontSize: 13, lineHeight: 19 },
   oportunidad: { gap: 8, paddingBottom: 6 },
   botonPromo: {
     alignSelf: "flex-start",
@@ -317,7 +321,7 @@ const styles = StyleSheet.create({
   botonPromoTexto: { color: "#FFFFFF", fontSize: 13, fontWeight: "800" },
   servicio: { gap: 3, paddingVertical: 4 },
   fila: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
-  nombre: { color: "#D5DCE8", fontSize: 14, fontWeight: "700", flexShrink: 1 },
-  valor: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
-  detalle: { color: "#9BA7BA", fontSize: 12, lineHeight: 17 },
+  nombre: { color: p.textoDato, fontSize: 14, fontWeight: "700", flexShrink: 1 },
+  valor: { color: p.texto, fontSize: 14, fontWeight: "800" },
+  detalle: { color: p.textoTenue, fontSize: 12, lineHeight: 17 },
 });

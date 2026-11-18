@@ -24,19 +24,30 @@ import {
   FilaConsulta,
 } from "../../services/consultasAdminService";
 import { formatearPesos } from "../../services/tarifa";
+import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 const AZUL = "#2969e9";
 
 const METRICAS = CONSULTAS.filter((c) => c.tipo === "kpi");
 const LISTADOS = CONSULTAS.filter((c) => c.tipo === "tabla");
 
-const ESTADOS: Record<string, { texto: string; color: string }> = {
-  pendiente: { texto: "Pendiente", color: "#fbbf24" },
-  aceptada: { texto: "Aceptada", color: "#60a5fa" },
-  en_curso: { texto: "En curso", color: "#a78bfa" },
-  completada: { texto: "Completada", color: "#34d399" },
-  cancelada: { texto: "Cancelada", color: "#f87171" },
+const ESTADOS: Record<string, { texto: string }> = {
+  pendiente: { texto: "Pendiente" },
+  aceptada: { texto: "Aceptada" },
+  en_curso: { texto: "En curso" },
+  completada: { texto: "Completada" },
+  cancelada: { texto: "Cancelada" },
 };
+
+/** Color del texto de cada estado según el tema. */
+const colorDeEstado = (estado: string, p: Paleta): string | undefined =>
+  ({
+    pendiente: p.textoAviso,
+    aceptada: p.acento2,
+    en_curso: p.textoMorado,
+    completada: p.textoExito,
+    cancelada: p.textoError2,
+  })[estado];
 
 /** Ancho de cada columna de la tabla según lo que muestra. */
 const ANCHO: Record<string, number> = {
@@ -76,6 +87,8 @@ function formatearValor(valor: unknown, formato: Columna["formato"]) {
 }
 
 function Tabla({ columnas, filas }: { columnas: Columna[]; filas: FilaConsulta[] }) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator>
       <View>
@@ -93,7 +106,7 @@ function Tabla({ columnas, filas }: { columnas: Columna[]; filas: FilaConsulta[]
           <View key={i} style={[styles.fila, i % 2 === 1 && styles.filaPar]}>
             {columnas.map((c) => {
               const colorEstado =
-                c.formato === "estado" ? ESTADOS[String(fila[c.clave])]?.color : undefined;
+                c.formato === "estado" ? colorDeEstado(String(fila[c.clave]), p) : undefined;
               return (
                 <Text
                   key={c.clave}
@@ -117,6 +130,8 @@ function Tabla({ columnas, filas }: { columnas: Columna[]; filas: FilaConsulta[]
 }
 
 export default function Reportes() {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   // Las métricas arrancan "cargando" y se piden al entrar.
   const [metricas, setMetricas] = useState<Partial<Record<CodigoConsulta, Resultado>>>(
     () => Object.fromEntries(METRICAS.map((m) => [m.codigo, { estado: "cargando" }])),
@@ -211,7 +226,9 @@ export default function Reportes() {
               <Text style={[styles.botonTitulo, activo && styles.botonTituloActivo]}>
                 {c.titulo}
               </Text>
-              {cargando && <ActivityIndicator size="small" color="#FFFFFF" />}
+              {cargando && (
+                <ActivityIndicator size="small" color={activo ? "#FFFFFF" : p.texto} />
+              )}
             </Pressable>
           );
         })}
@@ -249,10 +266,10 @@ export default function Reportes() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   contenedor: { gap: 12 },
-  titulo: { color: "#FFFFFF", fontSize: 18, fontWeight: "900" },
-  subtitulo: { color: "#9BA7BA", fontSize: 13, marginTop: -6 },
+  titulo: { color: p.texto, fontSize: 18, fontWeight: "900" },
+  subtitulo: { color: p.textoTenue, fontSize: 13, marginTop: -6 },
   filaMetricas: { flexDirection: "row", gap: 10 },
   metrica: {
     flex: 1,
@@ -263,11 +280,11 @@ const styles = StyleSheet.create({
     borderColor: "rgba(41,105,233,0.35)",
     backgroundColor: "rgba(41,105,233,0.12)",
   },
-  metricaEtiqueta: { color: "#8DB2FF", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
-  metricaValor: { color: "#FFFFFF", fontSize: 22, fontWeight: "900" },
-  metricaDescripcion: { color: "#9BA7BA", fontSize: 11 },
-  metricaError: { color: "#fca5a5", fontSize: 12, fontWeight: "700", marginVertical: 6 },
-  seccion: { color: "#F0F3F8", fontSize: 15, fontWeight: "800", marginTop: 4 },
+  metricaEtiqueta: { color: p.acento, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  metricaValor: { color: p.texto, fontSize: 22, fontWeight: "900" },
+  metricaDescripcion: { color: p.textoTenue, fontSize: 11 },
+  metricaError: { color: p.textoError, fontSize: 12, fontWeight: "700", marginVertical: 6 },
+  seccion: { color: p.textoFuerte2, fontSize: 15, fontWeight: "800", marginTop: 4 },
   rejilla: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   boton: {
     flexDirection: "row",
@@ -277,11 +294,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
-    backgroundColor: "rgba(255,255,255,0.045)",
+    borderColor: p.linea(0.14),
+    backgroundColor: p.velo(0.045),
   },
   botonActivo: { borderColor: AZUL, backgroundColor: AZUL },
-  botonTitulo: { color: "#E7F0F4", fontSize: 13, fontWeight: "700" },
+  botonTitulo: { color: p.textoSuave, fontSize: 13, fontWeight: "700" },
   botonTituloActivo: { color: "#FFFFFF", fontWeight: "800" },
   presionado: { opacity: 0.75 },
   resultado: {
@@ -289,8 +306,8 @@ const styles = StyleSheet.create({
     gap: 8,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.panel(0.94),
   },
   resultadoEncabezado: {
     flexDirection: "row",
@@ -298,32 +315,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  resultadoTitulo: { color: "#FFFFFF", fontSize: 15, fontWeight: "800", flex: 1 },
-  contador: { color: "#9BA7BA", fontSize: 12, fontWeight: "700" },
-  descripcion: { color: "#9BA7BA", fontSize: 12 },
+  resultadoTitulo: { color: p.texto, fontSize: 15, fontWeight: "800", flex: 1 },
+  contador: { color: p.textoTenue, fontSize: 12, fontWeight: "700" },
+  descripcion: { color: p.textoTenue, fontSize: 12 },
   fila: { flexDirection: "row" },
   filaEncabezado: {
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.2)",
+    borderBottomColor: p.linea(0.2),
   },
-  filaPar: { backgroundColor: "rgba(255,255,255,0.04)" },
+  filaPar: { backgroundColor: p.velo(0.04) },
   celda: {
-    color: "#E7F0F4",
+    color: p.textoSuave,
     fontSize: 12,
     paddingVertical: 8,
     paddingHorizontal: 8,
   },
-  celdaEncabezado: { color: "#8DB2FF", fontWeight: "900", fontSize: 11 },
-  celdaPesos: { color: "#34d399", fontWeight: "800", textAlign: "right" },
+  celdaEncabezado: { color: p.acento, fontWeight: "900", fontSize: 11 },
+  celdaPesos: { color: p.textoExito, fontWeight: "800", textAlign: "right" },
   error: { gap: 10, paddingVertical: 8 },
-  errorTexto: { color: "#fca5a5", fontSize: 13 },
+  errorTexto: { color: p.textoError, fontSize: 13 },
   reintentar: {
     alignSelf: "flex-start",
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: p.velo(0.1),
   },
-  reintentarTexto: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
-  vacio: { color: "#9BA7BA", fontSize: 13, paddingVertical: 12 },
+  reintentarTexto: { color: p.texto, fontWeight: "700", fontSize: 13 },
+  vacio: { color: p.textoTenue, fontSize: 13, paddingVertical: 12 },
 });

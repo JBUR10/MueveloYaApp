@@ -21,11 +21,9 @@ import {
 } from "../constants/ayudaContenido";
 import Icono from "../components/ui/Icono";
 import TextoIcono from "../components/ui/TextoIcono";
+import { usePaleta, useEstilos, type Paleta } from "../services/temaStore";
 
 const AZUL = "#2969e9";
-const FONDO = "#111318";
-const TARJETA = "rgba(255,255,255,0.06)";
-const BORDE = "rgba(255,255,255,0.12)";
 
 type Pestaña = "tutorial" | "faq";
 
@@ -44,6 +42,8 @@ const quitarTildes = (texto: string) =>
   texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 export default function AyudaScreen() {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const router = useRouter();
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const [pestaña, setPestaña] = useState<Pestaña>(
@@ -57,7 +57,7 @@ export default function AyudaScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle="light-content" backgroundColor={FONDO} />
+      <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
 
       <View style={styles.encabezado}>
         <Pressable
@@ -67,7 +67,7 @@ export default function AyudaScreen() {
           accessibilityLabel="Volver"
           style={styles.botonVolver}
         >
-          <Icono nombre="arrow-back" tamano={20} color="#FFFFFF" />
+          <Icono nombre="arrow-back" tamano={20} color={p.texto} />
         </Pressable>
 
         <View>
@@ -112,6 +112,8 @@ export default function AyudaScreen() {
 /* ───────────────────────── Tutorial guiado ───────────────────────── */
 
 function Tutorial() {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const router = useRouter();
   const [indice, setIndice] = useState(0);
 
@@ -144,7 +146,7 @@ function Tutorial() {
               <Icono
                 nombre={s.icono}
                 tamano={16}
-                color={activa ? "#FFFFFF" : "rgba(255,255,255,0.65)"}
+                color={activa ? p.texto : p.textoAlfa(0.65)}
               />
               <Text style={[styles.chipTexto, activa && styles.chipTextoActivo]}>
                 {s.nombre}
@@ -178,7 +180,7 @@ function Tutorial() {
 
         <View style={styles.tarjetaPaso}>
           <View style={styles.iconoPaso}>
-            <Icono nombre={seccion.icono} tamano={26} color="#FFFFFF" />
+            <Icono nombre={seccion.icono} tamano={26} color={p.texto} />
           </View>
 
           <Text style={styles.tituloPaso}>{paso.titulo}</Text>
@@ -186,7 +188,7 @@ function Tutorial() {
 
           {paso.consejos?.map((consejo) => (
             <View key={consejo} style={styles.consejo}>
-              <Icono nombre="bulb-outline" tamano={16} color="#FBBF24" style={styles.consejoIcono} />
+              <Icono nombre="bulb-outline" tamano={16} color={p.estrella} style={styles.consejoIcono} />
               <Text style={styles.consejoTexto}>{consejo}</Text>
             </View>
           ))}
@@ -239,6 +241,8 @@ function Tutorial() {
 /* ───────────────────────── Preguntas frecuentes ───────────────────────── */
 
 function PreguntasFrecuentes() {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const [categoria, setCategoria] =
     useState<(typeof CATEGORIAS_FAQ)[number]>("Todas");
   const [busqueda, setBusqueda] = useState("");
@@ -260,7 +264,7 @@ function PreguntasFrecuentes() {
           value={busqueda}
           onChangeText={setBusqueda}
           placeholder="Buscar una pregunta…"
-          placeholderTextColor="rgba(255,255,255,0.45)"
+          placeholderTextColor={p.textoAlfa(0.45)}
           style={styles.campoBusqueda}
           returnKeyType="search"
         />
@@ -328,9 +332,9 @@ function PreguntasFrecuentes() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   flex: { flex: 1 },
-  safeArea: { flex: 1, backgroundColor: FONDO },
+  safeArea: { flex: 1, backgroundColor: p.fondo },
 
   encabezado: {
     flexDirection: "row",
@@ -346,18 +350,18 @@ const styles = StyleSheet.create({
     borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: TARJETA,
+    backgroundColor: p.velo(0.06),
     borderWidth: 1,
-    borderColor: BORDE,
+    borderColor: p.linea(0.12),
   },
   etiquetaSuperior: {
-    color: "rgba(255,255,255,0.55)",
+    color: p.textoAlfa(0.55),
     fontSize: 10,
     letterSpacing: 1.2,
     fontWeight: "700",
   },
   titulo: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 22,
     fontWeight: "800",
     letterSpacing: -0.5,
@@ -370,9 +374,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     padding: 4,
     borderRadius: 16,
-    backgroundColor: TARJETA,
+    backgroundColor: p.velo(0.06),
     borderWidth: 1,
-    borderColor: BORDE,
+    borderColor: p.linea(0.12),
   },
   opcionSelector: {
     flex: 1,
@@ -383,7 +387,7 @@ const styles = StyleSheet.create({
   },
   opcionActiva: { backgroundColor: AZUL },
   textoSelector: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 13,
     fontWeight: "700",
   },
@@ -398,13 +402,13 @@ const styles = StyleSheet.create({
     height: 34,
     paddingHorizontal: 14,
     borderRadius: 17,
-    backgroundColor: TARJETA,
+    backgroundColor: p.velo(0.06),
     borderWidth: 1,
-    borderColor: BORDE,
+    borderColor: p.linea(0.12),
   },
   chipActivo: { backgroundColor: "rgba(41,105,233,0.22)", borderColor: AZUL },
-  chipTexto: { color: "rgba(255,255,255,0.65)", fontSize: 13, fontWeight: "700" },
-  chipTextoActivo: { color: "#FFFFFF" },
+  chipTexto: { color: p.textoAlfa(0.65), fontSize: 13, fontWeight: "700" },
+  chipTextoActivo: { color: p.texto },
 
   contenidoScroll: { padding: 20, paddingBottom: 28 },
 
@@ -413,11 +417,11 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "rgba(255,255,255,0.14)",
+    backgroundColor: p.velo(0.14),
   },
   segmentoLleno: { backgroundColor: AZUL },
   contadorPaso: {
-    color: "rgba(255,255,255,0.55)",
+    color: p.textoAlfa(0.55),
     fontSize: 10,
     letterSpacing: 1.1,
     fontWeight: "700",
@@ -428,9 +432,9 @@ const styles = StyleSheet.create({
   tarjetaPaso: {
     padding: 20,
     borderRadius: 22,
-    backgroundColor: TARJETA,
+    backgroundColor: p.velo(0.06),
     borderWidth: 1,
-    borderColor: BORDE,
+    borderColor: p.linea(0.12),
   },
   iconoPaso: {
     width: 52,
@@ -442,13 +446,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   tituloPaso: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 19,
     fontWeight: "800",
     letterSpacing: -0.3,
   },
   textoPaso: {
-    color: "rgba(255,255,255,0.78)",
+    color: p.textoAlfa(0.78),
     fontSize: 14.5,
     lineHeight: 22,
     marginTop: 10,
@@ -466,7 +470,7 @@ const styles = StyleSheet.create({
   consejoIcono: { marginTop: 2 },
   consejoTexto: {
     flex: 1,
-    color: "rgba(255,255,255,0.82)",
+    color: p.textoAlfa(0.82),
     fontSize: 13,
     lineHeight: 19,
   },
@@ -481,7 +485,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: AZUL,
   },
-  textoIr: { color: "#8DB2FF", fontSize: 13.5, fontWeight: "800" },
+  textoIr: { color: p.acento, fontSize: 13.5, fontWeight: "800" },
 
   navegacion: {
     flexDirection: "row",
@@ -496,10 +500,10 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: p.velo(0.1),
   },
   deshabilitado: { opacity: 0.35 },
-  textoAnterior: { color: "#FFFFFF", fontWeight: "700", fontSize: 14 },
+  textoAnterior: { color: p.texto, fontWeight: "700", fontSize: 14 },
   botonSiguiente: {
     flex: 2,
     minHeight: 48,
@@ -515,41 +519,41 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: 14,
     paddingHorizontal: 14,
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 14,
-    backgroundColor: TARJETA,
+    backgroundColor: p.velo(0.06),
     borderWidth: 1,
-    borderColor: BORDE,
+    borderColor: p.linea(0.12),
   },
 
   pregunta: {
     padding: 16,
     marginBottom: 10,
     borderRadius: 16,
-    backgroundColor: TARJETA,
+    backgroundColor: p.velo(0.06),
     borderWidth: 1,
-    borderColor: BORDE,
+    borderColor: p.linea(0.12),
   },
   filaPregunta: { flexDirection: "row", alignItems: "center", gap: 12 },
   textoPregunta: {
     flex: 1,
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 14.5,
     fontWeight: "700",
     lineHeight: 20,
   },
-  flecha: { color: "#8DB2FF", fontSize: 22, fontWeight: "700" },
+  flecha: { color: p.acento, fontSize: 22, fontWeight: "700" },
   respuesta: {
-    color: "rgba(255,255,255,0.78)",
+    color: p.textoAlfa(0.78),
     fontSize: 14,
     lineHeight: 21,
     marginTop: 10,
   },
 
   vacio: { alignItems: "center", paddingVertical: 40 },
-  vacioTitulo: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
+  vacioTitulo: { color: p.texto, fontSize: 16, fontWeight: "800" },
   vacioTexto: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 13,
     marginTop: 6,
     textAlign: "center",
