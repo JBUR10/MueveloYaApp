@@ -18,11 +18,13 @@ import { BotonPrincipal } from "../components/auth/FormularioAuth";
 import { aviso } from "../components/ui/AlertaPantalla";
 import { enviarQueja, TIPOS_QUEJA } from "../services/calificacionService";
 import TextoIcono from "../components/ui/TextoIcono";
+import { usePaleta, useEstilos, type Paleta } from "../services/temaStore";
 
 const AZUL = "#2969e9";
-const FONDO = "#111318";
 
 export default function QuejaScreen() {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const router = useRouter();
   const { servicio } = useLocalSearchParams<{ servicio?: string }>();
   const [tipo, setTipo] = useState<string | null>(null);
@@ -61,7 +63,7 @@ export default function QuejaScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle="light-content" backgroundColor={FONDO} />
+      <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
       <ScrollView
         contentContainerStyle={styles.contenido}
         keyboardShouldPersistTaps="handled"
@@ -116,7 +118,7 @@ export default function QuejaScreen() {
               setErrores((e) => ({ ...e, descripcion: undefined }));
             }}
             placeholder="Describe el problema con el mayor detalle posible…"
-            placeholderTextColor="rgba(255,255,255,0.35)"
+            placeholderTextColor={p.textoAlfa(0.35)}
             multiline
             maxLength={1000}
             style={[
@@ -136,59 +138,59 @@ export default function QuejaScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: FONDO },
+const crearEstilos = (p: Paleta) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: p.fondo },
   contenido: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40, gap: 16 },
   topBar: { flexDirection: "row" },
   btnBack: {
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: p.velo(0.1),
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 14,
   },
-  btnBackText: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
+  btnBackText: { color: p.texto, fontWeight: "700", fontSize: 13 },
   subtitulo: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.5,
     marginBottom: -12,
   },
-  titulo: { color: "#eeecec", fontSize: 28, fontWeight: "900" },
+  titulo: { color: p.textoTitulo, fontSize: 28, fontWeight: "900" },
   azul: { color: AZUL },
-  descripcion: { color: "#9BA7BA", fontSize: 13, lineHeight: 19, marginTop: -8 },
+  descripcion: { color: p.textoTenue, fontSize: 13, lineHeight: 19, marginTop: -8 },
   tarjeta: {
     padding: 16,
     gap: 12,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.panel(0.94),
   },
-  etiqueta: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "700" },
+  etiqueta: { color: p.textoAlfa(0.7), fontSize: 12, fontWeight: "700" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.velo(0.04),
   },
   chipActivo: { backgroundColor: AZUL, borderColor: AZUL },
-  chipTexto: { color: "rgba(255,255,255,0.75)", fontSize: 13, fontWeight: "700" },
+  chipTexto: { color: p.textoAlfa(0.75), fontSize: 13, fontWeight: "700" },
   chipTextoActivo: { color: "#FFFFFF" },
   input: {
     minHeight: 120,
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 14,
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1f2937",
-    backgroundColor: "#0b0e14",
+    borderColor: p.bordeCampo,
+    backgroundColor: p.fondoProfundo,
     textAlignVertical: "top",
   },
   inputError: { borderColor: "rgba(239,68,68,0.7)" },
-  error: { color: "#fca5a5", fontSize: 11, marginTop: -6 },
+  error: { color: p.textoError, fontSize: 11, marginTop: -6 },
 });

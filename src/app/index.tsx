@@ -30,9 +30,9 @@ import {
   guardarOrigen,
   obtenerUbicaciones,
 } from "../services/ubicacionStore";
+import { usePaleta, useEstilos, type Paleta } from "../services/temaStore";
 
 const AZUL = "#2969e9";
-const FONDO = "#111318";
 
 /**
  * Pestaña Inicio.
@@ -43,11 +43,12 @@ const FONDO = "#111318";
  * Servicios) siempre se usa el mapa del usuario, en cualquier modo.
  */
 export default function Inicio() {
+  const p = usePaleta();
   const { modo, cargado } = useModo();
   const { seleccionar } = useLocalSearchParams<{ seleccionar?: string }>();
 
   // Mientras se lee el modo guardado, no se muestra ninguno de los dos mapas.
-  if (!cargado) return <View style={{ flex: 1, backgroundColor: FONDO }} />;
+  if (!cargado) return <View style={{ flex: 1, backgroundColor: p.fondo }} />;
 
   if (modo === "transportista" && !seleccionar) {
     return <PanelTransportista vista="mapa" />;
@@ -56,6 +57,8 @@ export default function Inicio() {
 }
 
 function InicioUsuario() {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const router = useRouter();
 
   // Cuando se llega desde "Servicios" con ?seleccionar=origen|destino, la pantalla
@@ -188,7 +191,7 @@ function InicioUsuario() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle="light-content" backgroundColor={FONDO} />
+      <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
 
       <View style={styles.contenedor}>
         <MapaPrincipal
@@ -223,7 +226,7 @@ function InicioUsuario() {
         <View style={styles.ubicacion}>
           <BlurView
             intensity={18}
-            tint="dark"
+            tint={p.blur}
             experimentalBlurMethod="dimezisBlurView"
             style={styles.fondoBlurUbicacion}
           />
@@ -316,15 +319,15 @@ function InicioUsuario() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: FONDO,
+    backgroundColor: p.fondo,
   },
 
   contenedor: {
     flex: 1,
-    backgroundColor: FONDO,
+    backgroundColor: p.fondo,
   },
 
   encabezado: {
@@ -366,11 +369,11 @@ const styles = StyleSheet.create({
   },
 
   nombreApp: {
-    color: "#eeecec",
+    color: p.textoTitulo,
     fontSize: 20,
     fontWeight: "800",
     letterSpacing: -0.5,
-    textShadowColor: "rgba(0,0,0,0.65)",
+    textShadowColor: p.sombraTexto(0.65),
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 5,
   },
@@ -387,8 +390,8 @@ const styles = StyleSheet.create({
     zIndex: 2,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.24)",
-    backgroundColor: "rgba(17,19,24,0.30)",
+    borderColor: p.linea(0.24),
+    backgroundColor: p.panel(0.3),
     overflow: "hidden",
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
@@ -404,7 +407,7 @@ const styles = StyleSheet.create({
 
   sombraCristalUbicacion: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(17,19,24,0.24)",
+    backgroundColor: p.panel(0.24),
   },
 
   cristalUbicacion: {
@@ -412,7 +415,7 @@ const styles = StyleSheet.create({
     borderRadius: 19,
     overflow: "hidden",
     justifyContent: "center",
-    backgroundColor: "rgba(17,19,24,0.08)",
+    backgroundColor: p.panel(0.08),
   },
 
   reflejoSuperior: {
@@ -438,7 +441,7 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.24)",
+    backgroundColor: p.velo(0.24),
   },
 
   puntoUbicacion: {
@@ -455,21 +458,21 @@ const styles = StyleSheet.create({
   },
 
   etiquetaUbicacion: {
-    color: "#E7F0F4",
+    color: p.textoSuave,
     fontSize: 9,
     letterSpacing: 1.2,
     fontWeight: "700",
-    textShadowColor: "rgba(0,0,0,0.45)",
+    textShadowColor: p.sombraTexto(0.45),
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
 
   nombreUbicacion: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 12,
     fontWeight: "700",
     marginTop: 4,
-    textShadowColor: "rgba(0,0,0,0.55)",
+    textShadowColor: p.sombraTexto(0.55),
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
@@ -483,8 +486,8 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    borderColor: p.linea(0.2),
+    backgroundColor: p.panel(0.94),
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
@@ -493,14 +496,14 @@ const styles = StyleSheet.create({
   },
 
   tituloPunto: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.3,
   },
 
   direccionPunto: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 14,
     fontWeight: "700",
     marginTop: 6,
@@ -519,11 +522,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: p.velo(0.1),
   },
 
   textoCancelar: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontWeight: "700",
     fontSize: 14,
   },

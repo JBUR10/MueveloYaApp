@@ -33,9 +33,14 @@ import {
 } from "../services/vehiculoService";
 import Icono from "../components/ui/Icono";
 import TextoIcono from "../components/ui/TextoIcono";
+import {
+  cambiarTema,
+  useEstilos,
+  usePaleta,
+  type Paleta,
+} from "../services/temaStore";
 
 const AZUL = "#2969e9";
-const FONDO = "#111318";
 
 // Campos extra del formulario. Si tu Perfil aún no los tiene,
 // agrégalos en perfilService (apellido, ciudad, telefono).
@@ -62,6 +67,8 @@ function Campo({
   teclado = "default",
   autoCapitalize = "words",
 }: CampoProps) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   return (
     <View style={[styles.campo, !editable && styles.campoBloqueado]}>
       <Text style={styles.campoEtiqueta}>{etiqueta}</Text>
@@ -71,7 +78,7 @@ function Campo({
         editable={editable}
         keyboardType={teclado}
         autoCapitalize={autoCapitalize}
-        placeholderTextColor="#657187"
+        placeholderTextColor={p.textoPista2}
         placeholder={etiqueta}
         style={[styles.campoInput, !editable && styles.campoInputBloqueado]}
       />
@@ -80,6 +87,8 @@ function Campo({
 }
 
 export default function PerfilScreen() {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   // Notificaciones push de este celular (solo en el APK de Android).
   const push = usePush();
   const notificacionesActivas = push.soportado && push.activo && !push.sinPermiso;
@@ -300,7 +309,7 @@ export default function PerfilScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle="light-content" backgroundColor={FONDO} />
+      <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
 
       <View style={styles.contenedor}>
         <KeyboardAvoidingView
@@ -336,7 +345,7 @@ export default function PerfilScreen() {
                     styles.botonFoto,
                     pressed && styles.presionado,
                   ]}>
-                  <Icono nombre="pencil" tamano={16} color="#FFFFFF" />
+                  <Icono nombre="pencil" tamano={16} color={p.texto} />
                 </Pressable>
               </View>
             </View>
@@ -417,6 +426,35 @@ export default function PerfilScreen() {
                   style={[
                     styles.interruptorPunto,
                     notificacionesActivas && styles.interruptorPuntoActivo,
+                  ]}
+                />
+              </Pressable>
+            </View>
+
+            {/* Tema de la app (oscuro por defecto) */}
+            <View style={[styles.tarjetaPreferencias, styles.tarjetaTema]}>
+              <View style={styles.preferenciaTexto}>
+                <Text style={styles.tituloOpcion}>Tema claro</Text>
+                <Text style={styles.descripcionOpcion}>
+                  {p.esClaro
+                    ? "Activado · desactívalo para volver al tema oscuro"
+                    : "Cambia la app a colores claros"}
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={() => cambiarTema(p.esClaro ? "oscuro" : "claro")}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: p.esClaro }}
+                accessibilityLabel="Activar tema claro"
+                style={[
+                  styles.interruptor,
+                  p.esClaro && styles.interruptorActivo,
+                ]}>
+                <View
+                  style={[
+                    styles.interruptorPunto,
+                    p.esClaro && styles.interruptorPuntoActivo,
                   ]}
                 />
               </Pressable>
@@ -509,7 +547,7 @@ export default function PerfilScreen() {
                           : "Documentos al día"}
                     </Text>
                   </View>
-                  <Icono nombre="chevron-forward" tamano={22} color="#8395B0" />
+                  <Icono nombre="chevron-forward" tamano={22} color={p.textoPista3} />
                 </Pressable>
               )}
 
@@ -558,7 +596,7 @@ export default function PerfilScreen() {
                 styles.botonCerrarSesion,
                 pressed && styles.presionado,
               ]}>
-              <Icono nombre="log-out-outline" tamano={20} color="#FF8794" />
+              <Icono nombre="log-out-outline" tamano={20} color={p.textoError3} />
               <Text style={styles.textoCerrarSesion}>Cerrar sesión</Text>
             </Pressable>
 
@@ -580,15 +618,15 @@ export default function PerfilScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: FONDO,
+    backgroundColor: p.fondo,
   },
 
   contenedor: {
     flex: 1,
-    backgroundColor: FONDO,
+    backgroundColor: p.fondo,
   },
 
   scroll: {
@@ -608,7 +646,7 @@ const styles = StyleSheet.create({
   },
 
   etiquetaSuperior: {
-    color: "#9AA9C0",
+    color: p.textoTenue3,
     fontSize: 9,
     fontWeight: "700",
     letterSpacing: 2,
@@ -616,7 +654,7 @@ const styles = StyleSheet.create({
   },
 
   titulo: {
-    color: "#F2F5FA",
+    color: p.textoFuerte,
     fontSize: 28,
     fontWeight: "800",
     letterSpacing: -0.8,
@@ -663,9 +701,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#1E222B",
+    backgroundColor: p.superficieAlta,
     borderWidth: 3,
-    borderColor: FONDO,
+    borderColor: p.fondo,
   },
 
 
@@ -679,23 +717,23 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 6,
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: p.velo(0.07),
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: p.linea(0.08),
   },
 
   campoBloqueado: {
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: p.velo(0.04),
   },
 
   campoEtiqueta: {
-    color: "#9BA7BA",
+    color: p.textoTenue,
     fontSize: 11,
     fontWeight: "600",
   },
 
   campoInput: {
-    color: "#F2F5FA",
+    color: p.textoFuerte,
     fontSize: 15,
     fontWeight: "600",
     paddingVertical: 4,
@@ -703,7 +741,7 @@ const styles = StyleSheet.create({
   },
 
   campoInputBloqueado: {
-    color: "#8E9AAE",
+    color: p.textoDeshabilitado,
   },
 
   botonGuardar: {
@@ -726,20 +764,20 @@ const styles = StyleSheet.create({
 
   // Preferencias (sin cambios)
   tituloSeccion: {
-    color: "#F0F3F8",
+    color: p.textoFuerte2,
     fontSize: 17,
     fontWeight: "800",
     letterSpacing: -0.3,
   },
 
   tituloOpcion: {
-    color: "#F0F3F8",
+    color: p.textoFuerte2,
     fontSize: 12,
     fontWeight: "700",
   },
 
   descripcionOpcion: {
-    color: "#9BA7BA",
+    color: p.textoTenue,
     fontSize: 10,
     lineHeight: 15,
   },
@@ -752,13 +790,17 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.13)",
-    backgroundColor: "rgba(255,255,255,0.045)",
+    borderColor: p.linea(0.13),
+    backgroundColor: p.velo(0.045),
   },
 
   preferenciaTexto: {
     flex: 1,
     gap: 6,
+  },
+
+  tarjetaTema: {
+    marginTop: 12,
   },
 
   interruptor: {
@@ -767,9 +809,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 3,
     justifyContent: "center",
-    backgroundColor: "#353A46",
+    backgroundColor: p.interruptor,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: p.linea(0.12),
   },
 
   interruptorActivo: {
@@ -781,7 +823,7 @@ const styles = StyleSheet.create({
     width: 17,
     height: 17,
     borderRadius: 9,
-    backgroundColor: "#D4D9E1",
+    backgroundColor: p.interruptorPunto,
   },
 
   interruptorPuntoActivo: {
@@ -803,13 +845,13 @@ const styles = StyleSheet.create({
 
 
   textoCerrarSesion: {
-    color: "#FF9CA7",
+    color: p.textoError3,
     fontSize: 12,
     fontWeight: "700",
   },
 
   version: {
-    color: "#657187",
+    color: p.textoPista2,
     fontSize: 9,
     fontWeight: "600",
     letterSpacing: 1.5,
@@ -828,8 +870,8 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.13)",
-    backgroundColor: "rgba(255,255,255,0.045)",
+    borderColor: p.linea(0.13),
+    backgroundColor: p.velo(0.045),
   },
 
   filaModo: {
@@ -841,7 +883,7 @@ const styles = StyleSheet.create({
 
   divisorModo: {
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.075)",
+    backgroundColor: p.velo(0.075),
   },
 
   etiquetaModo: {
@@ -862,13 +904,13 @@ const styles = StyleSheet.create({
   },
 
   textoEtiquetaModo: {
-    color: "#F0F3F8",
+    color: p.textoFuerte2,
     fontSize: 11,
     fontWeight: "700",
   },
 
   textoVolverModo: {
-    color: "#8DB2FF",
+    color: p.acento,
     fontSize: 11,
     fontWeight: "700",
   },
@@ -879,11 +921,11 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.075)",
+    borderTopColor: p.linea(0.075),
   },
 
   textoVencido: {
-    color: "#fca5a5",
+    color: p.textoError,
   },
 
   botonPanelTransportista: {

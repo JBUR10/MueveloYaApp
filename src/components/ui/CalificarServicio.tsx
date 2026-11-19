@@ -21,6 +21,7 @@ import {
   DatosCalificacion,
 } from "../../services/calificacionService";
 import Icono from "./Icono";
+import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 const AZUL = "#2969e9";
 
@@ -44,6 +45,8 @@ function Estrellas({
   onCambiar: (v: number) => void;
   etiqueta: string;
 }) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   return (
     <View style={styles.bloque}>
       <Text style={styles.pregunta}>{etiqueta}</Text>
@@ -59,7 +62,7 @@ function Estrellas({
             <Icono
               nombre={n <= valor ? "star" : "star-outline"}
               tamano={36}
-              color={n <= valor ? "#fbbf24" : "rgba(255,255,255,0.35)"}
+              color={n <= valor ? p.estrella : p.textoAlfa(0.35)}
             />
           </Pressable>
         ))}
@@ -77,6 +80,7 @@ function SiNo({
   onCambiar: (v: boolean) => void;
   etiqueta: string;
 }) {
+  const styles = useEstilos(crearEstilos);
   return (
     <View style={styles.bloque}>
       <Text style={styles.pregunta}>{etiqueta}</Text>
@@ -109,6 +113,8 @@ export default function CalificarServicio({
   onCerrar,
   onEnviado,
 }: Props) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const esCliente = rol === "cliente";
   const [estrellas, setEstrellas] = useState(0);
   const [estrellasApp, setEstrellasApp] = useState(0);
@@ -179,7 +185,7 @@ export default function CalificarServicio({
             <Icono
               nombre={esCliente ? "happy-outline" : "people-outline"}
               tamano={44}
-              color="#FFFFFF"
+              color={p.texto}
               style={styles.icono}
             />
             <Text style={styles.titulo}>
@@ -220,7 +226,7 @@ export default function CalificarServicio({
                 value={comentario}
                 onChangeText={setComentario}
                 placeholder="Escribe aquí…"
-                placeholderTextColor="rgba(255,255,255,0.35)"
+                placeholderTextColor={p.textoAlfa(0.35)}
                 multiline
                 maxLength={500}
                 style={[
@@ -252,7 +258,7 @@ export default function CalificarServicio({
                 {enviando ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.textoBoton}>Enviar</Text>
+                  <Text style={[styles.textoBoton, styles.textoBotonAcento]}>Enviar</Text>
                 )}
               </Pressable>
             </View>
@@ -263,7 +269,7 @@ export default function CalificarServicio({
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.75)",
@@ -275,17 +281,17 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 380,
     maxHeight: "92%",
-    backgroundColor: "#161b22",
+    backgroundColor: p.superficie,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#374151",
+    borderColor: p.bordeFuerte,
   },
   contenido: { padding: 22, gap: 16 },
   icono: { textAlign: "center", alignSelf: "center" },
-  titulo: { color: "#FFFFFF", fontSize: 19, fontWeight: "800", textAlign: "center" },
-  subtitulo: { color: "#9BA7BA", fontSize: 13, textAlign: "center", marginTop: -10 },
+  titulo: { color: p.texto, fontSize: 19, fontWeight: "800", textAlign: "center" },
+  subtitulo: { color: p.textoTenue, fontSize: 13, textAlign: "center", marginTop: -10 },
   bloque: { gap: 8 },
-  pregunta: { color: "#E7F0F4", fontSize: 13, fontWeight: "700" },
+  pregunta: { color: p.textoSuave, fontSize: 13, fontWeight: "700" },
   filaEstrellas: { flexDirection: "row", gap: 8 },
   filaSiNo: { flexDirection: "row", gap: 10 },
   opcion: {
@@ -294,28 +300,30 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.velo(0.04),
   },
   opcionActiva: { backgroundColor: AZUL, borderColor: AZUL },
-  textoOpcion: { color: "rgba(255,255,255,0.75)", fontWeight: "700" },
+  textoOpcion: { color: p.textoAlfa(0.75), fontWeight: "700" },
   textoOpcionActiva: { color: "#FFFFFF" },
   input: {
     minHeight: 70,
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 14,
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1f2937",
-    backgroundColor: "#0b0e14",
+    borderColor: p.bordeCampo,
+    backgroundColor: p.fondoProfundo,
     textAlignVertical: "top",
   },
   botones: { flexDirection: "row", gap: 10, marginTop: 4 },
   boton: { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center" },
-  botonSecundario: { backgroundColor: "rgba(255,255,255,0.1)" },
+  botonSecundario: { backgroundColor: p.velo(0.1) },
   botonPrincipal: { backgroundColor: AZUL },
   inactivo: { opacity: 0.5 },
-  error: { color: "#fca5a5", fontSize: 13, textAlign: "center" },
-  textoBoton: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
+  error: { color: p.textoError, fontSize: 13, textAlign: "center" },
+  textoBoton: { color: p.texto, fontWeight: "800", fontSize: 14 },
+  // "Enviar" va sobre el botón azul sólido: texto blanco.
+  textoBotonAcento: { color: "#FFFFFF" },
 });

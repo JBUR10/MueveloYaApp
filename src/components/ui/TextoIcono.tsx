@@ -3,6 +3,7 @@ import { StyleSheet, type TextProps, type TextStyle } from "react-native";
 
 import Icono, { type NombreIcono } from "./Icono";
 import { Text, useEscala } from "./Texto";
+import { usePaleta } from "../../services/temaStore";
 
 type Props = TextProps & {
   icono: NombreIcono;
@@ -29,8 +30,9 @@ export default function TextoIcono({
   style,
   ...resto
 }: Props) {
+  const p = usePaleta();
   const plano = (StyleSheet.flatten(style) ?? {}) as TextStyle;
-  const color = colorIcono ?? (typeof plano.color === "string" ? plano.color : "#FFFFFF");
+  const color = colorIcono ?? (typeof plano.color === "string" ? plano.color : p.texto);
   const base = plano.fontSize ?? 14;
   const escala = useEscala();
   const tamano = tamanoIcono ?? Math.round(base * escala * 1.15);

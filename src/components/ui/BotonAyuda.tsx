@@ -4,8 +4,10 @@
 import { Href, useRouter } from "expo-router";
 import { Pressable, StyleSheet } from "react-native";
 import { Text } from "./Texto";
+import { useEstilos, type Paleta } from "../../services/temaStore";
 
 export default function BotonAyuda() {
+  const styles = useEstilos(crearEstilos);
   const router = useRouter();
 
   return (
@@ -21,16 +23,16 @@ export default function BotonAyuda() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   boton: {
     width: 38,
     height: 38,
     borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(17,19,24,0.72)",
+    backgroundColor: p.panel(0.72),
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.28)",
+    borderColor: p.linea(0.28),
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,
@@ -41,7 +43,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   simbolo: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 20,
     fontWeight: "800",
     marginTop: -1,

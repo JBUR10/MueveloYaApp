@@ -12,6 +12,7 @@ import { Text, TextInput } from "./Texto";
 import type { Destino, InfoRuta } from "./MapaPrincipal";
 import Icono from "./Icono";
 import TextoIcono from "./TextoIcono";
+import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 const AZUL = "#2969e9";
 
@@ -138,6 +139,8 @@ export default function BuscadorDestino({
   precioDesde = null,
   onSolicitar,
 }: Props) {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const [texto, setTexto] = useState("");
   const [buscando, setBuscando] = useState(false);
   const [resultados, setResultados] = useState<Resultado[]>([]);
@@ -206,7 +209,7 @@ export default function BuscadorDestino({
       <View style={styles.barra}>
         <BlurView
           intensity={18}
-          tint="dark"
+          tint={p.blur}
           experimentalBlurMethod="dimezisBlurView"
           style={StyleSheet.absoluteFill}
         />
@@ -220,7 +223,7 @@ export default function BuscadorDestino({
             onChangeText={setTexto}
             onSubmitEditing={buscar}
             placeholder="¿Pa' dónde es?"
-            placeholderTextColor="rgba(255,255,255,0.6)"
+            placeholderTextColor={p.textoAlfa(0.6)}
             returnKeyType="search"
             autoCorrect={false}
             style={[
@@ -230,7 +233,7 @@ export default function BuscadorDestino({
           />
 
           {buscando ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
+            <ActivityIndicator color={p.texto} size="small" />
           ) : (
             <>
               {(texto.length > 0 || !!destino) && (
@@ -240,7 +243,7 @@ export default function BuscadorDestino({
                   accessibilityRole="button"
                   accessibilityLabel="Borrar destino"
                 >
-                  <Icono nombre="close" tamano={18} color="rgba(255,255,255,0.75)" />
+                  <Icono nombre="close" tamano={18} color={p.textoAlfa(0.75)} />
                 </Pressable>
               )}
 
@@ -387,7 +390,7 @@ export default function BuscadorDestino({
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   contenedor: {
     position: "absolute",
     top: 140,
@@ -400,8 +403,8 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.24)",
-    backgroundColor: "rgba(17,19,24,0.30)",
+    borderColor: p.linea(0.24),
+    backgroundColor: p.panel(0.3),
     overflow: "hidden",
     justifyContent: "center",
     shadowColor: "#000000",
@@ -413,7 +416,7 @@ const styles = StyleSheet.create({
 
   sombra: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(17,19,24,0.34)",
+    backgroundColor: p.panel(0.34),
   },
 
   fila: {
@@ -434,7 +437,7 @@ const styles = StyleSheet.create({
 
   input: {
     flex: 1,
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 14,
     fontWeight: "600",
     paddingVertical: 0,
@@ -451,7 +454,7 @@ const styles = StyleSheet.create({
   },
 
   flecha: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 16,
     fontWeight: "800",
     lineHeight: 19,
@@ -461,8 +464,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    borderColor: p.linea(0.2),
+    backgroundColor: p.panel(0.94),
     overflow: "hidden",
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 6 },
@@ -478,29 +481,29 @@ const styles = StyleSheet.create({
 
   itemSeparado: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(255,255,255,0.15)",
+    borderTopColor: p.linea(0.15),
   },
 
   itemTitulo: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 13,
     fontWeight: "700",
   },
 
   itemDetalle: {
-    color: "rgba(255,255,255,0.6)",
+    color: p.textoAlfa(0.6),
     fontSize: 11,
     marginTop: 2,
   },
 
   itemManual: {
-    color: "#72BFCB",
+    color: p.textoTeal,
     fontSize: 13,
     fontWeight: "700",
   },
 
   mensaje: {
-    color: "#E5E9EC",
+    color: p.textoSuave2,
     fontSize: 12,
     padding: 14,
   },
@@ -536,12 +539,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.24)",
-    backgroundColor: "rgba(17,19,24,0.85)",
+    borderColor: p.linea(0.24),
+    backgroundColor: p.panel(0.85),
   },
 
   textoManual: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 13,
     fontWeight: "700",
   },
@@ -556,8 +559,8 @@ const styles = StyleSheet.create({
     gap: 8,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    borderColor: p.linea(0.2),
+    backgroundColor: p.panel(0.94),
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -566,7 +569,7 @@ const styles = StyleSheet.create({
   },
 
   tarjetaDestino: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontSize: 14,
     fontWeight: "800",
   },
@@ -579,13 +582,13 @@ const styles = StyleSheet.create({
   },
 
   tarjetaInfo: {
-    color: "#8DB2FF",
+    color: p.acento,
     fontSize: 13,
     fontWeight: "700",
   },
 
   tarjetaPrecio: {
-    color: "#10b981",
+    color: p.textoExito3,
     fontSize: 16,
     fontWeight: "900",
   },
@@ -603,7 +606,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.24)",
+    borderColor: p.linea(0.24),
   },
 
   tarjetaBotonPrincipal: {

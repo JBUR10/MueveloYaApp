@@ -6,8 +6,10 @@ import { Text } from "./Texto";
 
 import { Cupon, diasRestantes } from "../../services/cuponesService";
 import TextoIcono from "./TextoIcono";
+import { useEstilos, type Paleta } from "../../services/temaStore";
 
 export default function TarjetaCupones({ cupones }: { cupones: Cupon[] }) {
+  const styles = useEstilos(crearEstilos);
   if (!cupones.length) return null;
 
   return (
@@ -32,7 +34,7 @@ export default function TarjetaCupones({ cupones }: { cupones: Cupon[] }) {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   tarjeta: {
     padding: 14,
     gap: 6,
@@ -42,8 +44,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(52,211,153,0.45)",
     backgroundColor: "rgba(52,211,153,0.10)",
   },
-  titulo: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
-  fila: { color: "#D5DCE8", fontSize: 13, lineHeight: 19 },
-  destacado: { color: "#34d399", fontWeight: "900" },
-  nota: { color: "#9BA7BA", fontSize: 11, lineHeight: 16 },
+  titulo: { color: p.texto, fontSize: 15, fontWeight: "800" },
+  fila: { color: p.textoDato, fontSize: 13, lineHeight: 19 },
+  destacado: { color: p.textoExito, fontWeight: "900" },
+  nota: { color: p.textoTenue, fontSize: 11, lineHeight: 16 },
 });

@@ -43,6 +43,7 @@ import {
   type PuntoMapa,
 } from "../services/ubicacionStore";
 import TextoIcono from "../components/ui/TextoIcono";
+import { usePaleta, useEstilos, type Paleta } from "../services/temaStore";
 
 type Rol = "origen" | "destino";
 type Coords = { lat: number; lng: number };
@@ -75,6 +76,7 @@ function AccionesMapa({
   onMarcar: () => void;
   onQuitar: () => void;
 }) {
+  const styles = useEstilos(crearEstilos);
   return (
     <View style={styles.accionesMapa}>
       <View style={styles.filaChips}>
@@ -116,6 +118,7 @@ function AccionesMapa({
 
 /** Una línea del desglose del precio: "2 ayudantes × $ 25.000 .... $ 50.000". */
 function FilaPrecio({ texto, valor }: { texto: string; valor: number }) {
+  const styles = useEstilos(crearEstilos);
   return (
     <View style={styles.filaPrecio}>
       <Text style={styles.textoPrecio}>{texto}</Text>
@@ -125,6 +128,8 @@ function FilaPrecio({ texto, valor }: { texto: string; valor: number }) {
 }
 
 export default function ServiciosScreen() {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const router = useRouter();
   const ubic = useUbicaciones();
   // ?desde=inicio cuando se llega con el botón "Solicitar servicio" del buscador.
@@ -671,14 +676,14 @@ export default function ServiciosScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="Dirección (Ej: Calle 45 # 70-20)"
-                  placeholderTextColor="#6b7280"
+                  placeholderTextColor={p.textoPista}
                   value={origenDireccion}
                   onChangeText={setOrigenDireccion}
                 />
                 <TextInput
                   style={styles.input}
                   placeholder="Barrio o Municipio (Ej: Laureles)"
-                  placeholderTextColor="#6b7280"
+                  placeholderTextColor={p.textoPista}
                   value={origenBarrio}
                   onChangeText={setOrigenBarrio}
                 />
@@ -706,14 +711,14 @@ export default function ServiciosScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="Dirección (Ej: Carrera 80 # 30-15)"
-                  placeholderTextColor="#6b7280"
+                  placeholderTextColor={p.textoPista}
                   value={destinoDireccion}
                   onChangeText={setDestinoDireccion}
                 />
                 <TextInput
                   style={styles.input}
                   placeholder="Barrio o Municipio (Ej: Poblado)"
-                  placeholderTextColor="#6b7280"
+                  placeholderTextColor={p.textoPista}
                   value={destinoBarrio}
                   onChangeText={setDestinoBarrio}
                 />
@@ -811,16 +816,16 @@ export default function ServiciosScreen() {
                         }
                       }}
                       style={{
-                        backgroundColor: "#0b0e14",
-                        color: "#ffffff",
+                        backgroundColor: p.fondoProfundo,
+                        color: p.texto,
                         padding: "12px",
                         borderRadius: "12px",
-                        border: "1px solid #1f2937",
+                        border: `1px solid ${p.bordeCampo}`,
                         marginBottom: "12px",
                         fontSize: "14px",
                         width: "100%",
                         boxSizing: "border-box",
-                        colorScheme: "dark",
+                        colorScheme: p.esClaro ? "light" : "dark",
                       }}
                     />
                   ) : (
@@ -853,16 +858,16 @@ export default function ServiciosScreen() {
                         }
                       }}
                       style={{
-                        backgroundColor: "#0b0e14",
-                        color: "#ffffff",
+                        backgroundColor: p.fondoProfundo,
+                        color: p.texto,
                         padding: "12px",
                         borderRadius: "12px",
-                        border: "1px solid #1f2937",
+                        border: `1px solid ${p.bordeCampo}`,
                         marginBottom: "12px",
                         fontSize: "14px",
                         width: "100%",
                         boxSizing: "border-box",
-                        colorScheme: "dark",
+                        colorScheme: p.esClaro ? "light" : "dark",
                       }}
                     />
                   ) : (
@@ -925,7 +930,7 @@ export default function ServiciosScreen() {
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   placeholder="Ej: 1 nevera, 1 cama doble y 5 cajas..."
-                  placeholderTextColor="#6b7280"
+                  placeholderTextColor={p.textoPista}
                   multiline
                   textAlignVertical="top"
                   value={descripcion}
@@ -952,7 +957,7 @@ export default function ServiciosScreen() {
                       onPress={() => setAyudantes(ayudantes + 1)}
                       style={styles.btnCounterPlus}
                     >
-                      <Text style={styles.btnCounterText}>+</Text>
+                      <Text style={[styles.btnCounterText, styles.btnCounterTextPlus]}>+</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -977,7 +982,7 @@ export default function ServiciosScreen() {
                       onPress={() => setPisosEscaleras(pisosEscaleras + 1)}
                       style={styles.btnCounterPlus}
                     >
-                      <Text style={styles.btnCounterText}>+</Text>
+                      <Text style={[styles.btnCounterText, styles.btnCounterTextPlus]}>+</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -990,14 +995,14 @@ export default function ServiciosScreen() {
                   <TextInput
                     style={styles.input}
                     placeholder="Nombre completo"
-                    placeholderTextColor="#6b7280"
+                    placeholderTextColor={p.textoPista}
                     value={nombreContacto}
                     onChangeText={setNombreContacto}
                   />
                   <TextInput
                     style={styles.input}
                     placeholder="Teléfono (Ej: 300 000 0000)"
-                    placeholderTextColor="#6b7280"
+                    placeholderTextColor={p.textoPista}
                     keyboardType="phone-pad"
                     value={telefonoContacto}
                     onChangeText={setTelefonoContacto}
@@ -1036,11 +1041,11 @@ export default function ServiciosScreen() {
                       <View style={styles.filaPrecio}>
                         <TextoIcono
                           icono="gift-outline"
-                          style={[styles.textoPrecio, { color: "#34d399" }]}
+                          style={[styles.textoPrecio, { color: p.textoExito }]}
                         >
                           Cupón {cupon.porcentaje} %
                         </TextoIcono>
-                        <Text style={[styles.valorPrecio, { color: "#34d399" }]}>
+                        <Text style={[styles.valorPrecio, { color: p.textoExito }]}>
                           - {formatearPesos(descuento)}
                         </Text>
                       </View>
@@ -1086,18 +1091,18 @@ export default function ServiciosScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#0b0e14",
+    backgroundColor: p.fondoProfundo,
   },
   mainContainer: {
     flex: 1,
-    backgroundColor: "#0b0e14",
+    backgroundColor: p.fondoProfundo,
   },
   container: {
     flex: 1,
-    backgroundColor: "#0b0e14",
+    backgroundColor: p.fondoProfundo,
   },
   contentContainer: {
     paddingHorizontal: 16,
@@ -1111,20 +1116,20 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   btnBack: {
-    backgroundColor: "#161b22",
+    backgroundColor: p.superficie,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#374151",
+    borderColor: p.bordeFuerte,
   },
   btnBackText: {
-    color: "#9ca3af",
+    color: p.textoTenue2,
     fontWeight: "600",
     fontSize: 12,
   },
   stepIndicator: {
-    color: "#60a5fa",
+    color: p.acento2,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -1132,22 +1137,22 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   subtitleHeader: {
-    color: "#60a5fa",
+    color: p.acento2,
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.5,
   },
   titleHeader: {
-    color: "#ffffff",
+    color: p.texto,
     fontSize: 26,
     fontWeight: "900",
     marginTop: 2,
   },
   titleHighlight: {
-    color: "#3b82f6",
+    color: p.acento3,
   },
   sectionTitle: {
-    color: "#9ca3af",
+    color: p.textoTenue2,
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 1,
@@ -1167,41 +1172,41 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardServicioNormal: {
-    backgroundColor: "#161b22",
-    borderColor: "#1f2937",
+    backgroundColor: p.superficie,
+    borderColor: p.bordeCampo,
   },
   cardServicioSelected: {
-    backgroundColor: "#1e293b",
+    backgroundColor: p.superficieSeleccion,
     borderColor: "#3b82f6",
   },
   cardTitle: {
-    color: "#ffffff",
+    color: p.texto,
     fontSize: 16,
     fontWeight: "700",
   },
   textHighlight: {
-    color: "#60a5fa",
+    color: p.acento2,
   },
   cardDesc: {
-    color: "#9ca3af",
+    color: p.textoTenue2,
     fontSize: 11,
     marginTop: 4,
   },
   cardSection: {
-    backgroundColor: "#161b22",
+    backgroundColor: p.superficie,
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: p.bordeCampo,
     marginBottom: 20,
   },
   labelPointBlue: {
-    color: "#60a5fa",
+    color: p.acento2,
     fontWeight: "700",
     marginBottom: 12,
   },
   labelPointGreen: {
-    color: "#34d399",
+    color: p.textoExito,
     fontWeight: "700",
     marginBottom: 12,
   },
@@ -1220,23 +1225,23 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#374151",
-    backgroundColor: "#0b0e14",
+    borderColor: p.bordeFuerte,
+    backgroundColor: p.fondoProfundo,
   },
   chipAzul: {
     borderColor: "#3b82f6",
-    backgroundColor: "#1e293b",
+    backgroundColor: p.superficieSeleccion,
   },
   chipTexto: {
-    color: "#d1d5db",
+    color: p.textoDato2,
     fontSize: 12,
     fontWeight: "700",
   },
   chipTextoAzul: {
-    color: "#60a5fa",
+    color: p.acento2,
   },
   chipPista: {
-    color: "#6b7280",
+    color: p.textoPista,
     fontSize: 11,
     marginTop: 8,
   },
@@ -1248,45 +1253,45 @@ const styles = StyleSheet.create({
   },
   textoExacto: {
     flex: 1,
-    color: "#34d399",
+    color: p.textoExito,
     fontSize: 12,
     fontWeight: "700",
   },
   textoQuitar: {
-    color: "#9ca3af",
+    color: p.textoTenue2,
     fontSize: 11,
     fontWeight: "600",
   },
 
   inputLabel: {
-    color: "#d1d5db",
+    color: p.textoDato2,
     fontSize: 12,
     fontWeight: "600",
     marginBottom: 8,
   },
   input: {
-    backgroundColor: "#0b0e14",
-    color: "#ffffff",
+    backgroundColor: p.fondoProfundo,
+    color: p.texto,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: p.bordeCampo,
     marginBottom: 12,
     fontSize: 14,
   },
   pickerSelectorButton: {
-    backgroundColor: "#0b0e14",
+    backgroundColor: p.fondoProfundo,
     paddingHorizontal: 14,
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#374151",
+    borderColor: p.bordeFuerte,
     marginBottom: 16,
     justifyContent: "center",
   },
   pickerSelectorText: {
-    color: "#60a5fa",
+    color: p.acento2,
     fontSize: 14,
     fontWeight: "600",
   },
@@ -1299,15 +1304,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: "#1f2937",
+    borderTopColor: p.bordeCampo,
   },
   counterTitle: {
-    color: "#ffffff",
+    color: p.texto,
     fontSize: 14,
     fontWeight: "600",
   },
   counterSub: {
-    color: "#6b7280",
+    color: p.textoPista,
     fontSize: 11,
   },
   counterControls: {
@@ -1315,9 +1320,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   btnCounterMinus: {
-    backgroundColor: "#0b0e14",
+    backgroundColor: p.fondoProfundo,
     borderWidth: 1,
-    borderColor: "#374151",
+    borderColor: p.bordeFuerte,
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -1333,12 +1338,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   btnCounterText: {
-    color: "#ffffff",
+    color: p.texto,
     fontSize: 18,
     fontWeight: "700",
   },
+
+  // El botón "+" es azul sólido: su texto va siempre blanco.
+  btnCounterTextPlus: {
+    color: "#FFFFFF",
+  },
   counterValue: {
-    color: "#ffffff",
+    color: p.texto,
     fontSize: 16,
     fontWeight: "700",
     paddingHorizontal: 12,
@@ -1346,7 +1356,7 @@ const styles = StyleSheet.create({
   contactDivider: {
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#1f2937",
+    borderTopColor: p.bordeCampo,
   },
   btnNext: {
     backgroundColor: "#2563eb",
@@ -1367,8 +1377,8 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 4,
   },
-  textoPrecio: { color: "#9ca3af", fontSize: 13, flex: 1 },
-  valorPrecio: { color: "#E7F0F4", fontSize: 13, fontWeight: "700" },
+  textoPrecio: { color: p.textoTenue2, fontSize: 13, flex: 1 },
+  valorPrecio: { color: p.textoSuave, fontSize: 13, fontWeight: "700" },
   filaTotal: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1376,13 +1386,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.12)",
+    borderTopColor: p.linea(0.12),
   },
-  textoTotal: { color: "#FFFFFF", fontSize: 13, fontWeight: "800", flex: 1 },
-  valorTotal: { color: "#10b981", fontSize: 20, fontWeight: "900" },
-  textoPrecioPendiente: { color: "#9ca3af", fontSize: 13 },
+  textoTotal: { color: p.texto, fontSize: 13, fontWeight: "800", flex: 1 },
+  valorTotal: { color: p.textoExito3, fontSize: 20, fontWeight: "900" },
+  textoPrecioPendiente: { color: p.textoTenue2, fontSize: 13 },
   btnSubmit: {
-    backgroundColor: "#10b981",
+    backgroundColor: p.rellenoExito,
     paddingVertical: 16,
     borderRadius: 16,
     alignItems: "center",

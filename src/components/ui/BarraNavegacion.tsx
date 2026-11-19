@@ -15,6 +15,7 @@ import { Text } from "./Texto";
 import { useAvisos } from "../../services/avisosStore";
 import { useModo } from "../../services/modoStore";
 import Icono, { type NombreIcono } from "./Icono";
+import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 type Pestaña = "Inicio" | "Servicios" | "Solicitudes" | "Perfil";
 
@@ -63,6 +64,8 @@ const limitar = (valor: number, min: number, max: number) =>
   Math.min(max, Math.max(min, valor));
 
 export default function BarraNavegacion() {
+  const p = usePaleta();
+  const styles = useEstilos(crearEstilos);
   const router = useRouter();
   const rutaActual = usePathname();
   const transportista = useModo().modo === "transportista";
@@ -235,7 +238,7 @@ export default function BarraNavegacion() {
     <View style={styles.barraNavegacion}>
       <BlurView
         intensity={24}
-        tint="dark"
+        tint={p.blur}
         experimentalBlurMethod="dimezisBlurView"
         style={styles.fondoBlurBarra}
       />
@@ -283,11 +286,19 @@ export default function BarraNavegacion() {
             >
               <View style={styles.cristalActivo}>
                 <LinearGradient
-                  colors={[
-                    "rgba(255,255,255,0.30)",
-                    "rgba(255,255,255,0.11)",
-                    "rgba(255,255,255,0.04)",
-                  ]}
+                  colors={
+                    p.esClaro
+                      ? [
+                          "rgba(41,105,233,0.20)",
+                          "rgba(41,105,233,0.12)",
+                          "rgba(41,105,233,0.06)",
+                        ]
+                      : [
+                          "rgba(255,255,255,0.30)",
+                          "rgba(255,255,255,0.11)",
+                          "rgba(255,255,255,0.04)",
+                        ]
+                  }
                   style={StyleSheet.absoluteFill}
                 />
               </View>
@@ -317,7 +328,7 @@ export default function BarraNavegacion() {
                   <Icono
                     nombre={activa ? pestaña.iconoActivo : pestaña.icono}
                     tamano={24}
-                    color={activa ? "#FFFFFF" : "#F0F3F5"}
+                    color={activa ? p.texto : p.textoFuerte3}
                     style={styles.simboloNavegacion}
                   />
 
@@ -353,7 +364,7 @@ export default function BarraNavegacion() {
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   barraNavegacion: {
     position: "absolute",
     left: 20,
@@ -363,8 +374,8 @@ const styles = StyleSheet.create({
     height: 76,
     borderRadius: 27,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
-    backgroundColor: "rgba(17,19,24,0.36)",
+    borderColor: p.linea(0.25),
+    backgroundColor: p.panel(0.36),
     overflow: "hidden",
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 6 },
@@ -380,14 +391,14 @@ const styles = StyleSheet.create({
 
   sombraCristalBarra: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(17,19,24,0.30)",
+    backgroundColor: p.panel(0.3),
   },
 
   cristalBarra: {
     flex: 1,
     borderRadius: 27,
     overflow: "hidden",
-    backgroundColor: "rgba(17,19,24,0.08)",
+    backgroundColor: p.panel(0.08),
   },
 
   reflejoBarra: {
@@ -440,27 +451,27 @@ const styles = StyleSheet.create({
     right: 4,
     borderRadius: 17,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.24)",
+    borderColor: p.linea(0.24),
     overflow: "hidden",
   },
 
   simboloNavegacion: {
-    textShadowColor: "rgba(0,0,0,0.45)",
+    textShadowColor: p.sombraTexto(0.45),
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
 
   textoNavegacion: {
-    color: "#E5E9EC",
+    color: p.textoSuave2,
     fontSize: 10,
     fontWeight: "600",
-    textShadowColor: "rgba(0,0,0,0.45)",
+    textShadowColor: p.sombraTexto(0.45),
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
 
   textoNavegacionActivo: {
-    color: "#FFFFFF",
+    color: p.texto,
     fontWeight: "800",
   },
 
@@ -470,7 +481,7 @@ const styles = StyleSheet.create({
     width: 18,
     height: 3,
     borderRadius: 2,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: p.texto,
   },
 
   presionado: {
@@ -486,9 +497,9 @@ const styles = StyleSheet.create({
     height: 17,
     paddingHorizontal: 4,
     borderRadius: 9,
-    backgroundColor: "#ef4444",
+    backgroundColor: p.rellenoError,
     borderWidth: 2,
-    borderColor: "#1a1d24",
+    borderColor: p.bordeInsignia,
     alignItems: "center",
     justifyContent: "center",
   },

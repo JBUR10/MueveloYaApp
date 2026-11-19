@@ -18,6 +18,7 @@ import MapaZonas, {
   COLOR_ZONA_MEDIA,
   umbralZonaAlta,
 } from "../ui/MapaZonas";
+import { useEstilos, type Paleta } from "../../services/temaStore";
 
 const AZUL = "#2969e9";
 
@@ -26,6 +27,7 @@ export default function MapaCalor({
 }: {
   periodo: PeriodoEstadisticas;
 }) {
+  const styles = useEstilos(crearEstilos);
   const [datos, setDatos] = useState<Estadisticas | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -119,28 +121,28 @@ export default function MapaCalor({
   );
 }
 
-const styles = StyleSheet.create({
+const crearEstilos = (p: Paleta) => StyleSheet.create({
   tarjeta: {
     padding: 16,
     gap: 10,
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(17,19,24,0.94)",
+    borderColor: p.linea(0.15),
+    backgroundColor: p.panel(0.94),
   },
-  seccion: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
-  nota: { color: "#9BA7BA", fontSize: 12, lineHeight: 17 },
-  error: { color: "#f87171", fontSize: 13, textAlign: "center" },
+  seccion: { color: p.texto, fontSize: 16, fontWeight: "800" },
+  nota: { color: p.textoTenue, fontSize: 12, lineHeight: 17 },
+  error: { color: p.textoError2, fontSize: 13, textAlign: "center" },
   leyenda: { flexDirection: "row", flexWrap: "wrap", columnGap: 16, rowGap: 6 },
   item: { flexDirection: "row", alignItems: "center", gap: 6 },
   punto: { width: 10, height: 10, borderRadius: 5 },
-  itemTexto: { color: "#D5DCE8", fontSize: 12 },
+  itemTexto: { color: p.textoDato, fontSize: 12 },
   filaBarrio: {
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 10,
     paddingVertical: 2,
   },
-  barrio: { color: "#D5DCE8", fontSize: 14, flexShrink: 1 },
-  valor: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
+  barrio: { color: p.textoDato, fontSize: 14, flexShrink: 1 },
+  valor: { color: p.texto, fontSize: 14, fontWeight: "800" },
 });
