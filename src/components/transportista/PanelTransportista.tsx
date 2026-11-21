@@ -952,6 +952,14 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           <Metrica valor={item.ayudantes} etiqueta="Ayudantes" />
           <View style={styles.metricDivider} />
           <Metrica valor={item.pisosEscaleras} etiqueta="Pisos" />
+          {(item.descuento ?? 0) > 0 && item.tarifaBase != null && (
+            <>
+              <View style={styles.metricDivider} />
+              <Metrica valor={formatearPesos(item.tarifaBase)} etiqueta="Subtotal" />
+              <View style={styles.metricDivider} />
+              <Metrica valor={`- ${formatearPesos(item.descuento)}`} etiqueta="Descuento" />
+            </>
+          )}
           {item.tarifaAcordada != null && (
             <>
               <View style={styles.metricDivider} />
@@ -1113,6 +1121,12 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           <Text style={styles.avisoDatos}>
             {[
               item.distanciaKm != null ? textoKm(item.distanciaKm) : null,
+              (item.descuento ?? 0) > 0 && item.tarifaBase != null
+                ? `Subtotal ${formatearPesos(item.tarifaBase)}`
+                : null,
+              (item.descuento ?? 0) > 0
+                ? `Descuento - ${formatearPesos(item.descuento)}`
+                : null,
               item.tarifaAcordada != null ? formatearPesos(item.tarifaAcordada) : null,
             ]
               .filter(Boolean)
@@ -1388,6 +1402,14 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           <Metrica valor={item.ayudantes} etiqueta="Ayudantes" />
           <View style={styles.metricDivider} />
           <Metrica valor={item.pisosEscaleras} etiqueta="Pisos" />
+          {(item.descuento ?? 0) > 0 && item.tarifaBase != null && (
+            <>
+              <View style={styles.metricDivider} />
+              <Metrica valor={formatearPesos(item.tarifaBase)} etiqueta="Subtotal" />
+              <View style={styles.metricDivider} />
+              <Metrica valor={`- ${formatearPesos(item.descuento)}`} etiqueta="Descuento" />
+            </>
+          )}
           {item.tarifaAcordada != null && (
             <>
               <View style={styles.metricDivider} />
