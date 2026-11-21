@@ -107,7 +107,7 @@ begin
     when 'Q01' then
       select jsonb_agg(to_jsonb(t) order by t.tarifa_acordada desc nulls last)
         into v_res
-        from (select id, tipo_servicio, origen, tarifa_acordada, estado
+        from (select id, tipo_servicio, origen, tarifa_base, descuento, tarifa_acordada, estado
                 from public.servicios
                where estado = 'pendiente') t;
 
@@ -115,7 +115,7 @@ begin
     when 'Q02' then
       select jsonb_agg(to_jsonb(t) order by t.tarifa_acordada asc nulls last)
         into v_res
-        from (select id, tipo_servicio, origen, destino, estado, tarifa_acordada
+        from (select id, tipo_servicio, origen, destino, estado, tarifa_base, descuento, tarifa_acordada
                 from public.servicios
                where tipo_servicio = 'Mudanza') t;
 
@@ -123,7 +123,7 @@ begin
     when 'Q03' then
       select jsonb_agg(to_jsonb(t))
         into v_res
-        from (select id, tipo_servicio, origen, tarifa_acordada, estado
+        from (select id, tipo_servicio, origen, tarifa_base, descuento, tarifa_acordada, estado
                 from public.servicios
                where estado = 'en_curso') t;
 
@@ -148,7 +148,7 @@ begin
       select jsonb_agg(to_jsonb(t) order by t.tarifa_acordada desc nulls last)
         into v_res
         from (select id, tipo_servicio, origen, destino, distancia_km,
-                     tarifa_acordada, estado
+                     tarifa_base, descuento, tarifa_acordada, estado
                 from public.servicios
                where distancia_km > 5) t;
 
@@ -169,7 +169,7 @@ begin
     when 'Q09' then
       select jsonb_agg(to_jsonb(t))
         into v_res
-        from (select id, tipo_servicio, origen, destino, tarifa_acordada, estado
+        from (select id, tipo_servicio, origen, destino, tarifa_base, descuento, tarifa_acordada, estado
                 from public.servicios
                where tarifa_acordada is not null
                order by tarifa_acordada desc
