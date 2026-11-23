@@ -64,6 +64,10 @@ export interface SolicitudServicioDTO {
   distanciaKm?: number | null;
   /** La calcula la base de datos (migración 009). */
   tarifaAcordada?: number | null;
+  /** Precio antes de aplicar un cupón. Solo tiene valor si hubo descuento. */
+  tarifaBase?: number | null;
+  /** Valor descontado por el cupón. */
+  descuento?: number | null;
   /** Solo se llena en las solicitudes del cliente (obtenerMisServicios). */
   transportista?: TransportistaAsignado | null;
   /** Solo se llena en las consultas del transportista. */
@@ -102,6 +106,8 @@ type FilaServicio = {
   motivo_cancelacion?: string | null;
   distancia_km?: number | string | null;
   tarifa_acordada?: number | null;
+  tarifa_base?: number | null;
+  descuento?: number | null;
   transportista?: FilaTransportista | FilaTransportista[] | null;
   cliente?: FilaCliente | FilaCliente[] | null;
   calificaciones?: { autor_id: string }[] | null;
@@ -178,6 +184,8 @@ export const deFila = (f: FilaServicio): SolicitudServicioDTO => ({
   // numeric llega como texto desde Supabase.
   distanciaKm: f.distancia_km == null ? null : Number(f.distancia_km),
   tarifaAcordada: f.tarifa_acordada ?? null,
+  tarifaBase: f.tarifa_base ?? null,
+  descuento: f.descuento ?? null,
   transportista: transportistaDeFila(uno(f.transportista)),
   cliente: (() => {
     const c = uno(f.cliente);

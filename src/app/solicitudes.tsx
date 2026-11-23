@@ -498,6 +498,24 @@ export default function SolicitudesScreen() {
                       </Text>
                       <Text style={styles.metricLabel}>Pisos</Text>
                     </View>
+                    {(item.descuento ?? 0) > 0 && item.tarifaBase != null && (
+                      <>
+                        <View style={styles.metricDivider} />
+                        <View style={styles.metricBox}>
+                          <Text style={styles.metricValue}>
+                            {formatearPesos(item.tarifaBase)}
+                          </Text>
+                          <Text style={styles.metricLabel}>Subtotal</Text>
+                        </View>
+                        <View style={styles.metricDivider} />
+                        <View style={styles.metricBox}>
+                          <Text style={[styles.metricValue, { color: p.textoExito }]}>
+                            - {formatearPesos(item.descuento)}
+                          </Text>
+                          <Text style={styles.metricLabel}>Descuento</Text>
+                        </View>
+                      </>
+                    )}
                     {item.tarifaAcordada != null && (
                       <>
                         <View style={styles.metricDivider} />

@@ -1038,17 +1038,20 @@ export default function ServiciosScreen() {
                       />
                     )}
                     {cupon && descuento > 0 && (
-                      <View style={styles.filaPrecio}>
-                        <TextoIcono
-                          icono="gift-outline"
-                          style={[styles.textoPrecio, { color: p.textoExito }]}
-                        >
-                          Cupón {cupon.porcentaje} %
-                        </TextoIcono>
-                        <Text style={[styles.valorPrecio, { color: p.textoExito }]}>
-                          - {formatearPesos(descuento)}
-                        </Text>
-                      </View>
+                      <>
+                        <FilaPrecio texto="Subtotal" valor={tarifa.total} />
+                        <View style={styles.filaPrecio}>
+                          <TextoIcono
+                            icono="gift-outline"
+                            style={[styles.textoPrecio, { color: p.textoExito }]}
+                          >
+                            Cupón {cupon.porcentaje} %
+                          </TextoIcono>
+                          <Text style={[styles.valorPrecio, { color: p.textoExito }]}>
+                            - {formatearPesos(descuento)}
+                          </Text>
+                        </View>
+                      </>
                     )}
                     <View style={styles.filaTotal}>
                       <Text style={styles.textoTotal}>
