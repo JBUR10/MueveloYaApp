@@ -57,6 +57,11 @@ const COL_DESCUENTO: Columna = {
   titulo: "Descuento",
   formato: "pesos",
 };
+const COL_RECARGO: Columna = {
+  clave: "recargo_carga",
+  titulo: "Carga especial",
+  formato: "pesos",
+};
 const COL_ESTADO: Columna = { clave: "estado", titulo: "Estado", formato: "estado" };
 
 /** Métricas en tarjeta (se cargan solas) y listados (con botón). */
@@ -66,21 +71,21 @@ export const CONSULTAS: Consulta[] = [
     titulo: "Pendientes por tarifa",
     descripcion: "Servicios pendientes, de mayor a menor tarifa.",
     tipo: "tabla",
-    columnas: [COL_ID, COL_TIPO, COL_ORIGEN, COL_SUBTOTAL, COL_DESCUENTO, COL_TARIFA, COL_ESTADO],
+    columnas: [COL_ID, COL_TIPO, COL_ORIGEN, COL_SUBTOTAL, COL_RECARGO, COL_DESCUENTO, COL_TARIFA, COL_ESTADO],
   },
   {
     codigo: "Q02",
     titulo: "Mudanzas",
     descripcion: "Servicios de tipo Mudanza, de menor a mayor tarifa.",
     tipo: "tabla",
-    columnas: [COL_ID, COL_TIPO, COL_ORIGEN, COL_DESTINO, COL_SUBTOTAL, COL_DESCUENTO, COL_ESTADO, COL_TARIFA],
+    columnas: [COL_ID, COL_TIPO, COL_ORIGEN, COL_DESTINO, COL_SUBTOTAL, COL_RECARGO, COL_DESCUENTO, COL_ESTADO, COL_TARIFA],
   },
   {
     codigo: "Q03",
     titulo: "En curso",
     descripcion: "Servicios que se están realizando ahora.",
     tipo: "tabla",
-    columnas: [COL_ID, COL_TIPO, COL_ORIGEN, COL_SUBTOTAL, COL_DESCUENTO, COL_TARIFA, COL_ESTADO],
+    columnas: [COL_ID, COL_TIPO, COL_ORIGEN, COL_SUBTOTAL, COL_RECARGO, COL_DESCUENTO, COL_TARIFA, COL_ESTADO],
   },
   {
     codigo: "Q05",
@@ -102,6 +107,7 @@ export const CONSULTAS: Consulta[] = [
       COL_DESTINO,
       { clave: "distancia_km", titulo: "Km", formato: "km" },
       COL_SUBTOTAL,
+      COL_RECARGO,
       COL_DESCUENTO,
       COL_TARIFA,
       COL_ESTADO,
@@ -119,7 +125,7 @@ export const CONSULTAS: Consulta[] = [
     titulo: "Servicio más caro",
     descripcion: "El servicio con la tarifa más alta.",
     tipo: "tabla",
-    columnas: [COL_ID, COL_TIPO, COL_ORIGEN, COL_DESTINO, COL_SUBTOTAL, COL_DESCUENTO, COL_TARIFA, COL_ESTADO],
+    columnas: [COL_ID, COL_TIPO, COL_ORIGEN, COL_DESTINO, COL_SUBTOTAL, COL_RECARGO, COL_DESCUENTO, COL_TARIFA, COL_ESTADO],
   },
 ];
 

@@ -24,6 +24,26 @@ export interface DesgloseTarifa {
   total: number;
 }
 
+export type TipoCarga = "estandar" | "fragil" | "extrapesado";
+
+export function calcularRecargoCarga(
+  tipoServicio: "Envío" | "Acarreo" | "Trasteo" | "Mudanza",
+  tipoCarga: TipoCarga,
+  articulosFragiles: boolean,
+  objetosExtrapesados: boolean,
+) {
+  if (tipoServicio === "Trasteo" || tipoServicio === "Mudanza") {
+    return (
+      (articulosFragiles ? 15 : 0) +
+      (objetosExtrapesados ? 20 : 0)
+    ) * TARIFA_BASE / 100;
+  }
+
+  const porcentaje =
+    tipoCarga === "extrapesado" ? 20 : tipoCarga === "fragil" ? 15 : 0;
+  return porcentaje * TARIFA_BASE / 100;
+}
+
 export function calcularTarifa(
   km: number,
   ayudantes: number,

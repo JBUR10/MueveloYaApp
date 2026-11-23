@@ -27,7 +27,7 @@ import {
   SolicitudServicioDTO,
 } from "../services/servicioService";
 import { useSesion } from "../services/sesionStore";
-import { formatearPesos } from "../services/tarifa";
+import DetalleTarifaSolicitud from "../components/DetalleTarifaSolicitud";
 import {
   estaIniciado,
   HORAS_MINIMAS_CANCELACION,
@@ -485,49 +485,7 @@ export default function SolicitudesScreen() {
                     </View>
                   ) : null}
 
-                  {/* Métricas */}
-                  <View style={styles.metricsRow}>
-                    <View style={styles.metricBox}>
-                      <Text style={styles.metricValue}>{item.ayudantes}</Text>
-                      <Text style={styles.metricLabel}>Ayudantes</Text>
-                    </View>
-                    <View style={styles.metricDivider} />
-                    <View style={styles.metricBox}>
-                      <Text style={styles.metricValue}>
-                        {item.pisosEscaleras}
-                      </Text>
-                      <Text style={styles.metricLabel}>Pisos</Text>
-                    </View>
-                    {(item.descuento ?? 0) > 0 && item.tarifaBase != null && (
-                      <>
-                        <View style={styles.metricDivider} />
-                        <View style={styles.metricBox}>
-                          <Text style={styles.metricValue}>
-                            {formatearPesos(item.tarifaBase)}
-                          </Text>
-                          <Text style={styles.metricLabel}>Subtotal</Text>
-                        </View>
-                        <View style={styles.metricDivider} />
-                        <View style={styles.metricBox}>
-                          <Text style={[styles.metricValue, { color: p.textoExito }]}>
-                            - {formatearPesos(item.descuento)}
-                          </Text>
-                          <Text style={styles.metricLabel}>Descuento</Text>
-                        </View>
-                      </>
-                    )}
-                    {item.tarifaAcordada != null && (
-                      <>
-                        <View style={styles.metricDivider} />
-                        <View style={styles.metricBox}>
-                          <Text style={styles.metricValue}>
-                            {formatearPesos(item.tarifaAcordada)}
-                          </Text>
-                          <Text style={styles.metricLabel}>Tarifa</Text>
-                        </View>
-                      </>
-                    )}
-                  </View>
+                  <DetalleTarifaSolicitud item={item} />
 
                   {/* Pie: contacto + eliminar */}
                   <View style={styles.cardFooter}>
@@ -833,21 +791,6 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     marginBottom: 3,
   },
   cardDesc: { color: p.textoSuave, fontSize: 13, lineHeight: 18 },
-
-  // Métricas
-  metricsRow: {
-    flexDirection: "row",
-    backgroundColor: p.velo(0.03),
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: p.linea(0.08),
-    paddingVertical: 10,
-    marginBottom: 14,
-  },
-  metricBox: { flex: 1, alignItems: "center" },
-  metricValue: { color: p.texto, fontSize: 18, fontWeight: "800" },
-  metricLabel: { color: p.textoAlfa(0.6), fontSize: 11, marginTop: 1 },
-  metricDivider: { width: 1, backgroundColor: p.velo(0.15) },
 
   // Pie
   cardFooter: {

@@ -75,6 +75,7 @@ import {
   rechazarSolicitud,
 } from "../../services/transportistaService";
 import { formatearPesos } from "../../services/tarifa";
+import DetalleTarifaSolicitud from "../DetalleTarifaSolicitud";
 import { obtenerMiVehiculo, revisarDocumentos } from "../../services/vehiculoService";
 import Icono, { type NombreIcono } from "../ui/Icono";
 import TextoIcono from "../ui/TextoIcono";
@@ -948,25 +949,17 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
 
         <Ruta origen={item.origen} destino={item.destino} compacta />
 
-        <View style={styles.metricsRow}>
-          <Metrica valor={item.ayudantes} etiqueta="Ayudantes" />
-          <View style={styles.metricDivider} />
-          <Metrica valor={item.pisosEscaleras} etiqueta="Pisos" />
-          {(item.descuento ?? 0) > 0 && item.tarifaBase != null && (
-            <>
-              <View style={styles.metricDivider} />
-              <Metrica valor={formatearPesos(item.tarifaBase)} etiqueta="Subtotal" />
-              <View style={styles.metricDivider} />
-              <Metrica valor={`- ${formatearPesos(item.descuento)}`} etiqueta="Descuento" />
-            </>
-          )}
-          {item.tarifaAcordada != null && (
-            <>
-              <View style={styles.metricDivider} />
-              <Metrica valor={formatearPesos(item.tarifaAcordada)} etiqueta="Tarifa" />
-            </>
-          )}
-        </View>
+        {etiquetasCarga(item).length > 0 && (
+          <View style={styles.cargaBadges}>
+            {etiquetasCarga(item).map((etiqueta) => (
+              <View key={etiqueta} style={styles.cargaBadge}>
+                <Text style={styles.cargaBadgeText}>{etiqueta}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <DetalleTarifaSolicitud item={item} />
 
         {item.descripcion ? (
           <Text style={styles.cardDesc} numberOfLines={2}>
@@ -1121,6 +1114,12 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           <Text style={styles.avisoDatos}>
             {[
               item.distanciaKm != null ? textoKm(item.distanciaKm) : null,
+              etiquetasCarga(item).length > 0
+                ? etiquetasCarga(item).join(" · ")
+                : null,
+              (item.recargoCarga ?? 0) > 0
+                ? `Carga especial ${formatearPesos(item.recargoCarga)}`
+                : null,
               (item.descuento ?? 0) > 0 && item.tarifaBase != null
                 ? `Subtotal ${formatearPesos(item.tarifaBase)}`
                 : null,
@@ -1389,6 +1388,16 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
 
         <Ruta origen={item.origen} destino={item.destino} />
 
+        {etiquetasCarga(item).length > 0 && (
+          <View style={styles.cargaBadges}>
+            {etiquetasCarga(item).map((etiqueta) => (
+              <View key={etiqueta} style={styles.cargaBadge}>
+                <Text style={styles.cargaBadgeText}>{etiqueta}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         {item.descripcion ? (
           <View style={styles.descBox}>
             <Text style={styles.descLabel}>DETALLE</Text>
@@ -1398,34 +1407,12 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           </View>
         ) : null}
 
-        <View style={styles.metricsRow}>
-          <Metrica valor={item.ayudantes} etiqueta="Ayudantes" />
-          <View style={styles.metricDivider} />
-          <Metrica valor={item.pisosEscaleras} etiqueta="Pisos" />
-          {(item.descuento ?? 0) > 0 && item.tarifaBase != null && (
-            <>
-              <View style={styles.metricDivider} />
-              <Metrica valor={formatearPesos(item.tarifaBase)} etiqueta="Subtotal" />
-              <View style={styles.metricDivider} />
-              <Metrica valor={`- ${formatearPesos(item.descuento)}`} etiqueta="Descuento" />
-            </>
-          )}
-          {item.tarifaAcordada != null && (
-            <>
-              <View style={styles.metricDivider} />
-              <Metrica valor={formatearPesos(item.tarifaAcordada)} etiqueta="Tarifa" />
-            </>
-          )}
-          {miUbicacion && item.origenCoords && seccion === "disponibles" ? (
-            <>
-              <View style={styles.metricDivider} />
-              <Metrica
-                valor={textoKm(distanciaKm(miUbicacion, item.origenCoords))}
-                etiqueta="De ti"
-              />
-            </>
-          ) : null}
-        </View>
+        <DetalleTarifaSolicitud item={item} />
+        {miUbicacion && item.origenCoords && seccion === "disponibles" ? (
+          <Text style={styles.distanciaSolicitud}>
+            A {textoKm(distanciaKm(miUbicacion, item.origenCoords))} de ti
+          </Text>
+        ) : null}
 
         <View style={styles.cardFooter}>
           <View style={styles.contactInfo}>
@@ -1753,14 +1740,16 @@ function Ruta({
   );
 }
 
-function Metrica({ valor, etiqueta }: { valor: number | string; etiqueta: string }) {
-  const styles = useEstilos(crearEstilos);
-  return (
-    <View style={styles.metricBox}>
-      <Text style={styles.metricValue}>{valor}</Text>
-      <Text style={styles.metricLabel}>{etiqueta}</Text>
-    </View>
-  );
+function etiquetasCarga(item: SolicitudServicioDTO): string[] {
+  if (item.tipoServicio === "Trasteo" || item.tipoServicio === "Mudanza") {
+    return [
+      item.articulosFragiles ? "Carga Frágil" : null,
+      item.objetosExtrapesados ? "Extrapesado" : null,
+    ].filter((v): v is string => !!v);
+  }
+  if (item.tipoCarga === "fragil") return ["Carga Frágil"];
+  if (item.tipoCarga === "extrapesado") return ["Extrapesado"];
+  return [];
 }
 
 const crearEstilos = (p: Paleta) => StyleSheet.create({
@@ -2267,21 +2256,23 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     marginBottom: 3,
   },
   cardDesc: { color: p.textoSuave, fontSize: 13, lineHeight: 18 },
-
-  // Métricas
-  metricsRow: {
-    flexDirection: "row",
-    backgroundColor: p.velo(0.03),
-    borderRadius: 14,
+  cargaBadges: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
+  cargaBadge: {
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: p.linea(0.08),
-    paddingVertical: 10,
+    borderColor: p.acento,
+    backgroundColor: p.velo(0.05),
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  cargaBadgeText: { color: p.acento, fontSize: 11, fontWeight: "800" },
+
+  distanciaSolicitud: {
+    color: p.textoAlfa(0.6),
+    fontSize: 11,
+    marginTop: -8,
     marginBottom: 14,
   },
-  metricBox: { flex: 1, alignItems: "center" },
-  metricValue: { color: p.texto, fontSize: 18, fontWeight: "800" },
-  metricLabel: { color: p.textoAlfa(0.6), fontSize: 11, marginTop: 1 },
-  metricDivider: { width: 1, backgroundColor: p.velo(0.15) },
 
   // Pie
   cardFooter: {
