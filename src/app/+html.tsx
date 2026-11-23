@@ -4,12 +4,20 @@
 // Se declara en español y sin traducción automática: por defecto Expo la
 // marca en inglés, Chrome la "traduce" cambiando los textos por su cuenta y
 // React falla con "Failed to execute 'removeChild' on 'Node'".
-import { ScrollViewStyleReset } from "expo-router/html";
+//
+// SDK 58: este componente DEBE renderizar lo que entrega
+// useServerDocumentContext(): headNodes dentro de <head> y bodyNodes después
+// de {children} dentro de <body>. bodyNodes trae los bundles de JavaScript;
+// sin él la página web carga pero nunca se vuelve interactiva.
+import { ScrollViewStyleReset, useServerDocumentContext } from "expo-router/html";
 import type { PropsWithChildren } from "react";
 
 export default function Root({ children }: PropsWithChildren) {
+  const { headNodes, bodyNodes, htmlAttributes, bodyAttributes } =
+    useServerDocumentContext();
+
   return (
-    <html lang="es" translate="no">
+    <html lang="es" translate="no" {...htmlAttributes}>
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
@@ -38,8 +46,14 @@ export default function Root({ children }: PropsWithChildren) {
               "body{background-color:#111318;}html[data-tema=claro] body{background-color:#EEF2F8;}",
           }}
         />
+
+        {/* Estilos y metadatos generados por Expo Router. */}
+        {headNodes}
       </head>
-      <body className="notranslate">{children}</body>
+      <body className="notranslate" {...bodyAttributes}>
+        {children}
+        {bodyNodes}
+      </body>
     </html>
   );
 }

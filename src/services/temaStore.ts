@@ -5,7 +5,13 @@
 // conserva al cerrar y abrir la app.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useMemo, useSyncExternalStore } from "react";
-import { Appearance, Platform, StyleSheet } from "react-native";
+import {
+  Appearance,
+  Platform,
+  type ImageStyle,
+  type TextStyle,
+  type ViewStyle,
+} from "react-native";
 
 import {
   PALETAS,
@@ -102,6 +108,8 @@ export function usePaleta(): Paleta {
 }
 
 type Fabrica<T> = (p: Paleta) => T;
+/** Reemplaza a StyleSheet.NamedStyles, que RN 0.87+ ya no exporta. */
+type EstilosNombrados = Record<string, ViewStyle | TextStyle | ImageStyle>;
 const cache = new WeakMap<Fabrica<unknown>, Partial<Record<NombreTema, unknown>>>();
 
 /**
@@ -113,9 +121,7 @@ const cache = new WeakMap<Fabrica<unknown>, Partial<Record<NombreTema, unknown>>
  *
  * Los estilos de cada tema se crean una sola vez y se reutilizan.
  */
-export function useEstilos<T extends StyleSheet.NamedStyles<T> | StyleSheet.NamedStyles<any>>(
-  fabrica: Fabrica<T>,
-): T {
+export function useEstilos<T extends EstilosNombrados>(fabrica: Fabrica<T>): T {
   const tema = useTema();
   return useMemo(() => {
     let porTema = cache.get(fabrica as Fabrica<unknown>);

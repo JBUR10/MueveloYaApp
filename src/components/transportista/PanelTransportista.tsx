@@ -1659,7 +1659,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
+      <StatusBar barStyle={p.barraEstado} />
 
       <View style={styles.mainContainer}>
         {vista === "mapa" ? renderVistaMapa() : renderVistaLista()}

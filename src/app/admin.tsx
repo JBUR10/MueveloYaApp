@@ -190,7 +190,7 @@ export default function AdminScreen() {
   if (esAdmin !== true) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
+        <StatusBar barStyle={p.barraEstado} />
         <ActivityIndicator
           color={AZUL}
           size="large"
@@ -202,7 +202,7 @@ export default function AdminScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
+      <StatusBar barStyle={p.barraEstado} />
 
       <ScrollView
         contentContainerStyle={styles.contenido}

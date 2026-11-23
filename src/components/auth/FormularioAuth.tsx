@@ -38,7 +38,7 @@ export function PantallaAuth({
   const styles = useEstilos(crearEstilos);
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
+      <StatusBar barStyle={p.barraEstado} />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

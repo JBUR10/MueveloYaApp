@@ -259,7 +259,7 @@ export default function SolicitudesScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
+      <StatusBar barStyle={p.barraEstado} />
 
       <View style={styles.mainContainer}>
         <ScrollView

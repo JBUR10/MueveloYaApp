@@ -9,6 +9,7 @@ import {
   Pressable,
   StyleSheet,
   View,
+  type ViewInstance,
 } from "react-native";
 import { Text } from "./Texto";
 
@@ -93,7 +94,7 @@ export default function BarraNavegacion() {
   const escala = useRef(new Animated.Value(1)).current;
 
   // Referencias para que el gesto (creado una sola vez) nunca use valores desactualizados.
-  const contenedorRef = useRef<View>(null);
+  const contenedorRef = useRef<ViewInstance>(null);
   const anchoTabRef = useRef(0);
   const origenXRef = useRef(0);
   const indiceVistaRef = useRef(indiceActivo);

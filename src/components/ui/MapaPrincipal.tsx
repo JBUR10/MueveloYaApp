@@ -1,10 +1,19 @@
 import * as Location from "expo-location";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentType,
+  type Ref,
+} from "react";
 import {
   ActivityIndicator,
   Platform,
   StyleSheet,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
 import { Text } from "./Texto";
 import { WebView } from "react-native-webview";
@@ -13,6 +22,22 @@ import {
   usePaleta,
   type Paleta,
 } from "../../services/temaStore";
+
+// Los tipos de react-native-webview 14 no son compatibles con los de React
+// Native 0.88 cuando se usan `ref` y `onMessage` juntos (TypeScript reduce las
+// props a `never`). Es el mismo componente en ejecución; aquí solo se declara
+// con las props que este mapa usa. Se puede quitar cuando la librería lo corrija.
+type PropsWebViewMapa = {
+  ref?: Ref<WebView>;
+  originWhitelist?: string[];
+  source?: { html: string };
+  javaScriptEnabled?: boolean;
+  domStorageEnabled?: boolean;
+  onLoadEnd?: () => void;
+  onMessage?: (e: { nativeEvent: { data: string } }) => void;
+  style?: StyleProp<ViewStyle>;
+};
+const WebViewMapa = WebView as unknown as ComponentType<PropsWebViewMapa>;
 
 const mapaHTML = `
 <!DOCTYPE html>
@@ -958,7 +983,7 @@ export default function MapaPrincipal({
           }}
         />
       ) : (
-        <WebView
+        <WebViewMapa
           ref={webViewRef}
           originWhitelist={["*"]}
           source={{ html: htmlMapa }}

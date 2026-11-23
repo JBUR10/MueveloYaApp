@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { forwardRef, type ComponentRef } from "react";
 import {
   StyleSheet,
   Text as TextoNativo,
@@ -39,13 +39,15 @@ function escalarEstilo(estilo: TextProps["style"], escala: number) {
   if (!plano || (plano.fontSize == null && plano.lineHeight == null)) {
     return estilo;
   }
-  const ajustes: TextStyle = {};
+  // TextStyle es de solo lectura en RN 0.87+: se arma un objeto editable.
+  const ajustes: { fontSize?: number; lineHeight?: number } = {};
   let factor = escala;
   if (plano.fontSize != null) {
     const tamano = Math.max(TAMANO_MINIMO, plano.fontSize * escala);
-    ajustes.fontSize = Math.round(tamano * 2) / 2;
+    const fontSize = Math.round(tamano * 2) / 2;
+    ajustes.fontSize = fontSize;
     // El interlineado sigue el mismo factor que la letra, incluida la subida al mínimo.
-    factor = ajustes.fontSize / plano.fontSize;
+    factor = fontSize / plano.fontSize;
   }
   if (plano.lineHeight != null) {
     ajustes.lineHeight = Math.round(plano.lineHeight * factor * 2) / 2;
@@ -56,7 +58,7 @@ function escalarEstilo(estilo: TextProps["style"], escala: number) {
   return [estilo, ajustes];
 }
 
-export const Text = forwardRef<TextoNativo, TextProps>(function Texto(
+export const Text = forwardRef<ComponentRef<typeof TextoNativo>, TextProps>(function Texto(
   { style, maxFontSizeMultiplier, ...resto },
   ref,
 ) {
@@ -71,7 +73,7 @@ export const Text = forwardRef<TextoNativo, TextProps>(function Texto(
   );
 });
 
-export const TextInput = forwardRef<CampoNativo, TextInputProps>(
+export const TextInput = forwardRef<ComponentRef<typeof CampoNativo>, TextInputProps>(
   function Campo({ style, maxFontSizeMultiplier, ...resto }, ref) {
     const escala = useEscala();
     return (

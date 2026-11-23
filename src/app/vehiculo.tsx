@@ -170,7 +170,7 @@ export default function VehiculoScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
+      <StatusBar barStyle={p.barraEstado} />
 
       <ScrollView
         contentContainerStyle={styles.contenido}

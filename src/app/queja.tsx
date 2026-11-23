@@ -63,7 +63,7 @@ export default function QuejaScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
+      <StatusBar barStyle={p.barraEstado} />
       <ScrollView
         contentContainerStyle={styles.contenido}
         keyboardShouldPersistTaps="handled"
