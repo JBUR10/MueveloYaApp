@@ -30,12 +30,14 @@ import {
 import { registrarServicio } from "../services/servicioService";
 import {
   calcularTarifa,
+  calcularRecargoCarga,
   distanciaRutaKm,
   formatearPesos,
   KM_INCLUIDOS,
   PRECIO_AYUDANTE,
   PRECIO_KM_ADICIONAL,
   PRECIO_PISO,
+  TipoCarga,
 } from "../services/tarifa";
 import {
   obtenerUbicaciones,
@@ -142,6 +144,9 @@ export default function ServiciosScreen() {
   const [tipoServicio, setTipoServicio] = useState<
     "Envío" | "Acarreo" | "Trasteo" | "Mudanza"
   >("Acarreo");
+  const [tipoCarga, setTipoCarga] = useState<TipoCarga>("estandar");
+  const [articulosFragiles, setArticulosFragiles] = useState(false);
+  const [objetosExtrapesados, setObjetosExtrapesados] = useState(false);
   const [origenDireccion, setOrigenDireccion] = useState("");
   const [origenBarrio, setOrigenBarrio] = useState("");
   const [destinoDireccion, setDestinoDireccion] = useState("");
@@ -219,6 +224,13 @@ export default function ServiciosScreen() {
 
   const tarifa =
     distanciaKm != null ? calcularTarifa(distanciaKm, ayudantes, pisosEscaleras) : null;
+  const recargoCarga = calcularRecargoCarga(
+    tipoServicio,
+    tipoCarga,
+    articulosFragiles,
+    objetosExtrapesados,
+  );
+  const subtotalConCarga = tarifa ? tarifa.total + recargoCarga : null;
 
   // Cupones del cliente. La base de datos aplica el mejor al crear la solicitud;
   // aquí solo se calcula lo mismo para mostrarle el precio con descuento.
@@ -233,7 +245,10 @@ export default function ServiciosScreen() {
     }, []),
   );
   const cupon = mejorCupon(cupones, tipoServicio);
-  const descuento = tarifa && cupon ? descuentoDe(tarifa.total, cupon.porcentaje) : 0;
+  const descuento =
+    subtotalConCarga != null && cupon
+      ? descuentoDe(subtotalConCarga, cupon.porcentaje)
+      : 0;
 
   // El contacto se llena con los datos de la cuenta (se pueden cambiar).
   const contactoPerfil = useRef({ nombre: "", telefono: "" });
@@ -253,6 +268,9 @@ export default function ServiciosScreen() {
   const resetFormulario = () => {
     setPaso(1);
     setTipoServicio("Acarreo");
+    setTipoCarga("estandar");
+    setArticulosFragiles(false);
+    setObjetosExtrapesados(false);
     setOrigenDireccion("");
     setOrigenBarrio("");
     setDestinoDireccion("");
@@ -538,6 +556,10 @@ export default function ServiciosScreen() {
         descripcion,
         ayudantes,
         pisosEscaleras,
+        tipoCarga,
+        articulosFragiles,
+        objetosExtrapesados,
+        recargoCarga,
         nombreContacto,
         telefonoContacto,
         fecha: new Date().toISOString(),
@@ -612,7 +634,12 @@ export default function ServiciosScreen() {
                   return (
                     <TouchableOpacity
                       key={item.id}
-                      onPress={() => setTipoServicio(item.id as any)}
+                      onPress={() => {
+                        setTipoServicio(item.id as "Envío" | "Acarreo" | "Trasteo" | "Mudanza");
+                        setTipoCarga("estandar");
+                        setArticulosFragiles(false);
+                        setObjetosExtrapesados(false);
+                      }}
                       style={[
                         styles.cardServicio,
                         isSelected
@@ -937,6 +964,87 @@ export default function ServiciosScreen() {
                   onChangeText={setDescripcion}
                 />
 
+                {(tipoServicio === "Envío" || tipoServicio === "Acarreo") && (
+                  <View style={styles.cargaSection}>
+                    <Text style={styles.cargaTitle}>Tipo de carga</Text>
+                    {(tipoServicio === "Envío"
+                      ? [
+                          { id: "estandar" as TipoCarga, titulo: "Estándar", detalle: "Cajas y paquetes comunes", recargo: "+0%" },
+                          { id: "fragil" as TipoCarga, titulo: "Frágil", detalle: "Artículos delicados que requieren manipulación especial", recargo: "+15%" },
+                          { id: "extrapesado" as TipoCarga, titulo: "Pesada (más de 25 kg)", detalle: "Paquetes de alto peso", recargo: "+20%" },
+                        ]
+                      : [
+                          { id: "estandar" as TipoCarga, titulo: "Estándar", detalle: "Objetos o muebles convencionales", recargo: "+0%" },
+                          { id: "fragil" as TipoCarga, titulo: "Frágil / Delicado", detalle: "Espejos, mesas de vidrio, televisores o electrónicos", recargo: "+15%" },
+                          { id: "extrapesado" as TipoCarga, titulo: "Extrapesado", detalle: "Neveras grandes, lavadoras o carga extraordinaria", recargo: "+20%" },
+                        ]
+                    ).map((opcion) => {
+                      const activo = tipoCarga === opcion.id;
+                      return (
+                        <TouchableOpacity
+                          key={opcion.id}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected: activo }}
+                          onPress={() => setTipoCarga(opcion.id)}
+                          style={[styles.cargaOpcion, activo && styles.cargaOpcionActiva]}
+                        >
+                          <View style={[styles.radioCarga, activo && styles.radioCargaActivo]}>
+                            {activo && <View style={styles.radioCargaPunto} />}
+                          </View>
+                          <View style={styles.cargaOpcionTexto}>
+                            <Text style={styles.cargaOpcionTitulo}>{opcion.titulo}</Text>
+                            <Text style={styles.cargaOpcionDetalle}>{opcion.detalle}</Text>
+                          </View>
+                          <Text style={[styles.cargaRecargo, activo && { color: p.acento }]}>
+                            {opcion.recargo}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {(tipoServicio === "Trasteo" || tipoServicio === "Mudanza") && (
+                  <View style={styles.cargaSection}>
+                    <Text style={styles.cargaTitle}>
+                      ¿Incluye artículos de cuidado especial?
+                    </Text>
+                    <TouchableOpacity
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: articulosFragiles }}
+                      onPress={() => setArticulosFragiles((v) => !v)}
+                      style={[styles.cargaOpcion, articulosFragiles && styles.cargaOpcionActiva]}
+                    >
+                      <View style={[styles.checkboxCarga, articulosFragiles && styles.checkboxCargaActivo]}>
+                        {articulosFragiles && <Text style={styles.checkboxMarca}>✓</Text>}
+                      </View>
+                      <View style={styles.cargaOpcionTexto}>
+                        <Text style={styles.cargaOpcionTitulo}>Artículos frágiles o delicados</Text>
+                        <Text style={styles.cargaOpcionDetalle}>Vajillas, vidrios, espejos o pantallas grandes</Text>
+                      </View>
+                      <Text style={styles.cargaRecargo}>+15%</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: objetosExtrapesados }}
+                      onPress={() => setObjetosExtrapesados((v) => !v)}
+                      style={[styles.cargaOpcion, objetosExtrapesados && styles.cargaOpcionActiva]}
+                    >
+                      <View style={[styles.checkboxCarga, objetosExtrapesados && styles.checkboxCargaActivo]}>
+                        {objetosExtrapesados && <Text style={styles.checkboxMarca}>✓</Text>}
+                      </View>
+                      <View style={styles.cargaOpcionTexto}>
+                        <Text style={styles.cargaOpcionTitulo}>Objetos extrapesados</Text>
+                        <Text style={styles.cargaOpcionDetalle}>Nevecón, piano, caja fuerte o máquinas de gimnasio</Text>
+                      </View>
+                      <Text style={styles.cargaRecargo}>+20%</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                <Text style={styles.cargaAyuda}>
+                  Las opciones frágiles incluyen protección y cuidado adicional.
+                </Text>
+
                 {/* Contador Ayudantes */}
                 <View style={styles.counterRow}>
                   <View>
@@ -1037,9 +1145,17 @@ export default function ServiciosScreen() {
                         valor={tarifa.valorPisos}
                       />
                     )}
+                    {recargoCarga > 0 && (
+                      <FilaPrecio
+                        texto="Cuidado especial / Carga"
+                        valor={recargoCarga}
+                      />
+                    )}
                     {cupon && descuento > 0 && (
                       <>
-                        <FilaPrecio texto="Subtotal" valor={tarifa.total} />
+                        {subtotalConCarga != null && (
+                          <FilaPrecio texto="Subtotal" valor={subtotalConCarga} />
+                        )}
                         <View style={styles.filaPrecio}>
                           <TextoIcono
                             icono="gift-outline"
@@ -1058,7 +1174,7 @@ export default function ServiciosScreen() {
                         Total · {distanciaKm?.toFixed(1).replace(".", ",")} km de ruta
                       </Text>
                       <Text style={styles.valorTotal}>
-                        {formatearPesos(tarifa.total - descuento)}
+                        {formatearPesos((subtotalConCarga ?? tarifa.total) - descuento)}
                       </Text>
                     </View>
                   </>
@@ -1356,6 +1472,48 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     fontWeight: "700",
     paddingHorizontal: 12,
   },
+  cargaSection: { gap: 8, paddingTop: 12 },
+  cargaTitle: { color: p.texto, fontSize: 14, fontWeight: "800", marginBottom: 2 },
+  cargaAyuda: { color: p.textoTenue2, fontSize: 12, lineHeight: 17, marginTop: 4 },
+  cargaOpcion: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderColor: p.bordeCampo,
+    borderRadius: 12,
+    padding: 12,
+  },
+  cargaOpcionActiva: {
+    borderColor: p.acento,
+    backgroundColor: p.superficieSeleccion,
+  },
+  radioCarga: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: p.bordeFuerte,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioCargaActivo: { borderColor: p.acento },
+  radioCargaPunto: { width: 10, height: 10, borderRadius: 5, backgroundColor: p.acento },
+  checkboxCarga: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: p.bordeFuerte,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxCargaActivo: { borderColor: p.acento, backgroundColor: p.acento },
+  checkboxMarca: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" },
+  cargaOpcionTexto: { flex: 1 },
+  cargaOpcionTitulo: { color: p.texto, fontSize: 13, fontWeight: "800" },
+  cargaOpcionDetalle: { color: p.textoTenue2, fontSize: 11, lineHeight: 15, marginTop: 2 },
+  cargaRecargo: { color: p.textoSuave, fontSize: 12, fontWeight: "900" },
   contactDivider: {
     paddingTop: 12,
     borderTopWidth: 1,

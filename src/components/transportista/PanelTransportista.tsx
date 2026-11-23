@@ -948,10 +948,26 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
 
         <Ruta origen={item.origen} destino={item.destino} compacta />
 
+        {etiquetasCarga(item).length > 0 && (
+          <View style={styles.cargaBadges}>
+            {etiquetasCarga(item).map((etiqueta) => (
+              <View key={etiqueta} style={styles.cargaBadge}>
+                <Text style={styles.cargaBadgeText}>{etiqueta}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         <View style={styles.metricsRow}>
           <Metrica valor={item.ayudantes} etiqueta="Ayudantes" />
           <View style={styles.metricDivider} />
           <Metrica valor={item.pisosEscaleras} etiqueta="Pisos" />
+          {(item.recargoCarga ?? 0) > 0 && (
+            <>
+              <View style={styles.metricDivider} />
+              <Metrica valor={formatearPesos(item.recargoCarga)} etiqueta="Carga especial" />
+            </>
+          )}
           {(item.descuento ?? 0) > 0 && item.tarifaBase != null && (
             <>
               <View style={styles.metricDivider} />
@@ -1121,6 +1137,12 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           <Text style={styles.avisoDatos}>
             {[
               item.distanciaKm != null ? textoKm(item.distanciaKm) : null,
+              etiquetasCarga(item).length > 0
+                ? etiquetasCarga(item).join(" · ")
+                : null,
+              (item.recargoCarga ?? 0) > 0
+                ? `Carga especial ${formatearPesos(item.recargoCarga)}`
+                : null,
               (item.descuento ?? 0) > 0 && item.tarifaBase != null
                 ? `Subtotal ${formatearPesos(item.tarifaBase)}`
                 : null,
@@ -1389,6 +1411,16 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
 
         <Ruta origen={item.origen} destino={item.destino} />
 
+        {etiquetasCarga(item).length > 0 && (
+          <View style={styles.cargaBadges}>
+            {etiquetasCarga(item).map((etiqueta) => (
+              <View key={etiqueta} style={styles.cargaBadge}>
+                <Text style={styles.cargaBadgeText}>{etiqueta}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         {item.descripcion ? (
           <View style={styles.descBox}>
             <Text style={styles.descLabel}>DETALLE</Text>
@@ -1402,6 +1434,12 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           <Metrica valor={item.ayudantes} etiqueta="Ayudantes" />
           <View style={styles.metricDivider} />
           <Metrica valor={item.pisosEscaleras} etiqueta="Pisos" />
+          {(item.recargoCarga ?? 0) > 0 && (
+            <>
+              <View style={styles.metricDivider} />
+              <Metrica valor={formatearPesos(item.recargoCarga)} etiqueta="Carga especial" />
+            </>
+          )}
           {(item.descuento ?? 0) > 0 && item.tarifaBase != null && (
             <>
               <View style={styles.metricDivider} />
@@ -1751,6 +1789,18 @@ function Ruta({
       </View>
     </View>
   );
+}
+
+function etiquetasCarga(item: SolicitudServicioDTO): string[] {
+  if (item.tipoServicio === "Trasteo" || item.tipoServicio === "Mudanza") {
+    return [
+      item.articulosFragiles ? "Carga Frágil" : null,
+      item.objetosExtrapesados ? "Extrapesado" : null,
+    ].filter((v): v is string => !!v);
+  }
+  if (item.tipoCarga === "fragil") return ["Carga Frágil"];
+  if (item.tipoCarga === "extrapesado") return ["Extrapesado"];
+  return [];
 }
 
 function Metrica({ valor, etiqueta }: { valor: number | string; etiqueta: string }) {
@@ -2267,6 +2317,16 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     marginBottom: 3,
   },
   cardDesc: { color: p.textoSuave, fontSize: 13, lineHeight: 18 },
+  cargaBadges: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
+  cargaBadge: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: p.acento,
+    backgroundColor: p.velo(0.05),
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  cargaBadgeText: { color: p.acento, fontSize: 11, fontWeight: "800" },
 
   // Métricas
   metricsRow: {

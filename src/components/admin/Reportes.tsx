@@ -59,6 +59,7 @@ const ANCHO: Record<string, number> = {
   tarifa_acordada: 110,
   tarifa_base: 110,
   descuento: 110,
+  recargo_carga: 110,
   estado: 110,
 };
 

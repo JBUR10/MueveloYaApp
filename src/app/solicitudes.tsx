@@ -498,6 +498,17 @@ export default function SolicitudesScreen() {
                       </Text>
                       <Text style={styles.metricLabel}>Pisos</Text>
                     </View>
+                    {(item.recargoCarga ?? 0) > 0 && (
+                      <>
+                        <View style={styles.metricDivider} />
+                        <View style={styles.metricBox}>
+                          <Text style={styles.metricValue}>
+                            {formatearPesos(item.recargoCarga)}
+                          </Text>
+                          <Text style={styles.metricLabel}>Carga especial</Text>
+                        </View>
+                      </>
+                    )}
                     {(item.descuento ?? 0) > 0 && item.tarifaBase != null && (
                       <>
                         <View style={styles.metricDivider} />

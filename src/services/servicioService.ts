@@ -68,6 +68,10 @@ export interface SolicitudServicioDTO {
   tarifaBase?: number | null;
   /** Valor descontado por el cupón. */
   descuento?: number | null;
+  tipoCarga?: "estandar" | "fragil" | "extrapesado";
+  articulosFragiles?: boolean;
+  objetosExtrapesados?: boolean;
+  recargoCarga?: number | null;
   /** Solo se llena en las solicitudes del cliente (obtenerMisServicios). */
   transportista?: TransportistaAsignado | null;
   /** Solo se llena en las consultas del transportista. */
@@ -108,6 +112,10 @@ type FilaServicio = {
   tarifa_acordada?: number | null;
   tarifa_base?: number | null;
   descuento?: number | null;
+  tipo_carga?: "estandar" | "fragil" | "extrapesado" | null;
+  articulos_fragiles?: boolean | null;
+  objetos_extrapesados?: boolean | null;
+  recargo_carga?: number | null;
   transportista?: FilaTransportista | FilaTransportista[] | null;
   cliente?: FilaCliente | FilaCliente[] | null;
   calificaciones?: { autor_id: string }[] | null;
@@ -186,6 +194,10 @@ export const deFila = (f: FilaServicio): SolicitudServicioDTO => ({
   tarifaAcordada: f.tarifa_acordada ?? null,
   tarifaBase: f.tarifa_base ?? null,
   descuento: f.descuento ?? null,
+  tipoCarga: f.tipo_carga ?? "estandar",
+  articulosFragiles: f.articulos_fragiles ?? false,
+  objetosExtrapesados: f.objetos_extrapesados ?? false,
+  recargoCarga: f.recargo_carga ?? null,
   transportista: transportistaDeFila(uno(f.transportista)),
   cliente: (() => {
     const c = uno(f.cliente);
@@ -219,6 +231,10 @@ const aFila = (d: SolicitudServicioDTO) => ({
   descripcion: d.descripcion,
   ayudantes: d.ayudantes,
   pisos_escaleras: d.pisosEscaleras,
+  tipo_carga: d.tipoCarga ?? "estandar",
+  articulos_fragiles: d.articulosFragiles ?? false,
+  objetos_extrapesados: d.objetosExtrapesados ?? false,
+  recargo_carga: d.recargoCarga ?? 0,
   nombre_contacto: d.nombreContacto,
   telefono_contacto: d.telefonoContacto,
   fecha: d.fecha || new Date().toISOString(),
