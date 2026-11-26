@@ -1,12 +1,17 @@
 import * as Location from "expo-location";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
   StyleSheet,
   View,
 } from "react-native";
-import { Text } from "./Texto";
+import {
+  calcularTamanoFuente,
+  Text,
+  useEscala,
+  useFactorPreferenciaFuente,
+} from "./Texto";
 import { WebView } from "react-native-webview";
 import {
   useEstilos,
@@ -574,6 +579,21 @@ const mapaHTML = `
     window.recibir = function (d) {
       if (!d) return;
 
+      if (d.tipo === 'TAMANO_FUENTE') {
+        var estiloFuente = document.getElementById('escala-fuente');
+        if (!estiloFuente) {
+          estiloFuente = document.createElement('style');
+          estiloFuente.id = 'escala-fuente';
+          document.head.appendChild(estiloFuente);
+        }
+        estiloFuente.textContent =
+          '.leaflet-popup-content{font-size:' + d.popup + 'px!important;}' +
+          '.leaflet-control-attribution{font-size:' + d.atribucion + 'px!important;}' +
+          '.pin-solicitud span{font-size:' + d.indicador + 'px!important;}' +
+          '.punto-origen{font-size:' + d.origen + 'px!important;}';
+        return;
+      }
+
       if (d.tipo === 'TEMA') {
         window.aplicarTema(d.tema);
         return;
@@ -674,6 +694,8 @@ export default function MapaPrincipal({
 }: Props) {
   const p = usePaleta();
   const styles = useEstilos(crearEstilos);
+  const escalaAncho = useEscala();
+  const factorPreferencia = useFactorPreferenciaFuente();
   const webViewRef = useRef<WebView>(null);
   // El HTML se fija con el tema del primer render (si cambiara el HTML, el mapa
   // se recargaría); los cambios posteriores se envían como mensaje "TEMA".
@@ -723,6 +745,32 @@ export default function MapaPrincipal({
       `);
     }
   }, []);
+
+  const estilosFuenteMapa = useMemo(
+    () => ({
+      tipo: "TAMANO_FUENTE",
+      popup: calcularTamanoFuente(13, escalaAncho, factorPreferencia),
+      atribucion: calcularTamanoFuente(
+        9,
+        escalaAncho,
+        factorPreferencia,
+        true,
+      ),
+      indicador: calcularTamanoFuente(
+        13,
+        escalaAncho,
+        factorPreferencia,
+        true,
+      ),
+      origen: calcularTamanoFuente(
+        12,
+        escalaAncho,
+        factorPreferencia,
+        true,
+      ),
+    }),
+    [escalaAncho, factorPreferencia],
+  );
 
   // Procesa los mensajes que llegan desde el mapa.
   const procesarMensaje = useCallback((raw: any) => {
@@ -940,6 +988,11 @@ export default function MapaPrincipal({
     if (!mapaListo) return;
     enviarAlMapa({ tipo: "TEMA", tema: p.tema });
   }, [p.tema, mapaListo, enviarAlMapa]);
+
+  useEffect(() => {
+    if (!mapaListo) return;
+    enviarAlMapa(estilosFuenteMapa);
+  }, [estilosFuenteMapa, mapaListo, enviarAlMapa]);
 
   const mensajeError = errorUbicacion || errorRuta;
 
