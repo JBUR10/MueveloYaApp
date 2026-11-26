@@ -1,5 +1,6 @@
 import { Href, useFocusEffect, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import * as WebBrowser from "expo-web-browser";
 import { useCallback, useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -39,6 +40,8 @@ import {
   usePaleta,
   type Paleta,
 } from "../services/temaStore";
+import { obtenerMisPagos, type PagoRegistrado } from "../services/pagoService";
+import { formatearPesos } from "../services/tarifa";
 
 const AZUL = "#2969e9";
 
@@ -101,6 +104,7 @@ export default function PerfilScreen() {
   const [perfil, setPerfil] = useState<PerfilExtendido | null>(null);
   const [vehiculo, setVehiculo] = useState<Vehiculo | null>(null);
   const [esAdmin, setEsAdmin] = useState(false);
+  const [misPagos, setMisPagos] = useState<PagoRegistrado[]>([]);
 
   // Formulario
   const [nombreForm, setNombreForm] = useState("");
@@ -123,6 +127,7 @@ export default function PerfilScreen() {
         .then(setVehiculo)
         .catch(() => setVehiculo(null));
       soyAdmin().then(setEsAdmin);
+      obtenerMisPagos().then(setMisPagos).catch(() => setMisPagos([]));
     }, []),
   );
 
@@ -399,6 +404,28 @@ export default function PerfilScreen() {
             </Pressable>
 
             {/* Preferencias */}
+            <Text style={styles.tituloSeccion}>Mis pagos</Text>
+            <View style={styles.tarjetaPreferencias}>
+              {misPagos.length === 0 ? (
+                <Text style={styles.tituloOpcion}>Aún no tienes pagos registrados.</Text>
+              ) : (
+                <View style={{ flex: 1 }}>
+                  {misPagos.map((pago) => (
+                    <View key={pago.id} style={{ marginBottom: 10 }}>
+                      <Text style={styles.tituloOpcion}>
+                        {formatearPesos(pago.monto)} · {pago.estado}
+                      </Text>
+                      {pago.recibo_url ? (
+                        <Pressable onPress={() => WebBrowser.openBrowserAsync(pago.recibo_url!)}>
+                          <Text style={styles.tituloOpcion}>Ver recibo</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+
             <Text style={styles.tituloSeccion}>Preferencias</Text>
 
             <View style={styles.tarjetaPreferencias}>

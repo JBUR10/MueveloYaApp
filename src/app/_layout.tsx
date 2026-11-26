@@ -9,6 +9,7 @@ import { cambiarModo, obtenerModo } from '../services/modoStore';
 import { escucharToquesNotificacion } from '../services/notificacionesPush';
 import { useSesion } from '../services/sesionStore';
 import { useEstadoTema, usePaleta } from "../services/temaStore";
+import StripePaymentProvider from '../components/stripe-payment-provider';
 
 /** Al tocar una notificación push, abre la pantalla que corresponde. */
 function AbrirDesdeNotificacion() {
@@ -54,7 +55,7 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <StripePaymentProvider>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -86,6 +87,6 @@ export default function RootLayout() {
       {conSesion && <AbrirDesdeNotificacion />}
 
       <AlertaPantalla />
-    </>
+    </StripePaymentProvider>
   );
 }

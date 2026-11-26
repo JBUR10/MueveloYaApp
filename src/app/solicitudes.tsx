@@ -1,9 +1,10 @@
 // src/app/solicitudes.tsx
-import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
+  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -20,12 +21,18 @@ import MotivoCancelacion from "../components/ui/MotivoCancelacion";
 import { alLlegarAviso, mostrarAvisosPendientes } from "../services/avisosStore";
 import {
   cancelarServicioCliente,
-  eliminarServicio,
   escucharCambiosServicios,
+  retirarSolicitudPendiente,
   EstadoServicio,
   obtenerMisServicios,
   SolicitudServicioDTO,
 } from "../services/servicioService";
+import {
+  crearPago,
+  esperarConfirmacionPago,
+  pedirReembolso,
+} from "../services/pagoService";
+import { pagarServicioStripe } from "../services/pagoStripe";
 import { useSesion } from "../services/sesionStore";
 import DetalleTarifaSolicitud from "../components/DetalleTarifaSolicitud";
 import {
@@ -130,15 +137,25 @@ export default function SolicitudesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+  const [confirmandoPagoId, setConfirmandoPagoId] = useState<string | null>(null);
   const [calificandoId, setCalificandoId] = useState<string | null>(null);
   // Servicio que se está cancelando (abre el selector de motivo).
   const [cancelandoId, setCancelandoId] = useState<string | null>(null);
+  const { pago, servicio_id: servicioIdRetorno } = useLocalSearchParams<{
+    pago?: string;
+    servicio_id?: string;
+  }>();
   const uid = useSesion().sesion?.user.id;
 
   const cargarServicios = useCallback(async () => {
     try {
       const data = await obtenerMisServicios();
       setServicios(data);
+      setConfirmandoPagoId((actual) =>
+        actual && data.some((servicio) => servicio.id === actual && servicio.pagoEstado === "pagado")
+          ? null
+          : actual,
+      );
     } catch (error) {
       console.error("Error cargando solicitudes:", error);
     } finally {
@@ -146,6 +163,30 @@ export default function SolicitudesScreen() {
       setRefreshing(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (pago === "ok") {
+      if (servicioIdRetorno) {
+        void esperarConfirmacionPago(servicioIdRetorno)
+          .then(async (confirmado) => {
+            await cargarServicios();
+            if (confirmado) {
+              await aviso("Pago confirmado", "Tu solicitud ya está disponible para los transportistas.", "exito");
+            } else {
+              await aviso("Confirmación pendiente", "Stripe todavía está notificando el pago. No vuelvas a pagarlo; actualiza la pantalla en unos segundos.", "advertencia");
+            }
+          })
+          .catch((error) => {
+            console.error("No se pudo confirmar el pago:", error);
+            void aviso("Confirmación pendiente", "No vuelvas a pagar. Actualiza la pantalla en unos segundos para consultar el estado.", "advertencia");
+          });
+      } else {
+        aviso("Pago recibido", "Estamos confirmando tu pago. Te avisaremos cuando esté listo.", "info");
+      }
+    } else if (pago === "cancelado") {
+      aviso("Pago cancelado", "La solicitud sigue pendiente y puedes pagarla desde aquí.", "advertencia");
+    }
+  }, [pago, servicioIdRetorno, cargarServicios]);
 
   // Carga al entrar, muestra los avisos sin leer (si un servicio finalizó,
   // abre la calificación) y se actualiza sola cuando el transportista avanza.
@@ -204,6 +245,14 @@ export default function SolicitudesScreen() {
     setEliminandoId(id);
     try {
       await cancelarServicioCliente(id, motivo);
+      if (servicios.find((s) => s.id === id)?.pagoEstado === "pagado") {
+        try {
+          await pedirReembolso(id);
+          await aviso("Servicio cancelado", "Solicitud de reembolso enviada. El banco puede tardar unos días.", "info");
+        } catch {
+          await aviso("Reembolso pendiente", "Reintenta el reembolso desde esta solicitud.", "advertencia");
+        }
+      }
     } finally {
       setEliminandoId(null);
     }
@@ -242,11 +291,64 @@ export default function SolicitudesScreen() {
 
     try {
       setEliminandoId(id);
-      await eliminarServicio(id);
+      const item = servicios.find((s) => s.id === id);
+      await retirarSolicitudPendiente(id);
+      if (item?.pagoEstado === "pagado") {
+        await pedirReembolso(id).catch(() => null);
+      }
       setServicios((prev) => prev.filter((s) => String(s.id) !== String(id)));
     } catch (error: any) {
       await aviso("Error", error?.message || "No se pudo eliminar", "error");
       cargarServicios();
+    } finally {
+      setEliminandoId(null);
+    }
+  };
+
+  const handlePagar = async (item: SolicitudServicioDTO) => {
+    if (!item.id) return;
+    setEliminandoId(item.id);
+    try {
+      const plataforma = Platform.OS === "web" ? "web" : "movil";
+      const pago = await crearPago(item.id, plataforma);
+      if (pago.gratis) {
+        await cargarServicios();
+        return;
+      }
+      if (plataforma === "web") {
+        await pagarServicioStripe({ checkoutUrl: pago.checkoutUrl ?? "" });
+      } else if (pago.paymentIntentClientSecret && pago.customerId && pago.ephemeralKeySecret) {
+        const resultado = await pagarServicioStripe({
+          paymentIntentClientSecret: pago.paymentIntentClientSecret,
+          customerId: pago.customerId,
+          ephemeralKeySecret: pago.ephemeralKeySecret,
+        }, p);
+        if (resultado.estado === "pagado") {
+          setConfirmandoPagoId(item.id);
+          let confirmado = false;
+          try {
+            confirmado = await esperarConfirmacionPago(item.id);
+          } catch (error) {
+            console.error("No se pudo consultar la confirmación de Stripe:", error);
+          }
+          await aviso(
+            confirmado ? "Pago confirmado" : "Confirmación pendiente",
+            confirmado
+              ? "Tu solicitud ya está disponible para los transportistas."
+              : "Stripe todavía está notificando el pago. No vuelvas a pagarlo; actualiza la pantalla en unos segundos.",
+            confirmado ? "exito" : "advertencia",
+          );
+        } else {
+          await aviso(
+            resultado.estado === "cancelado" ? "Pago cancelado" : "No se pudo completar el pago",
+            resultado.mensaje ?? "Inténtalo nuevamente.",
+            resultado.estado === "cancelado" ? "advertencia" : "error",
+          );
+        }
+        await cargarServicios();
+      }
+    } catch (error: any) {
+      await aviso("Pagos no disponibles", error?.message ?? "No se pudo iniciar el pago.", "error");
     } finally {
       setEliminandoId(null);
     }
@@ -354,6 +456,23 @@ export default function SolicitudesScreen() {
                 estadoItem === "completada" &&
                 !!uid &&
                 !item.calificadoPor?.includes(uid);
+              const pagoVisual = item.pagoEstado === "pagado"
+                ? {
+                    color: p.textoExito2,
+                    fondo: "rgba(80,220,164,0.10)",
+                    borde: "rgba(80,220,164,0.35)",
+                  }
+                : item.pagoEstado === "reembolsado"
+                  ? {
+                      color: p.acento,
+                      fondo: "rgba(41,105,233,0.12)",
+                      borde: "rgba(41,105,233,0.4)",
+                    }
+                  : {
+                      color: p.textoAviso,
+                      fondo: "rgba(251,191,36,0.10)",
+                      borde: "rgba(251,191,36,0.35)",
+                    };
 
               return (
                 <View
@@ -402,6 +521,52 @@ export default function SolicitudesScreen() {
                       </Text>
                     )}
                   </View>
+
+                  {item.metodoPago === "efectivo" ? (
+                    <View
+                      style={[
+                        styles.estadoBox,
+                        {
+                          backgroundColor: pagoVisual.fondo,
+                          borderColor: pagoVisual.borde,
+                        },
+                      ]}
+                    >
+                      <TextoIcono
+                        icono="cash-outline"
+                        style={[styles.estadoTexto, { color: pagoVisual.color }]}
+                      >
+                        Efectivo pendiente al finalizar el servicio
+                      </TextoIcono>
+                    </View>
+                  ) : item.pagoEstado !== "no_aplica" ? (
+                    <View
+                      style={[
+                        styles.estadoBox,
+                        {
+                          backgroundColor: pagoVisual.fondo,
+                          borderColor: pagoVisual.borde,
+                        },
+                      ]}
+                    >
+                      <TextoIcono
+                        icono={
+                          item.pagoEstado === "pagado"
+                            ? "card"
+                            : item.pagoEstado === "reembolsado"
+                              ? "return-up-back"
+                              : "time-outline"
+                        }
+                        style={[styles.estadoTexto, { color: pagoVisual.color }]}
+                      >
+                        {item.pagoEstado === "pagado"
+                          ? "Pagado"
+                          : item.pagoEstado === "reembolsado"
+                            ? "Reembolsado"
+                            : "Pago pendiente"}
+                      </TextoIcono>
+                    </View>
+                  ) : null}
 
                   {/* Transportista asignado */}
                   {t && estadoItem !== "pendiente" && estadoItem !== "cancelada" && (
@@ -512,6 +677,30 @@ export default function SolicitudesScreen() {
                         </Text>
                       ) : null}
                     </View>
+
+                    {estadoItem === "pendiente" &&
+                      item.metodoPago === "stripe" &&
+                        item.pagoEstado === "pendiente_pago" &&
+                        confirmandoPagoId !== item.id &&
+                        !(pago === "ok" && servicioIdRetorno === item.id) && (
+                      <TouchableOpacity
+                        onPress={() => handlePagar(item)}
+                        style={styles.btnCalificar}
+                        activeOpacity={0.8}
+                        disabled={borrando}
+                      >
+                        <TextoIcono icono="card" style={styles.btnCalificarText}>
+                          Pagar ahora
+                        </TextoIcono>
+                      </TouchableOpacity>
+                    )}
+                    {estadoItem === "pendiente" &&
+                      item.metodoPago === "stripe" &&
+                      item.pagoEstado === "pendiente_pago" &&
+                      (confirmandoPagoId === item.id ||
+                        (pago === "ok" && servicioIdRetorno === item.id)) && (
+                        <Text style={styles.textoBloqueo}>Confirmando pago con Stripe…</Text>
+                      )}
 
                     {/* Aceptada sin iniciar: el cliente puede cancelar. */}
                     {cancelable && (
