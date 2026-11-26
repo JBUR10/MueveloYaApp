@@ -38,12 +38,17 @@ Pegar y ejecutar cada archivo en el SQL Editor. Todos se pueden volver a correr 
 14. [`014_ayudantes_conductor.sql`](migraciones/014_ayudantes_conductor.sql): el conductor indica si cuenta con ayudantes; sin ayudantes no le aparecen, no le llegan por push y no puede aceptar solicitudes que los piden.
 15. [`015_subtotal_descuento_reportes.sql`](migraciones/015_subtotal_descuento_reportes.sql): reportes de descuentos y tarifas.
 16. [`016_tipo_carga_y_recargo.sql`](migraciones/016_tipo_carga_y_recargo.sql): tipo de carga y recargos.
+17. [`017_promociones_multiples_y_baja.sql`](migraciones/017_promociones_multiples_y_baja.sql): permite tener campañas simultáneas, consultar las vigentes y darlas de baja; invalida inmediatamente los cupones no usados de una campaña dada de baja.
 18. [`018_pagos_stripe.sql`](migraciones/018_pagos_stripe.sql): pagos con Stripe, reembolsos, visibilidad pagada y limpieza.
 19. [`019_evidencias_y_sanciones.sql`](migraciones/019_evidencias_y_sanciones.sql): fotos de evidencia (bucket privado `evidencias` en Storage). El cliente adjunta fotos a sus quejas y el transportista toma fotos de los artículos al recoger; sin ellas no puede marcar «Recogido». También crea la revisión de quejas del administrador y las sanciones: advertencia (3 = 5 días), 1 semana, 2 semanas o definitiva, más la cuenta condicionada (30 días y 15 viajes sin quejas). Requiere un APK nuevo, porque agrega `expo-image-picker`.
 20. [`020_efectivo_y_webhook_stripe.sql`](migraciones/020_efectivo_y_webhook_stripe.sql): método efectivo, permisos/reintentos del webhook y retiro definitivo de Wompi. **Elimina los registros de pago sin un PaymentIntent de Stripe y las columnas heredadas de Wompi; conserva los servicios antiguos, pero deja sin método de pago los que tenían un método desconocido.**
 21. [`021_retirar_trigger_pago_legacy.sql`](migraciones/021_retirar_trigger_pago_legacy.sql): elimina el trigger heredado que rechazaba Stripe al crear un servicio.
+22. [`022_control_limite_promociones.sql`](migraciones/022_control_limite_promociones.sql): permite al administrador omitir el límite de una promoción por cliente en los últimos 7 días.
+23. [`023_control_periodos_promociones.sql`](migraciones/023_control_periodos_promociones.sql): permite elegir los días de inactividad para reactivación y el intervalo entre promociones (incluido cero para permitir repetir).
 
 El detalle de lo que crea la 001 está abajo.
+
+Si ya ejecutaste hasta la 016, ejecuta la 017 y después la 022 en el SQL Editor. Si ya ejecutaste esas dos y quieres controlar los plazos, ejecuta solo la 023; no edites ni vuelvas a ejecutar las migraciones anteriores.
 
 Crea lo siguiente:
 
