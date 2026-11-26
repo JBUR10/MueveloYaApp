@@ -7,6 +7,8 @@ export type EstadoServicio =
   | "completada"
   | "cancelada";
 
+export type MetodoPagoServicio = "stripe" | "efectivo";
+
 export interface Calificacion {
   promedio: number | null;
   total: number;
@@ -76,6 +78,8 @@ export interface SolicitudServicioDTO {
   transportista?: TransportistaAsignado | null;
   /** Solo se llena en las consultas del transportista. */
   cliente?: ClienteServicio | null;
+  pagoEstado?: "pendiente_pago" | "pagado" | "reembolsado" | "no_aplica";
+  metodoPago?: MetodoPagoServicio;
   /** Ids de quienes ya calificaron este servicio. */
   calificadoPor?: string[];
 }
@@ -119,6 +123,8 @@ type FilaServicio = {
   transportista?: FilaTransportista | FilaTransportista[] | null;
   cliente?: FilaCliente | FilaCliente[] | null;
   calificaciones?: { autor_id: string }[] | null;
+  pago_estado?: "pendiente_pago" | "pagado" | "reembolsado" | "no_aplica" | null;
+  metodo_pago?: MetodoPagoServicio | null;
 };
 
 type FilaCalificacion = {
@@ -198,6 +204,11 @@ export const deFila = (f: FilaServicio): SolicitudServicioDTO => ({
   articulosFragiles: f.articulos_fragiles ?? false,
   objetosExtrapesados: f.objetos_extrapesados ?? false,
   recargoCarga: f.recargo_carga ?? null,
+  pagoEstado: f.pago_estado ?? "pendiente_pago",
+  metodoPago:
+    f.metodo_pago === "stripe" || f.metodo_pago === "efectivo"
+      ? f.metodo_pago
+      : undefined,
   transportista: transportistaDeFila(uno(f.transportista)),
   cliente: (() => {
     const c = uno(f.cliente);
@@ -242,6 +253,7 @@ const aFila = (d: SolicitudServicioDTO) => ({
   distancia_km: d.distanciaKm ?? null,
   // Se envía explícito para no depender del default de la columna en la base.
   estado: "pendiente" as EstadoServicio,
+  metodo_pago: d.metodoPago ?? "stripe",
 });
 
 export const registrarServicio = async (
@@ -347,5 +359,14 @@ export const cancelarServicioCliente = async (id: string, motivo: string) => {
   if (error) {
     console.error("Error al cancelar el servicio:", error);
     throw new Error(error.message || "No se pudo cancelar el servicio.");
+  }
+};
+
+export const retirarSolicitudPendiente = async (id: string) => {
+  const { error } = await supabase.rpc("retirar_solicitud_pendiente", {
+    p_servicio: id,
+  });
+  if (error) {
+    throw new Error(error.message || "No se pudo retirar la solicitud.");
   }
 };

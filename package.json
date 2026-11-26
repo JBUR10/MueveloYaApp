@@ -8,6 +8,7 @@
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
+    "@stripe/stripe-react-native": "0.64.0",
     "@supabase/supabase-js": "^2.118.0",
     "expo": "~57.0.31",
     "expo-blur": "~57.0.3",
@@ -47,14 +48,15 @@
     "@types/react": "~19.2.2",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
+    "supabase": "^3.4.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --port 8000",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
+    "android": "expo start --android --port 8000",
+    "ios": "expo start --ios --port 8000",
+    "web": "expo start --web --port 8000",
     "lint": "expo lint"
   },
   "private": true

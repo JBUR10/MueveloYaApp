@@ -29,6 +29,11 @@ import {
 } from "../services/cuponesService";
 import { registrarServicio } from "../services/servicioService";
 import {
+  crearPago,
+  esperarConfirmacionPago,
+} from "../services/pagoService";
+import { pagarServicioStripe } from "../services/pagoStripe";
+import {
   calcularTarifa,
   calcularRecargoCarga,
   distanciaRutaKm,
@@ -176,6 +181,7 @@ export default function ServiciosScreen() {
   const [pisosEscaleras, setPisosEscaleras] = useState(0);
   const [nombreContacto, setNombreContacto] = useState("");
   const [telefonoContacto, setTelefonoContacto] = useState("");
+  const [metodoPago, setMetodoPago] = useState<"stripe" | "efectivo">("stripe");
 
   const [loading, setLoading] = useState(false);
 
@@ -287,6 +293,7 @@ export default function ServiciosScreen() {
     setPisosEscaleras(0);
     setNombreContacto(contactoPerfil.current.nombre);
     setTelefonoContacto(contactoPerfil.current.telefono);
+    setMetodoPago("stripe");
     setRutaGuardada(null);
     setPuntosConfirmados("");
   };
@@ -562,21 +569,87 @@ export default function ServiciosScreen() {
         recargoCarga,
         nombreContacto,
         telefonoContacto,
+        metodoPago,
         fecha: new Date().toISOString(),
         distanciaKm,
       };
 
-      await registrarServicio(payload);
+      const registrado = await registrarServicio(payload);
+      const creado = registrado.data;
+      const base = creado.tarifaBase ?? creado.tarifaAcordada ?? 0;
+      const recargo = creado.recargoCarga ?? 0;
+      const descuento = creado.descuento ?? 0;
+      const total = creado.tarifaAcordada ?? 0;
 
-      mostrarAlertaPantalla(
-        "¡Servicio solicitado!",
-        "Tu servicio ha sido registrado con éxito. Puedes consultarlo en tus solicitudes.",
-        "exito",
-        () => {
-          resetFormulario();
-          router.push("/solicitudes" as any);
-        },
+      await aviso(
+        "Resumen del pago",
+        `Base: ${formatearPesos(base)}\nRecargo por carga: ${formatearPesos(recargo)}\nDescuento: -${formatearPesos(descuento)}\nTotal: ${formatearPesos(total)}`,
+        "info",
       );
+
+      if (creado.metodoPago === "efectivo") {
+        mostrarAlertaPantalla(
+          "Solicitud enviada",
+          "Pagarás en efectivo al transportista al finalizar el servicio.",
+          "exito",
+          () => {
+            resetFormulario();
+            router.push("/solicitudes" as any);
+          },
+        );
+        return;
+      }
+
+      const pago = await crearPago(String(creado.id), Platform.OS === "web" ? "web" : "movil");
+      if (pago.gratis) {
+        mostrarAlertaPantalla(
+          "¡Servicio solicitado!",
+          "El cupón cubrió el total. Tu solicitud ya está disponible.",
+          "exito",
+          () => {
+            resetFormulario();
+            router.push("/solicitudes" as any);
+          },
+        );
+      } else if (Platform.OS === "web") {
+        await pagarServicioStripe({ checkoutUrl: pago.checkoutUrl ?? "" });
+      } else if (pago.paymentIntentClientSecret && pago.customerId && pago.ephemeralKeySecret) {
+        const resultado = await pagarServicioStripe({
+          paymentIntentClientSecret: pago.paymentIntentClientSecret,
+          customerId: pago.customerId,
+          ephemeralKeySecret: pago.ephemeralKeySecret,
+        }, p);
+        if (resultado.estado === "pagado") {
+          let confirmado = false;
+          try {
+            confirmado = await esperarConfirmacionPago(String(creado.id));
+          } catch (error) {
+            console.error("No se pudo consultar la confirmación de Stripe:", error);
+          }
+          mostrarAlertaPantalla(
+            confirmado ? "Pago confirmado" : "Confirmación pendiente",
+            confirmado
+              ? "Tu solicitud ya está disponible para los transportistas."
+              : "Stripe todavía está notificando el pago. No vuelvas a pagarlo; revisa tus solicitudes en unos segundos.",
+            confirmado ? "exito" : "advertencia",
+            () => {
+              resetFormulario();
+              router.push("/solicitudes" as any);
+            },
+          );
+        } else if (resultado.estado === "cancelado") {
+          mostrarAlertaPantalla(
+            "Pago pendiente",
+            "Puedes pagar la solicitud más tarde desde «Mis solicitudes».",
+            "advertencia",
+            () => router.push("/solicitudes" as any),
+          );
+        } else {
+          mostrarAlertaPantalla("No se pudo completar el pago", resultado.mensaje ?? "Inténtalo nuevamente.", "error");
+        }
+      } else {
+        throw new Error("Pagos no disponibles por ahora.");
+      }
     } catch (error: any) {
       mostrarAlertaPantalla(
         "Error",
@@ -1185,6 +1258,40 @@ export default function ServiciosScreen() {
                 )}
               </View>
 
+              <View style={styles.cardSection}>
+                <Text style={styles.inputLabel}>¿Cómo deseas pagar?</Text>
+                <View style={styles.cargaSection}>
+                  <TouchableOpacity
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: metodoPago === "stripe" }}
+                    onPress={() => setMetodoPago("stripe")}
+                    style={[styles.cargaOpcion, metodoPago === "stripe" && styles.cargaOpcionActiva]}
+                  >
+                    <View style={[styles.radioCarga, metodoPago === "stripe" && styles.radioCargaActivo]}>
+                      {metodoPago === "stripe" && <View style={styles.radioCargaPunto} />}
+                    </View>
+                    <View style={styles.cargaOpcionTexto}>
+                      <Text style={styles.cargaOpcionTitulo}>Tarjeta con Stripe</Text>
+                      <Text style={styles.cargaOpcionDetalle}>Pago seguro al solicitar el servicio</Text>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: metodoPago === "efectivo" }}
+                    onPress={() => setMetodoPago("efectivo")}
+                    style={[styles.cargaOpcion, metodoPago === "efectivo" && styles.cargaOpcionActiva]}
+                  >
+                    <View style={[styles.radioCarga, metodoPago === "efectivo" && styles.radioCargaActivo]}>
+                      {metodoPago === "efectivo" && <View style={styles.radioCargaPunto} />}
+                    </View>
+                    <View style={styles.cargaOpcionTexto}>
+                      <Text style={styles.cargaOpcionTitulo}>Efectivo al transportista</Text>
+                      <Text style={styles.cargaOpcionDetalle}>Pagas al finalizar el servicio</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               <TouchableOpacity
                 style={styles.btnSubmit}
                 disabled={loading}
@@ -1194,7 +1301,7 @@ export default function ServiciosScreen() {
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.btnSubmitText}>
-                    CONFIRMAR Y SOLICITAR
+                    {metodoPago === "stripe" ? "PAGAR CON STRIPE Y SOLICITAR" : "SOLICITAR Y PAGAR EN EFECTIVO"}
                   </Text>
                 )}
               </TouchableOpacity>
