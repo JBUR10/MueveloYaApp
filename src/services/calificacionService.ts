@@ -1,6 +1,7 @@
 // src/services/calificacionService.ts
 // Calificaciones mutuas (cliente <-> transportista) y quejas.
-import { asegurarSesion, supabase } from "../lib/supabase";
+import { supabase } from "../lib/supabase";
+import { subirFotos } from "./evidenciasService";
 
 export interface DatosCalificacion {
   /** Estrellas para la otra persona (transportista o cliente). */
@@ -39,20 +40,32 @@ export const TIPOS_QUEJA = [
   "Otro",
 ] as const;
 
+export const TIPO_QUEJA_DANO = "Daño o pérdida";
+export const MAX_FOTOS_QUEJA = 5;
+
+/**
+ * Envía la queja con sus fotos (uris locales). Primero sube las fotos y
+ * luego crea la queja en la base de datos (migración 019).
+ */
 export const enviarQueja = async (
   servicioId: string | null,
   tipo: string,
   descripcion: string,
+  fotos: string[] = [],
 ) => {
-  const uid = await asegurarSesion();
-  const { error } = await supabase.from("quejas").insert({
-    servicio_id: servicioId,
-    autor_id: uid,
-    tipo,
-    descripcion: descripcion.trim(),
+  const rutas = await subirFotos(fotos, "quejas");
+  const { error } = await supabase.rpc("crear_queja", {
+    p_servicio: servicioId,
+    p_tipo: tipo,
+    p_descripcion: descripcion.trim(),
+    p_fotos: rutas,
   });
   if (error) {
     console.error("Error al enviar la queja:", error);
-    throw new Error("No se pudo enviar la queja. Revisa tu conexión.");
+    throw new Error(
+      error.message?.includes("crear_queja")
+        ? "Falta ejecutar la migración 019 en Supabase."
+        : error.message || "No se pudo enviar la queja. Revisa tu conexión.",
+    );
   }
 };
