@@ -16,7 +16,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BotonPrincipal } from "../components/auth/FormularioAuth";
 import { aviso } from "../components/ui/AlertaPantalla";
-import { enviarQueja, TIPOS_QUEJA } from "../services/calificacionService";
+import {
+  enviarQueja,
+  MAX_FOTOS_QUEJA,
+  TIPO_QUEJA_DANO,
+  TIPOS_QUEJA,
+} from "../services/calificacionService";
+import SelectorFotos from "../components/ui/SelectorFotos";
 import TextoIcono from "../components/ui/TextoIcono";
 import { usePaleta, useEstilos, type Paleta } from "../services/temaStore";
 
@@ -29,7 +35,13 @@ export default function QuejaScreen() {
   const { servicio } = useLocalSearchParams<{ servicio?: string }>();
   const [tipo, setTipo] = useState<string | null>(null);
   const [descripcion, setDescripcion] = useState("");
-  const [errores, setErrores] = useState<{ tipo?: string; descripcion?: string }>({});
+  const [fotos, setFotos] = useState<string[]>([]);
+  const [errores, setErrores] = useState<{
+    tipo?: string;
+    descripcion?: string;
+    fotos?: string;
+  }>({});
+  const fotosObligatorias = tipo === TIPO_QUEJA_DANO;
   const [enviando, setEnviando] = useState(false);
 
   const volver = () =>
@@ -40,12 +52,14 @@ export default function QuejaScreen() {
     if (!tipo) nuevos.tipo = "Elige el tipo de problema.";
     if (descripcion.trim().length < 10)
       nuevos.descripcion = "Cuéntanos qué pasó (mínimo 10 caracteres).";
+    if (fotosObligatorias && fotos.length === 0)
+      nuevos.fotos = "Adjunta al menos una foto del daño.";
     setErrores(nuevos);
     if (Object.keys(nuevos).length) return;
 
     setEnviando(true);
     try {
-      await enviarQueja(servicio ?? null, tipo!, descripcion);
+      await enviarQueja(servicio || null, tipo!, descripcion, fotos);
     } catch (e: any) {
       setEnviando(false);
       await aviso("Error", e?.message || "No se pudo enviar.", "error");
@@ -130,6 +144,25 @@ export default function QuejaScreen() {
           {!!errores.descripcion && (
             <Text style={styles.error}>{errores.descripcion}</Text>
           )}
+
+          <Text style={styles.etiqueta}>
+            Evidencias {fotosObligatorias ? "(obligatorias)" : "(opcional)"}
+          </Text>
+          <Text style={styles.ayudaFotos}>
+            {fotosObligatorias
+              ? "Adjunta fotos del daño: golpes, rayones, piezas rotas… Así podremos revisar tu caso."
+              : "Si tienes fotos que muestren el problema, adjúntalas."}
+          </Text>
+          <SelectorFotos
+            fotos={fotos}
+            maximo={MAX_FOTOS_QUEJA}
+            deshabilitado={enviando}
+            onChange={(f) => {
+              setFotos(f);
+              setErrores((e) => ({ ...e, fotos: undefined }));
+            }}
+          />
+          {!!errores.fotos && <Text style={styles.error}>{errores.fotos}</Text>}
         </View>
 
         <BotonPrincipal texto="Enviar queja" onPress={enviar} cargando={enviando} />
@@ -193,4 +226,5 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
   },
   inputError: { borderColor: "rgba(239,68,68,0.7)" },
   error: { color: p.textoError, fontSize: 11, marginTop: -6 },
+  ayudaFotos: { color: p.textoTenue, fontSize: 12, lineHeight: 17, marginTop: -6 },
 });

@@ -17,6 +17,7 @@ import { Text, TextInput } from "../components/ui/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import PanelAnalisis from "../components/admin/PanelAnalisis";
+import PanelQuejas from "../components/admin/PanelQuejas";
 import Reportes from "../components/admin/Reportes";
 import { aviso, confirmar } from "../components/ui/AlertaPantalla";
 import {
@@ -41,10 +42,11 @@ const FILTROS: { id: EstadoVerificacion; titulo: string }[] = [
   { id: "rechazado", titulo: "Rechazados" },
 ];
 
-type Seccion = "transportistas" | "analisis" | "reportes";
+type Seccion = "transportistas" | "quejas" | "analisis" | "reportes";
 
 const SECCIONES: { id: Seccion; titulo: string }[] = [
   { id: "transportistas", titulo: "Transportistas" },
+  { id: "quejas", titulo: "Quejas" },
   { id: "analisis", titulo: "Análisis" },
   { id: "reportes", titulo: "Reportes" },
 ];
@@ -241,6 +243,9 @@ export default function AdminScreen() {
                 style={[styles.seccion, activa && styles.seccionActiva]}
               >
                 <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
                   style={[
                     styles.seccionTexto,
                     activa && styles.seccionTextoActivo,
@@ -253,7 +258,9 @@ export default function AdminScreen() {
           })}
         </View>
 
-        {seccion === "analisis" ? (
+        {seccion === "quejas" ? (
+          <PanelQuejas />
+        ) : seccion === "analisis" ? (
           <PanelAnalisis />
         ) : seccion === "reportes" ? (
           <Reportes />

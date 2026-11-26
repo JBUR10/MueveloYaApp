@@ -6,6 +6,7 @@
 // (ver supabase/migraciones/001_login_y_transportista.sql) para que dos
 // transportistas no puedan tomar la misma solicitud.
 import { asegurarSesion, supabase } from "../lib/supabase";
+import { subirFotos } from "./evidenciasService";
 import {
   deFila,
   type FilaServicio,
@@ -201,7 +202,63 @@ export const rechazarSolicitud = async (id: string) => {
 /** Programados: el conductor sale hacia el punto de recogida. */
 export const iniciarServicio = (id: string) => llamar("iniciar_servicio", id);
 
-export const marcarRecogido = (id: string) => llamar("marcar_recogido", id);
+/**
+ * El conductor recogió la carga. Exige fotos del estado de los artículos
+ * (uris locales): se suben y se registran junto con la recogida (019).
+ */
+export const marcarRecogido = async (id: string, fotos: string[]) => {
+  if (!fotos.length) {
+    throw new Error("Debes adjuntar al menos una foto de los artículos.");
+  }
+  const rutas = await subirFotos(fotos, "recogidas");
+  return llamar("marcar_recogido", id, { p_fotos: rutas });
+};
+
+export interface EstadoConductor {
+  suspendido: boolean;
+  definitiva: boolean;
+  suspendidoHasta: string | null;
+  advertencias: number;
+  condicionado: boolean;
+  viajesCondicion: number;
+  viajesRequeridos: number;
+  condicionDesde: string | null;
+  diasRequeridos: number;
+}
+
+/**
+ * Sanciones del conductor (019). Si la migración aún no está, se asume que
+ * no tiene sanciones para no bloquear a nadie.
+ */
+export const obtenerEstadoConductor = async (): Promise<EstadoConductor | null> => {
+  const { data, error } = await supabase.rpc("mi_estado_conductor");
+  if (error) {
+    console.warn("No se pudo leer el estado del conductor:", error);
+    return null;
+  }
+  const d = data as Record<string, any>;
+  return {
+    suspendido: !!d.suspendido,
+    definitiva: !!d.definitiva,
+    suspendidoHasta: d.suspendido_hasta ?? null,
+    advertencias: Number(d.advertencias ?? 0),
+    condicionado: !!d.condicionado,
+    viajesCondicion: Number(d.viajes_condicion ?? 0),
+    viajesRequeridos: Number(d.viajes_requeridos ?? 15),
+    condicionDesde: d.condicion_desde ?? null,
+    diasRequeridos: Number(d.dias_requeridos ?? 30),
+  };
+};
+
+/** Texto corto con la fecha y hora (hora de Colombia). */
+export const formatearFechaHora = (iso: string) =>
+  new Date(iso).toLocaleString("es-CO", {
+    day: "numeric",
+    month: "long",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Bogota",
+  });
 
 export const completarServicio = (id: string) =>
   llamar("completar_servicio", id);

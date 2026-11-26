@@ -36,6 +36,7 @@ Pegar y ejecutar cada archivo en el SQL Editor. Todos se pueden volver a correr 
 12. [`012_analisis_negocio_admin.sql`](migraciones/012_analisis_negocio_admin.sql): análisis de negocio: mezcla de servicios y clientes (nuevos, recurrentes, inactivos).
 13. [`013_cupones_y_promociones.sql`](migraciones/013_cupones_y_promociones.sql): cupones de descuento y campañas de promoción por push; el descuento se aplica sobre la tarifa.
 14. [`014_ayudantes_conductor.sql`](migraciones/014_ayudantes_conductor.sql): el conductor indica si cuenta con ayudantes; sin ayudantes no le aparecen, no le llegan por push y no puede aceptar solicitudes que los piden.
+16. [`019_evidencias_y_sanciones.sql`](migraciones/019_evidencias_y_sanciones.sql): fotos de evidencia (bucket privado `evidencias` en Storage). El cliente adjunta fotos a sus quejas y el transportista toma fotos de los artículos al recoger; sin ellas no puede marcar «Recogido». También crea la revisión de quejas del administrador y las sanciones: advertencia (3 = 5 días), 1 semana, 2 semanas o definitiva, más la cuenta condicionada (30 días y 15 viajes sin quejas). Requiere un APK nuevo, porque agrega `expo-image-picker`.
 
 El detalle de lo que crea la 001 está abajo.
 
