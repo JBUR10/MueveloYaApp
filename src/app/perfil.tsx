@@ -1,7 +1,8 @@
 import { Href, useFocusEffect, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
+  BackHandler,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,9 +14,15 @@ import {
 import { Text, TextInput } from "../components/ui/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { aviso, confirmar } from "../components/ui/AlertaPantalla";
+import {
+  aviso,
+  confirmar,
+  confirmarCambiosTamanoFuente,
+} from "../components/ui/AlertaPantalla";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
 import MensajeTemporal from "../components/ui/MensajeTemporal";
+import SelectorTamanoFuente from "../components/ui/SelectorTamanoFuente";
+import GuiaLectoresPantalla from "../components/ui/GuiaLectoresPantalla";
 import { supabase } from "../lib/supabase";
 import { soyAdmin } from "../services/adminService";
 import { apagarDisponibilidad } from "../services/disponibilidadStore";
@@ -39,6 +46,19 @@ import {
   usePaleta,
   type Paleta,
 } from "../services/temaStore";
+import {
+  cambiarBorradorTamanoFuente,
+  descartarBorradorTamanoFuente,
+  guardarTamanoFuente,
+  NIVELES_TAMANO_FUENTE,
+  obtenerEstadoTamanoFuente,
+  reintentarCargaTamanoFuente,
+  useTamanoFuente,
+} from "../services/tamanoFuenteStore";
+import {
+  navegarConProteccionTamanoFuente,
+  registrarProteccionTamanoFuente,
+} from "../services/proteccionTamanoFuente";
 
 const AZUL = "#2969e9";
 
@@ -94,6 +114,7 @@ export default function PerfilScreen() {
   const notificacionesActivas = push.soportado && push.activo && !push.sinPermiso;
   const router = useRouter();
   const { modo } = useModo();
+  const tamanoFuente = useTamanoFuente();
   const modoTransportista = modo === "transportista";
   const [mensajeModo, setMensajeModo] = useState<string | null>(null);
   const ocultarMensajeModo = useCallback(() => setMensajeModo(null), []);
@@ -108,6 +129,94 @@ export default function PerfilScreen() {
   const [ciudadForm, setCiudadForm] = useState("");
   const [telefonoForm, setTelefonoForm] = useState("");
   const [guardando, setGuardando] = useState(false);
+
+  const hayCambiosTamano =
+    tamanoFuente.carga === "ready" &&
+    tamanoFuente.borrador !== tamanoFuente.guardado;
+  const nivelBorrador = NIVELES_TAMANO_FUENTE.find(
+    (nivel) => nivel.id === tamanoFuente.borrador,
+  );
+  const nivelGuardado = NIVELES_TAMANO_FUENTE.find(
+    (nivel) => nivel.id === tamanoFuente.guardado,
+  );
+
+  useEffect(
+    () =>
+      registrarProteccionTamanoFuente(async (continuar) => {
+        const actual = obtenerEstadoTamanoFuente();
+        if (
+          actual.carga !== "ready" ||
+          actual.borrador === actual.guardado
+        ) {
+          await continuar();
+          return true;
+        }
+
+        const accion = await confirmarCambiosTamanoFuente({
+          titulo: "Cambios de tamaño sin guardar",
+          mensaje:
+            "¿Qué deseas hacer con el tamaño de fuente que estás previsualizando?",
+        });
+        if (accion === "editar") return false;
+
+        if (accion === "salir") {
+          descartarBorradorTamanoFuente();
+        } else if (!(await guardarTamanoFuente())) {
+          await aviso(
+            "No se pudo guardar",
+            obtenerEstadoTamanoFuente().error ??
+              "El borrador se conservó. Permanece en Perfil e inténtalo de nuevo.",
+            "error",
+          );
+          return false;
+        }
+
+        await continuar();
+        return true;
+      }),
+    [],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "android") return;
+      const suscripcion = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          const actual = obtenerEstadoTamanoFuente();
+          if (
+            actual.carga !== "ready" ||
+            actual.borrador === actual.guardado
+          ) {
+            return false;
+          }
+          void navegarConProteccionTamanoFuente(() => {
+            if (router.canGoBack()) router.back();
+            else router.replace("/");
+          });
+          return true;
+        },
+      );
+      return () => suscripcion.remove();
+    }, [router]),
+  );
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const advertirAntesDeSalir = (evento: BeforeUnloadEvent) => {
+      const actual = obtenerEstadoTamanoFuente();
+      if (
+        actual.carga !== "ready" ||
+        actual.borrador === actual.guardado
+      ) {
+        return;
+      }
+      evento.preventDefault();
+      evento.returnValue = "";
+    };
+    window.addEventListener("beforeunload", advertirAntesDeSalir);
+    return () => window.removeEventListener("beforeunload", advertirAntesDeSalir);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -165,6 +274,20 @@ export default function PerfilScreen() {
     }
   };
 
+  const guardarPreferenciaTamano = async () => {
+    if (!hayCambiosTamano || tamanoFuente.guardando) return;
+    if (await guardarTamanoFuente()) {
+      await aviso("Tamaño guardado", "La preferencia quedó guardada.", "exito");
+    } else {
+      await aviso(
+        "No se pudo guardar",
+        obtenerEstadoTamanoFuente().error ??
+          "El borrador se conservó. Inténtalo de nuevo.",
+        "error",
+      );
+    }
+  };
+
   const cambiarFoto = () => {
     aviso(
       "Foto de perfil",
@@ -198,8 +321,11 @@ export default function PerfilScreen() {
           textoAceptar: "Registrar",
           tipo: "info",
         });
-        if (ok)
-          router.push({ pathname: "/vehiculo", params: { activar: "1" } });
+        if (ok) {
+          await navegarConProteccionTamanoFuente(() =>
+            router.push({ pathname: "/vehiculo", params: { activar: "1" } }),
+          );
+        }
         return;
       }
 
@@ -211,7 +337,11 @@ export default function PerfilScreen() {
           textoAceptar: "Actualizar",
           tipo: "error",
         });
-        if (ok) router.push("/vehiculo");
+        if (ok) {
+          await navegarConProteccionTamanoFuente(() =>
+            router.push("/vehiculo"),
+          );
+        }
         return;
       }
 
@@ -223,7 +353,11 @@ export default function PerfilScreen() {
           textoAceptar: "Corregir",
           tipo: "error",
         });
-        if (ok) router.push("/vehiculo");
+        if (ok) {
+          await navegarConProteccionTamanoFuente(() =>
+            router.push("/vehiculo"),
+          );
+        }
         return;
       }
       if (actual.verificacion !== "aprobado") {
@@ -283,28 +417,29 @@ export default function PerfilScreen() {
   };
 
   const cerrarSesion = async () => {
-    const ok = await confirmar({
-      titulo: "Cerrar sesión",
-      mensaje: "¿Seguro que deseas salir de tu cuenta?",
-      textoAceptar: "Cerrar sesión",
-      destructivo: true,
+    await navegarConProteccionTamanoFuente(async () => {
+      const ok = await confirmar({
+        titulo: "Cerrar sesión",
+        mensaje: "¿Seguro que deseas salir de tu cuenta?",
+        textoAceptar: "Cerrar sesión",
+        destructivo: true,
+      });
+      if (!ok) return;
+
+      // Antes de salir (aún con sesión): este celular deja de recibir push de
+      // la cuenta y el conductor deja de estar disponible.
+      await Promise.all([quitarDispositivoPush(), apagarDisponibilidad()]);
+
+      // El modo queda guardado para esta cuenta; la siguiente cuenta carga el suyo.
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        await aviso(
+          "Error",
+          "No se pudo cerrar la sesión. Revisa tu conexión.",
+          "error",
+        );
+      }
     });
-    if (!ok) return;
-
-    // Antes de salir (aún con sesión): este celular deja de recibir push de
-    // la cuenta y el conductor deja de estar disponible.
-    await Promise.all([quitarDispositivoPush(), apagarDisponibilidad()]);
-
-    // El modo queda guardado para esta cuenta; la siguiente cuenta carga el suyo.
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      await aviso(
-        "Error",
-        "No se pudo cerrar la sesión. Revisa tu conexión.",
-        "error",
-      );
-    }
-    // Sin sesión, el _layout lleva al login automáticamente.
   };
 
   return (
@@ -400,6 +535,101 @@ export default function PerfilScreen() {
 
             {/* Preferencias */}
             <Text style={styles.tituloSeccion}>Preferencias</Text>
+
+            <View style={styles.tarjetaTamanoFuente}>
+              <View style={styles.preferenciaTexto}>
+                <Text style={styles.tituloOpcion}>Tamaño de fuente</Text>
+                <Text style={styles.descripcionOpcion}>
+                  Previsualiza el tamaño en toda la aplicación. Guarda para
+                  conservarlo.
+                </Text>
+              </View>
+
+              <SelectorTamanoFuente
+                seleccionado={tamanoFuente.borrador}
+                deshabilitado={
+                  tamanoFuente.carga !== "ready" ||
+                  tamanoFuente.guardando
+                }
+                onSeleccion={cambiarBorradorTamanoFuente}
+              />
+
+              <View style={styles.previsualizacionTamanoFuente}>
+                <Text style={styles.etiquetaPrevisualizacion}>
+                  Previsualización
+                </Text>
+                <Text style={styles.textoPrevisualizacion}>
+                  Un texto de ejemplo para revisar cómo se ve en tu aplicación.
+                </Text>
+                <Text
+                  role="status"
+                  accessibilityLiveRegion="polite"
+                  aria-live="polite"
+                  style={styles.estadoTamanoFuente}
+                >
+                  Seleccionado:{" "}
+                  {nivelBorrador?.nombre} · {nivelBorrador?.porcentaje}%
+                </Text>
+                <Text style={styles.estadoTamanoFuente}>
+                  Guardado:{" "}
+                  {nivelGuardado?.nombre} · {nivelGuardado?.porcentaje}%
+                </Text>
+              </View>
+
+              {tamanoFuente.error && (
+                <View style={styles.errorTamanoFuente}>
+                  <Text
+                    style={styles.textoErrorTamanoFuente}
+                    accessibilityRole="alert"
+                    accessibilityLiveRegion="assertive"
+                    aria-live="assertive"
+                  >
+                    {tamanoFuente.error}
+                  </Text>
+                  {tamanoFuente.carga === "error" && (
+                    <Pressable
+                      onPress={() => void reintentarCargaTamanoFuente()}
+                      accessibilityRole="button"
+                      style={styles.botonReintentarTamano}
+                    >
+                      <Text style={styles.textoBotonTamano}>Reintentar</Text>
+                    </Pressable>
+                  )}
+                </View>
+              )}
+
+              <Pressable
+                onPress={() => void guardarPreferenciaTamano()}
+                disabled={
+                  !hayCambiosTamano ||
+                  tamanoFuente.carga !== "ready" ||
+                  tamanoFuente.guardando
+                }
+                accessibilityRole="button"
+                accessibilityState={{
+                  busy: tamanoFuente.guardando,
+                  disabled:
+                    !hayCambiosTamano ||
+                    tamanoFuente.carga !== "ready" ||
+                    tamanoFuente.guardando,
+                }}
+                style={[
+                  styles.botonGuardarTamano,
+                  (!hayCambiosTamano ||
+                    tamanoFuente.carga !== "ready" ||
+                    tamanoFuente.guardando) &&
+                    styles.botonGuardarTamanoInactivo,
+                ]}
+              >
+                <Text style={styles.textoBotonTamano}>
+                  {tamanoFuente.guardando
+                    ? "Guardando tamaño..."
+                    : "Guardar tamaño"}
+                </Text>
+              </Pressable>
+            </View>
+
+            <GuiaLectoresPantalla />
 
             <View style={styles.tarjetaPreferencias}>
               <View style={styles.preferenciaTexto}>
@@ -519,7 +749,11 @@ export default function PerfilScreen() {
 
               {!!vehiculo && (
                 <Pressable
-                  onPress={() => router.push("/vehiculo")}
+                  onPress={() =>
+                    void navegarConProteccionTamanoFuente(() =>
+                      router.push("/vehiculo"),
+                    )
+                  }
                   accessibilityRole="button"
                   style={({ pressed }) => [
                     styles.filaVehiculo,
@@ -553,7 +787,11 @@ export default function PerfilScreen() {
 
               {modoTransportista && (
                 <Pressable
-                  onPress={() => router.push("/transportista" as Href)}
+                  onPress={() =>
+                    void navegarConProteccionTamanoFuente(() =>
+                      router.push("/transportista" as Href),
+                    )
+                  }
                   accessibilityRole="button"
                   style={({ pressed }) => [
                     styles.botonPanelTransportista,
@@ -572,7 +810,11 @@ export default function PerfilScreen() {
 
             {esAdmin && (
               <Pressable
-                onPress={() => router.push("/admin" as Href)}
+                onPress={() =>
+                  void navegarConProteccionTamanoFuente(() =>
+                    router.push("/admin" as Href),
+                  )
+                }
                 accessibilityRole="button"
                 style={({ pressed }) => [
                   styles.botonPanelTransportista,
@@ -612,6 +854,7 @@ export default function PerfilScreen() {
         <MensajeTemporal
           mensaje={mensajeModo}
           alTerminar={ocultarMensajeModo}
+          tipo="exito"
         />
       </View>
     </SafeAreaView>
@@ -782,6 +1025,73 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     lineHeight: 15,
   },
 
+  tarjetaTamanoFuente: {
+    gap: 14,
+    padding: 15,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: p.linea(0.13),
+    backgroundColor: p.velo(0.045),
+  },
+
+  previsualizacionTamanoFuente: {
+    gap: 6,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: p.velo(0.055),
+  },
+
+  etiquetaPrevisualizacion: {
+    color: p.textoTenue,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  textoPrevisualizacion: {
+    color: p.textoFuerte,
+    fontSize: 16,
+    lineHeight: 23,
+  },
+
+  estadoTamanoFuente: {
+    color: p.textoTenue,
+    fontSize: 12,
+  },
+
+  errorTamanoFuente: {
+    gap: 8,
+  },
+
+  textoErrorTamanoFuente: {
+    color: p.textoError,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+
+  botonReintentarTamano: {
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+  },
+
+  botonGuardarTamano: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: AZUL,
+  },
+
+  botonGuardarTamanoInactivo: {
+    opacity: 0.42,
+  },
+
+  textoBotonTamano: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+    textAlign: "center",
+  },
 
   tarjetaPreferencias: {
     flexDirection: "row",

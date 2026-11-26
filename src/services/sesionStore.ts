@@ -11,6 +11,7 @@ import { avisarRevisionPendiente } from "./avisoRevision";
 import { cargarDisponibilidad } from "./disponibilidadStore";
 import { cargarModoDeUsuario } from "./modoStore";
 import { iniciarPush } from "./notificacionesPush";
+import { cargarTamanoFuente } from "./tamanoFuenteStore";
 
 type Estado = {
   sesion: Session | null;
@@ -38,6 +39,7 @@ function suscribir(oyente: () => void) {
 
 // Cada cuenta tiene su propio modo (usuario / transportista).
 function aplicarSesion(sesion: Session | null) {
+  void cargarTamanoFuente(sesion?.user.id ?? null);
   cargarModoDeUsuario(sesion?.user.id ?? null);
   iniciarAvisos(sesion?.user.id ?? null);
   avisarRevisionPendiente(sesion?.user.id ?? null);
