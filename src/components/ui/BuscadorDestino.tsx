@@ -223,6 +223,8 @@ export default function BuscadorDestino({
             onChangeText={setTexto}
             onSubmitEditing={buscar}
             placeholder="¿Pa' dónde es?"
+            accessibilityLabel="Destino"
+            accessibilityHint="Escribe una dirección y selecciona una sugerencia, o ubica el destino en el mapa."
             placeholderTextColor={p.textoAlfa(0.6)}
             returnKeyType="search"
             autoCorrect={false}
@@ -233,7 +235,11 @@ export default function BuscadorDestino({
           />
 
           {buscando ? (
-            <ActivityIndicator color={p.texto} size="small" />
+            <ActivityIndicator
+              color={p.texto}
+              size="small"
+              accessibilityLabel="Buscando destinos"
+            />
           ) : (
             <>
               {(texto.length > 0 || !!destino) && (
@@ -272,6 +278,8 @@ export default function BuscadorDestino({
             <Pressable
               key={`${lugar.lat}-${lugar.lng}-${indice}`}
               onPress={() => seleccionar(lugar)}
+              accessibilityRole="button"
+              accessibilityHint="Selecciona este lugar como destino."
               style={({ pressed }) => [
                 styles.item,
                 indice > 0 && styles.itemSeparado,
@@ -289,11 +297,22 @@ export default function BuscadorDestino({
             </Pressable>
           ))}
 
-          {!!mensaje && <Text style={styles.mensaje}>{mensaje}</Text>}
+          {!!mensaje && (
+            <Text
+              role="status"
+              accessibilityLiveRegion="polite"
+              aria-live="polite"
+              style={styles.mensaje}
+            >
+              {mensaje}
+            </Text>
+          )}
 
           {/* Acceso al modo manual: por si el lugar no aparece o no es exacto */}
           <Pressable
             onPress={ubicarManual}
+            accessibilityRole="button"
+            accessibilityHint="Abre el mapa para elegir el destino manualmente."
             style={({ pressed }) => [
               styles.item,
               styles.itemSeparado,
