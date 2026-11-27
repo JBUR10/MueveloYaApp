@@ -1,8 +1,8 @@
-import * as Linking from "expo-linking";
 import {
   initPaymentSheet,
   presentPaymentSheet,
 } from "@stripe/stripe-react-native";
+import * as Linking from "expo-linking";
 import type { Paleta } from "../constants/paleta";
 import type { ResultadoPago } from "./pagoService";
 import { traducirErrorPago } from "./pagoService";
@@ -10,15 +10,23 @@ import { traducirErrorPago } from "./pagoService";
 export async function pagarServicioStripe(
   datos:
     | {
-        paymentIntentClientSecret: string;
-        customerId: string;
-        ephemeralKeySecret: string;
-      }
+      paymentIntentClientSecret: string;
+      customerId: string;
+      ephemeralKeySecret: string;
+    }
     | { checkoutUrl: string },
   paleta?: Paleta,
 ): Promise<ResultadoPago> {
   if (!("paymentIntentClientSecret" in datos)) {
     return { estado: "error", mensaje: "No se pudo iniciar el pago móvil." };
+  }
+  if (!process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim()) {
+    // Sin clave publicable, StripeProvider no se monta y abrir la hoja de pago
+    // cierra la app ("PaymentConfiguration was not initialized").
+    return {
+      estado: "error",
+      mensaje: "Pagos no disponibles: esta versión de la app se compiló sin la clave de Stripe.",
+    };
   }
   const returnURL = Linking.createURL("stripe-redirect");
   const init = await initPaymentSheet({

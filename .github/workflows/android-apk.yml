@@ -36,6 +36,12 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      - name: Verificar claves de entorno
+        run: |
+          for v in EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY; do
+            if [ -z "${!v}" ]; then echo "::error::Falta el secret $v en GitHub (Settings > Secrets and variables > Actions)"; exit 1; fi
+          done
+
       - run: npm ci
 
       - name: Compilar APK (local, en este servidor)
