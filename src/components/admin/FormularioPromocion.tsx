@@ -43,23 +43,31 @@ interface Props {
 }
 
 function Chips<T extends string | number | null>({
+  etiqueta,
   opciones,
   valor,
   onElegir,
 }: {
+  etiqueta: string;
   opciones: { valor: T; titulo: string }[];
   valor: T;
   onElegir: (v: T) => void;
 }) {
   const styles = useEstilos(crearEstilos);
   return (
-    <View style={styles.chips}>
+    <View
+      style={styles.chips}
+      accessibilityRole="radiogroup"
+      accessibilityLabel={etiqueta}
+    >
       {opciones.map((o) => {
         const activo = o.valor === valor;
         return (
           <Pressable
             key={o.titulo}
             onPress={() => onElegir(o.valor)}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: activo }}
             style={[styles.chip, activo && styles.chipActivo]}
           >
             <Text style={[styles.chipTexto, activo && { color: "#FFF" }]}>
@@ -141,7 +149,11 @@ export default function FormularioPromocion({
     return (
       <View style={styles.tarjeta}>
         <Text style={styles.titulo}>Promoción enviada</Text>
-        <Text style={styles.texto}>
+        <Text
+          style={styles.texto}
+          accessibilityLiveRegion="polite"
+          aria-live="polite"
+        >
           {enviados === 1
             ? "1 cliente recibió su cupón"
             : `${enviados} clientes recibieron su cupón`}{" "}
@@ -179,6 +191,7 @@ export default function FormularioPromocion({
 
       <Text style={styles.etiqueta}>¿A quién?</Text>
       <Chips
+        etiqueta="Público destinatario"
         opciones={MOTIVOS.map((m) => ({ valor: m.id, titulo: m.titulo }))}
         valor={motivo}
         onElegir={elegirMotivo}
@@ -186,6 +199,7 @@ export default function FormularioPromocion({
 
       <Text style={styles.etiqueta}>Servicio</Text>
       <Chips<string | null>
+        etiqueta="Servicio de la promoción"
         opciones={[
           ...(motivo === "primera_vez"
             ? []
@@ -198,6 +212,7 @@ export default function FormularioPromocion({
 
       <Text style={styles.etiqueta}>Descuento</Text>
       <Chips
+        etiqueta="Porcentaje de descuento"
         opciones={DESCUENTOS.map((d) => ({ valor: d, titulo: `${d} %` }))}
         valor={porcentaje}
         onElegir={setPorcentaje}
@@ -205,6 +220,7 @@ export default function FormularioPromocion({
 
       <Text style={styles.etiqueta}>Vigencia</Text>
       <Chips
+        etiqueta="Vigencia de la promoción"
         opciones={VIGENCIAS.map((d) => ({ valor: d, titulo: `${d} días` }))}
         valor={dias}
         onElegir={setDias}
@@ -215,7 +231,11 @@ export default function FormularioPromocion({
         {audiencia == null && tipoValido && !error ? (
           <ActivityIndicator color={AZUL} style={{ alignSelf: "flex-start" }} />
         ) : audiencia != null ? (
-          <Text style={styles.audiencia}>
+          <Text
+            style={styles.audiencia}
+            accessibilityLiveRegion="polite"
+            aria-live="polite"
+          >
             {sinPublico
               ? "Ahora mismo no hay clientes que cumplan (o ya recibieron un cupón en los últimos 7 días)."
               : `Les llegará a ${audiencia} ${audiencia === 1 ? "cliente" : "clientes"}.`}
@@ -227,7 +247,16 @@ export default function FormularioPromocion({
         </Text>
       </View>
 
-      {!!error && <Text style={styles.error}>{error}</Text>}
+      {!!error && (
+        <Text
+          style={styles.error}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="assertive"
+          aria-live="assertive"
+        >
+          {error}
+        </Text>
+      )}
 
       {fase === "confirmar" ? (
         <View style={styles.fila}>
