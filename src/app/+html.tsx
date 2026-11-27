@@ -13,6 +13,7 @@ export default function Root({ children }: PropsWithChildren) {
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+        <title>Muevelo Ya</title>
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1, shrink-to-fit=no"
@@ -32,6 +33,12 @@ export default function Root({ children }: PropsWithChildren) {
               "try{if(localStorage.getItem('@mueveloya_tema')==='claro'){document.documentElement.setAttribute('data-tema','claro');document.documentElement.style.colorScheme='light';}}catch(e){}",
           }}
         />
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){function normalizarTitulo(){var titulos=document.head.querySelectorAll('title');var titulo=titulos[0];if(!titulo){titulo=document.createElement('title');document.head.appendChild(titulo);}if(titulo.textContent!=='Muevelo Ya'){titulo.textContent='Muevelo Ya';}for(var i=1;i<titulos.length;i++){titulos[i].remove();}if(document.title!=='Muevelo Ya'){document.title='Muevelo Ya';}}normalizarTitulo();if(document.head&&typeof MutationObserver==='function'){var observador=new MutationObserver(normalizarTitulo);observador.observe(document.head,{childList:true,subtree:true,characterData:true});}})();",
+          }}
+        />
         <style
           dangerouslySetInnerHTML={{
             __html:
@@ -39,7 +46,19 @@ export default function Root({ children }: PropsWithChildren) {
           }}
         />
       </head>
-      <body className="notranslate">{children}</body>
+      <body className="notranslate">
+        <main
+          id="contenido-principal"
+          style={{
+            display: "flex",
+            flex: 1,
+            flexDirection: "column",
+            height: "100%",
+          }}
+        >
+          {children}
+        </main>
+      </body>
     </html>
   );
 }
