@@ -7,6 +7,7 @@ import {
   Campo,
   Enlace,
   esCorreoValido,
+  obtenerErroresAuth,
   PantallaAuth,
 } from "../components/auth/FormularioAuth";
 import { aviso, confirmar } from "../components/ui/AlertaPantalla";
@@ -20,6 +21,7 @@ export default function LoginScreen() {
     {},
   );
   const [cargando, setCargando] = useState(false);
+  const erroresActivos = obtenerErroresAuth(Object.values(errores));
 
   const entrar = async () => {
     const nuevos: typeof errores = {};
@@ -71,6 +73,7 @@ export default function LoginScreen() {
       titulo="Inicia"
       resaltado="sesión"
       descripcion="Solicita servicios de transporte o trabaja como transportista."
+      errores={erroresActivos}
     >
       <Campo
         etiqueta="Correo electrónico"

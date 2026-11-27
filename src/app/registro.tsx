@@ -7,6 +7,7 @@ import {
   Campo,
   Enlace,
   esCorreoValido,
+  obtenerErroresAuth,
   PantallaAuth,
 } from "../components/auth/FormularioAuth";
 import { aviso } from "../components/ui/AlertaPantalla";
@@ -25,6 +26,7 @@ export default function RegistroScreen() {
   const [confirmacion, setConfirmacion] = useState("");
   const [errores, setErrores] = useState<Errores>({});
   const [cargando, setCargando] = useState(false);
+  const erroresActivos = obtenerErroresAuth(Object.values(errores));
 
   const registrar = async () => {
     const nuevos: Errores = {};
@@ -80,6 +82,7 @@ export default function RegistroScreen() {
       titulo="Crea tu"
       resaltado="cuenta"
       descripcion="Te enviaremos un código a tu correo para confirmarla."
+      errores={erroresActivos}
     >
       <Campo
         etiqueta="Nombre completo"

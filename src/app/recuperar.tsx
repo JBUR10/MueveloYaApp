@@ -2,16 +2,18 @@
 // Recuperar contraseña: 1) se pide el correo, 2) se escribe el código que
 // llega por correo junto con la nueva contraseña.
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   BotonPrincipal,
   Campo,
   Enlace,
   esCorreoValido,
+  obtenerErroresAuth,
   PantallaAuth,
 } from "../components/auth/FormularioAuth";
 import { aviso } from "../components/ui/AlertaPantalla";
+import { anunciarPantalla } from "../components/ui/AnuncioPantalla";
 import { mensajeErrorAuth, supabase } from "../lib/supabase";
 import { marcarRecuperandoClave } from "../services/sesionStore";
 
@@ -28,6 +30,15 @@ export default function RecuperarScreen() {
   const [cargando, setCargando] = useState(false);
 
   const email = correo.trim().toLowerCase();
+  const erroresActivos = obtenerErroresAuth(Object.values(errores));
+
+  // Los dos pasos comparten ruta: el cambio de pantalla se avisa aquí.
+  const pasoAnterior = useRef(paso);
+  useEffect(() => {
+    if (pasoAnterior.current === paso) return;
+    pasoAnterior.current = paso;
+    anunciarPantalla(paso === 2 ? "Nueva contraseña" : "Recuperar contraseña");
+  }, [paso]);
 
   const enviarCodigo = async () => {
     if (!esCorreoValido(correo)) {
@@ -99,6 +110,7 @@ export default function RecuperarScreen() {
           ? "Escribe tu correo y te enviaremos un código."
           : `Escribe el código que enviamos a ${email} y tu nueva contraseña.`
       }
+      errores={erroresActivos}
     >
       {paso === 1 ? (
         <>

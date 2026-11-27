@@ -8,6 +8,7 @@ import {
   Campo,
   Enlace,
   PantallaAuth,
+  obtenerErroresAuth,
 } from "../components/auth/FormularioAuth";
 import { aviso } from "../components/ui/AlertaPantalla";
 import { mensajeErrorAuth, supabase } from "../lib/supabase";
@@ -68,6 +69,7 @@ export default function VerificarScreen() {
       titulo="Confirma tu"
       resaltado="correo"
       descripcion={`Enviamos un código a ${correo || "tu correo"}. Si no lo ves, revisa la carpeta de spam.`}
+      errores={obtenerErroresAuth([error])}
     >
       <Campo
         etiqueta="Código de verificación"
