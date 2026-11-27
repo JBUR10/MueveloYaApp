@@ -301,7 +301,12 @@ export default function SolicitudesScreen() {
               Mis <Text style={styles.titleHighlight}>Solicitudes</Text>
             </Text>
             {!loading && servicios.length > 0 && (
-              <Text style={styles.counterText}>
+              <Text
+                style={styles.counterText}
+                role="status"
+                accessibilityLiveRegion="polite"
+                aria-live="polite"
+              >
                 {servicios.length}{" "}
                 {servicios.length === 1
                   ? "solicitud registrada"
@@ -312,7 +317,11 @@ export default function SolicitudesScreen() {
 
           {loading ? (
             <View style={styles.loaderContainer}>
-              <ActivityIndicator size="large" color={AZUL} />
+              <ActivityIndicator
+                size="large"
+                color={AZUL}
+                accessibilityLabel="Cargando solicitudes"
+              />
             </View>
           ) : servicios.length === 0 ? (
             <View style={styles.emptyContainer}>
@@ -354,6 +363,8 @@ export default function SolicitudesScreen() {
                 estadoItem === "completada" &&
                 !!uid &&
                 !item.calificadoPor?.includes(uid);
+              // Completa las etiquetas de los botones: dice de cuál tarjeta son.
+              const nombreSolicitud = `solicitud de ${item.tipoServicio}, desde ${item.origen} hasta ${item.destino}`;
 
               return (
                 <View
@@ -373,6 +384,11 @@ export default function SolicitudesScreen() {
                     >
                       <TextoIcono
                         icono={inmediato ? "flash" : "calendar-outline"}
+                        accessibilityLabel={
+                          inmediato
+                            ? "Servicio inmediato"
+                            : `Servicio programado para ${item.fechaProgramada}`
+                        }
                         style={[
                           styles.statusChipText,
                           { color: inmediato ? p.textoAviso : p.azulTexto },
@@ -392,6 +408,7 @@ export default function SolicitudesScreen() {
                   >
                     <TextoIcono
                       icono={textoEstado(item).icono}
+                      accessibilityLabel={`Estado de la solicitud: ${textoEstado(item).texto}`}
                       style={[styles.estadoTexto, { color: estado.color }]}
                     >
                       {textoEstado(item).texto}
@@ -411,12 +428,12 @@ export default function SolicitudesScreen() {
                         <TextoIcono
                           icono="car-outline"
                           style={styles.contactName}
-                          numberOfLines={1}
+                          numberOfLines={2}
                         >
                           {t.nombre || "Transportista"}
                         </TextoIcono>
                         {t.vehiculo && (
-                          <Text style={styles.vehiculoTexto} numberOfLines={1}>
+                          <Text style={styles.vehiculoTexto} numberOfLines={2}>
                             {t.vehiculo.tipo} · {t.vehiculo.placa}
                             {t.vehiculo.marcaModelo
                               ? ` · ${t.vehiculo.marcaModelo}`
@@ -431,6 +448,8 @@ export default function SolicitudesScreen() {
                       {!!t.telefono && estadoItem !== "completada" && (
                         <TouchableOpacity
                           style={styles.btnLlamar}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Llamar a ${t.nombre || "transportista"}, ${nombreSolicitud}`}
                           onPress={() =>
                             Linking.openURL(`tel:${t.telefono}`).catch(() =>
                               aviso(
@@ -462,13 +481,13 @@ export default function SolicitudesScreen() {
                     <View style={styles.routeTexts}>
                       <View style={styles.routeBlock}>
                         <Text style={styles.routeLabel}>RECOGIDA</Text>
-                        <Text style={styles.routeValue} numberOfLines={2}>
+                        <Text style={styles.routeValue}>
                           {item.origen}
                         </Text>
                       </View>
                       <View style={styles.routeBlock}>
                         <Text style={styles.routeLabel}>ENTREGA</Text>
-                        <Text style={styles.routeValue} numberOfLines={2}>
+                        <Text style={styles.routeValue}>
                           {item.destino}
                         </Text>
                       </View>
@@ -479,7 +498,7 @@ export default function SolicitudesScreen() {
                   {item.descripcion ? (
                     <View style={styles.descBox}>
                       <Text style={styles.descLabel}>DETALLE</Text>
-                      <Text style={styles.cardDesc} numberOfLines={3}>
+                      <Text style={styles.cardDesc}>
                         {item.descripcion}
                       </Text>
                     </View>
@@ -517,7 +536,7 @@ export default function SolicitudesScreen() {
                       <TextoIcono
                         icono="person-outline"
                         style={styles.contactName}
-                        numberOfLines={1}
+                        numberOfLines={2}
                       >
                         {item.nombreContacto}
                       </TextoIcono>
@@ -525,7 +544,7 @@ export default function SolicitudesScreen() {
                         <TextoIcono
                           icono="call-outline"
                           style={styles.contactPhone}
-                          numberOfLines={1}
+                          numberOfLines={2}
                         >
                           {item.telefonoContacto}
                         </TextoIcono>
@@ -547,7 +566,19 @@ export default function SolicitudesScreen() {
                         ]}
                         activeOpacity={0.7}
                         disabled={borrando || cancelacionBloqueada}
-                        accessibilityState={{ disabled: cancelacionBloqueada }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${borrando ? "Cancelando" : "Cancelar"} ${nombreSolicitud}`}
+                        // En web el motivo se lee en el texto visible de abajo.
+                        accessibilityHint={
+                          cancelacionBloqueada
+                            ? "No se puede cancelar porque faltan menos horas de las permitidas."
+                            : undefined
+                        }
+                        accessibilityState={{
+                          disabled: cancelacionBloqueada,
+                          busy: borrando,
+                        }}
+                        aria-busy={borrando}
                       >
                         {borrando ? (
                           <ActivityIndicator size="small" color={p.textoError} />
@@ -574,6 +605,8 @@ export default function SolicitudesScreen() {
                         onPress={() => setCalificandoId(item.id ?? null)}
                         style={styles.btnCalificar}
                         activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Calificar ${nombreSolicitud}`}
                       >
                         <TextoIcono icono="star" style={styles.btnCalificarText}>
                           Calificar
@@ -588,6 +621,10 @@ export default function SolicitudesScreen() {
                         style={styles.btnDelete}
                         activeOpacity={0.7}
                         disabled={borrando}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${borrando ? "Eliminando" : "Eliminar"} ${nombreSolicitud}`}
+                        accessibilityState={{ disabled: borrando, busy: borrando }}
+                        aria-busy={borrando}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
                         {borrando ? (
