@@ -3,11 +3,14 @@ import { Animated, StyleSheet } from "react-native";
 import { Text } from "./Texto";
 import { useEstilos, type Paleta } from "../../services/temaStore";
 
+type TipoMensaje = "exito" | "error" | "advertencia" | "info";
+
 type Props = {
   /** Texto a mostrar; null lo oculta. */
   mensaje: string | null;
   /** Se llama cuando el mensaje termina de ocultarse. */
   alTerminar: () => void;
+  tipo?: TipoMensaje;
   duracion?: number;
 };
 
@@ -15,14 +18,17 @@ type Props = {
 export default function MensajeTemporal({
   mensaje,
   alTerminar,
-  duracion = 2200,
+  tipo = "info",
+  duracion = 5000,
 }: Props) {
   const styles = useEstilos(crearEstilos);
   const [opacidad] = useState(() => new Animated.Value(0));
+  const urgente = tipo === "error" || tipo === "advertencia";
 
   useEffect(() => {
     if (!mensaje) return;
 
+    const tiempoVisible = Math.max(duracion, urgente ? 6000 : 0);
     opacidad.setValue(0);
     const animacion = Animated.sequence([
       Animated.timing(opacidad, {
@@ -30,7 +36,7 @@ export default function MensajeTemporal({
         duration: 220,
         useNativeDriver: true,
       }),
-      Animated.delay(duracion),
+      Animated.delay(tiempoVisible),
       Animated.timing(opacidad, {
         toValue: 0,
         duration: 260,
@@ -42,13 +48,19 @@ export default function MensajeTemporal({
     });
 
     return () => animacion.stop();
-  }, [mensaje, duracion, opacidad, alTerminar]);
+  }, [mensaje, duracion, urgente, opacidad, alTerminar]);
 
   if (!mensaje) return null;
 
   return (
     <Animated.View
       pointerEvents="none"
+      accessible
+      accessibilityRole={urgente ? "alert" : "text"}
+      accessibilityLabel={mensaje}
+      accessibilityLiveRegion={urgente ? "assertive" : "polite"}
+      role={urgente ? "alert" : "status"}
+      aria-live={urgente ? "assertive" : "polite"}
       style={[
         styles.contenedor,
         {
@@ -63,7 +75,7 @@ export default function MensajeTemporal({
           ],
         },
       ]}>
-      <Text style={styles.texto}>{mensaje}</Text>
+      <Text accessible={false} style={styles.texto}>{mensaje}</Text>
     </Animated.View>
   );
 }

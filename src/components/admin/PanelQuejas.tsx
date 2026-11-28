@@ -113,8 +113,11 @@ export default function PanelQuejas() {
     }
   }, []);
 
+  // `cargar` solo cambia el estado después de esperar a la base de datos.
   useEffect(() => {
-    cargar(filtro);
+    void (async () => {
+      await cargar(filtro);
+    })();
   }, [filtro, cargar]);
 
   const cambiarFiltro = (f: Filtro) => {

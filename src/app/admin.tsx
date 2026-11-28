@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -32,6 +33,7 @@ import {
   formatearFechaCorta,
 } from "../services/vehiculoService";
 import TextoIcono from "../components/ui/TextoIcono";
+import { useTecladoGrupo } from "../components/ui/tecladoWeb";
 import { usePaleta, useEstilos, type Paleta } from "../services/temaStore";
 
 const AZUL = "#2969e9";
@@ -104,6 +106,16 @@ export default function AdminScreen() {
   const [rechazandoId, setRechazandoId] = useState<string | null>(null);
   const [motivo, setMotivo] = useState("");
   const [procesando, setProcesando] = useState<string | null>(null);
+  const teclasSeccion = useTecladoGrupo(
+    "tab",
+    SECCIONES.map((s) => s.id),
+    seccion,
+  );
+  const teclasFiltro = useTecladoGrupo(
+    "tab",
+    FILTROS.map((f) => f.id),
+    filtro,
+  );
 
   const volver = useCallback(
     () => (router.canGoBack() ? router.back() : router.replace("/perfil")),
@@ -210,8 +222,10 @@ export default function AdminScreen() {
         contentContainerStyle={styles.contenido}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        // En web no hace nada y, al ponerlo y quitarlo, reconstruiría la
+        // pantalla: las pestañas perderían el foco.
         refreshControl={
-          seccion === "transportistas" ? (
+          Platform.OS !== "web" && seccion === "transportistas" ? (
             <RefreshControl
               refreshing={refrescando}
               tintColor={p.texto}
@@ -231,15 +245,22 @@ export default function AdminScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.secciones}>
+        <View
+          style={styles.secciones}
+          accessibilityRole="tablist"
+          accessibilityLabel="Secciones de administración"
+        >
           {SECCIONES.map((s) => {
             const activa = seccion === s.id;
             return (
               <Pressable
                 key={s.id}
                 onPress={() => setSeccion(s.id)}
+                nativeID={`admin-tab-${s.id}`}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: activa }}
+                {...teclasSeccion(s.id, () => setSeccion(s.id))}
+                accessibilityHint={`Muestra la sección ${s.titulo.toLowerCase()}.`}
                 style={[styles.seccion, activa && styles.seccionActiva]}
               >
                 <Text
@@ -258,14 +279,19 @@ export default function AdminScreen() {
           })}
         </View>
 
-        {seccion === "quejas" ? (
-          <PanelQuejas />
-        ) : seccion === "analisis" ? (
-          <PanelAnalisis />
-        ) : seccion === "reportes" ? (
-          <Reportes />
-        ) : (
-          <>
+        <View
+          style={{ gap: 16 }}
+          role="tabpanel"
+          accessibilityLabelledBy={`admin-tab-${seccion}`}
+        >
+          {seccion === "quejas" ? (
+            <PanelQuejas />
+          ) : seccion === "analisis" ? (
+            <PanelAnalisis />
+          ) : seccion === "reportes" ? (
+            <Reportes />
+          ) : (
+            <>
             <Text style={styles.subtitulo}>PANEL DE ADMINISTRACIÓN</Text>
             <Text style={styles.titulo}>
               Revisión de <Text style={styles.azul}>transportistas</Text>
@@ -275,15 +301,22 @@ export default function AdminScreen() {
               el perfil, el transportista no puede recibir pedidos.
             </Text>
 
-            <View style={styles.chips}>
+            <View
+              style={styles.chips}
+              accessibilityRole="tablist"
+              accessibilityLabel="Filtrar transportistas por estado"
+            >
               {FILTROS.map((f) => {
                 const activo = filtro === f.id;
                 return (
                   <Pressable
                     key={f.id}
                     onPress={() => setFiltro(f.id)}
+                    nativeID={`admin-filtro-${f.id}`}
                     accessibilityRole="tab"
                     accessibilityState={{ selected: activo }}
+                    {...teclasFiltro(f.id, () => setFiltro(f.id))}
+                    accessibilityHint={`Muestra transportistas ${f.titulo.toLowerCase()}.`}
                     style={[styles.chip, activo && styles.chipActivo]}
                   >
                     <Text
@@ -299,16 +332,36 @@ export default function AdminScreen() {
               })}
             </View>
 
-            {cargando ? (
-              <ActivityIndicator
-                color={AZUL}
-                size="large"
-                style={{ marginTop: 30 }}
-              />
-            ) : items.length === 0 ? (
-              <Text style={styles.vacio}>{VACIO[filtro]}</Text>
-            ) : (
-              items.map((item) => {
+            <View
+              style={{ gap: 16 }}
+              role="tabpanel"
+              accessibilityLabelledBy={`admin-filtro-${filtro}`}
+            >
+              {!cargando && (
+                <Text
+                  style={styles.descripcion}
+                  role="status"
+                  accessibilityLiveRegion="polite"
+                  aria-live="polite"
+                >
+                  {items.length}{" "}
+                  {items.length === 1
+                    ? "transportista en estado"
+                    : "transportistas en estado"}{" "}
+                  {FILTROS.find((f) => f.id === filtro)?.titulo.toLowerCase()}.
+                </Text>
+              )}
+              {cargando ? (
+                <ActivityIndicator
+                  color={AZUL}
+                  size="large"
+                  style={{ marginTop: 30 }}
+                  accessibilityLabel="Cargando solicitudes de transportistas"
+                />
+              ) : items.length === 0 ? (
+                <Text style={styles.vacio}>{VACIO[filtro]}</Text>
+              ) : (
+                items.map((item) => {
                 const v = item.vehiculo;
                 const ocupado = procesando === item.transportistaId;
                 const rechazando = rechazandoId === item.transportistaId;
@@ -366,6 +419,9 @@ export default function AdminScreen() {
                         <TextInput
                           value={motivo}
                           onChangeText={setMotivo}
+                          accessibilityLabel="Motivo del rechazo (obligatorio)"
+                          accessibilityHint="Explica brevemente por qué se rechaza la solicitud."
+                          aria-required
                           placeholder="Motivo del rechazo (obligatorio)"
                           placeholderTextColor={p.textoPista2}
                           multiline
@@ -380,6 +436,7 @@ export default function AdminScreen() {
                               setMotivo("");
                             }}
                             style={[styles.boton, styles.botonNeutro]}
+                            accessibilityLabel={`Cancelar rechazo para ${item.nombre || "este transportista"}`}
                           >
                             <Text style={styles.botonTexto}>Cancelar</Text>
                           </Pressable>
@@ -387,6 +444,7 @@ export default function AdminScreen() {
                             disabled={ocupado}
                             onPress={() => rechazar(item)}
                             style={[styles.boton, styles.botonRechazo]}
+                            accessibilityLabel={`Confirmar rechazo para ${item.nombre || "este transportista"}`}
                           >
                             <Text style={[styles.botonTexto, styles.botonTextoAcento]}>
                               {ocupado ? "Guardando…" : "Confirmar rechazo"}
@@ -404,6 +462,7 @@ export default function AdminScreen() {
                               setMotivo("");
                             }}
                             style={[styles.boton, styles.botonRechazo]}
+                            accessibilityLabel={`Rechazar a ${item.nombre || "este transportista"}`}
                           >
                             <Text style={[styles.botonTexto, styles.botonTextoAcento]}>Rechazar</Text>
                           </Pressable>
@@ -413,6 +472,7 @@ export default function AdminScreen() {
                             disabled={ocupado}
                             onPress={() => aprobar(item)}
                             style={[styles.boton, styles.botonAprobar]}
+                            accessibilityLabel={`Aprobar a ${item.nombre || "este transportista"}`}
                           >
                             <Text style={[styles.botonTexto, styles.botonTextoAcento]}>
                               {ocupado ? "Guardando…" : "Aprobar"}
@@ -423,10 +483,12 @@ export default function AdminScreen() {
                     )}
                   </View>
                 );
-              })
-            )}
+                })
+              )}
+            </View>
           </>
-        )}
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

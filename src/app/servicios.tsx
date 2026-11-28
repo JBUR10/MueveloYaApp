@@ -3,16 +3,29 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ActivityIndicator,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   View,
 } from "react-native";
-import { Text, TextInput } from "../components/ui/Texto";
+import {
+  calcularTamanoFuente,
+  Text,
+  TextInput,
+  useEscala,
+  useFactorPreferenciaFuente,
+} from "../components/ui/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { aviso, confirmar, TipoAlerta } from "../components/ui/AlertaPantalla";
 import BarraNavegacion from "../components/ui/BarraNavegacion";
@@ -50,6 +63,8 @@ import {
   type PuntoMapa,
 } from "../services/ubicacionStore";
 import TextoIcono from "../components/ui/TextoIcono";
+import { propsCasillaWeb, useTecladoGrupo } from "../components/ui/tecladoWeb";
+import { liberarPago, reservarPago } from "../services/pagosEnCurso";
 import { usePaleta, useEstilos, type Paleta } from "../services/temaStore";
 
 type Rol = "origen" | "destino";
@@ -67,6 +82,7 @@ function separarDireccion(nombre: string) {
 
 /** Botones para traer la ubicación del mapa o marcarla allí. */
 function AccionesMapa({
+  lugar,
   disponible,
   textoTraer,
   textoMarcar,
@@ -75,6 +91,8 @@ function AccionesMapa({
   onMarcar,
   onQuitar,
 }: {
+  /** Distingue en las etiquetas los botones de recogida y de entrega. */
+  lugar: "recogida" | "entrega";
   disponible: PuntoMapa | null;
   textoTraer: string;
   textoMarcar: string;
@@ -91,6 +109,8 @@ function AccionesMapa({
           <TouchableOpacity
             style={[styles.chip, styles.chipAzul]}
             onPress={onTraer}
+            accessibilityRole="button"
+            accessibilityLabel={`${textoTraer}, punto de ${lugar}`}
           >
             <Text style={[styles.chipTexto, styles.chipTextoAzul]}>
               {textoTraer}
@@ -98,7 +118,12 @@ function AccionesMapa({
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={styles.chip} onPress={onMarcar}>
+        <TouchableOpacity
+          style={styles.chip}
+          onPress={onMarcar}
+          accessibilityRole="button"
+          accessibilityLabel={`${textoMarcar}, punto de ${lugar}`}
+        >
           <Text style={styles.chipTexto}>{textoMarcar}</Text>
         </TouchableOpacity>
       </View>
@@ -114,7 +139,12 @@ function AccionesMapa({
           <TextoIcono icono="checkmark-circle" style={styles.textoExacto}>
             Punto exacto del mapa guardado
           </TextoIcono>
-          <TouchableOpacity onPress={onQuitar} hitSlop={10}>
+          <TouchableOpacity
+            onPress={onQuitar}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={`Quitar punto exacto de ${lugar}`}
+          >
             <Text style={styles.textoQuitar}>Quitar</Text>
           </TouchableOpacity>
         </View>
@@ -134,8 +164,62 @@ function FilaPrecio({ texto, valor }: { texto: string; valor: number }) {
   );
 }
 
+/**
+ * Tarjetas de elección única. En web el grupo tiene una sola parada de Tab:
+ * entra por la opción elegida y dentro se recorre con las flechas.
+ */
+function GrupoOpciones<T extends string>({
+  etiqueta,
+  opciones,
+  seleccionada,
+  onSeleccion,
+}: {
+  etiqueta: string;
+  opciones: { id: T; etiqueta: string; contenido: ReactNode }[];
+  seleccionada: T;
+  onSeleccion: (id: T) => void;
+}) {
+  const styles = useEstilos(crearEstilos);
+  const teclas = useTecladoGrupo(
+    "radio",
+    opciones.map((o) => o.id),
+    seleccionada,
+  );
+
+  return (
+    <View
+      style={styles.gridServicios}
+      accessibilityRole="radiogroup"
+      accessibilityLabel={etiqueta}
+    >
+      {opciones.map((opcion) => {
+        const marcada = opcion.id === seleccionada;
+        return (
+          <Pressable
+            key={opcion.id}
+            onPress={() => onSeleccion(opcion.id)}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: marcada }}
+            accessibilityLabel={opcion.etiqueta}
+            {...teclas(opcion.id, () => onSeleccion(opcion.id))}
+            style={({ pressed }) => [
+              styles.cardServicio,
+              marcada ? styles.cardServicioSelected : styles.cardServicioNormal,
+              pressed && styles.cardServicioPresionada,
+            ]}
+          >
+            {opcion.contenido}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function ServiciosScreen() {
   const p = usePaleta();
+  const escalaAncho = useEscala();
+  const factorPreferencia = useFactorPreferenciaFuente();
   const styles = useEstilos(crearEstilos);
   const router = useRouter();
   const ubic = useUbicaciones();
@@ -184,6 +268,16 @@ export default function ServiciosScreen() {
   const [metodoPago, setMetodoPago] = useState<"stripe" | "efectivo">("stripe");
 
   const [loading, setLoading] = useState(false);
+  const teclasCarga = useTecladoGrupo<TipoCarga>(
+    "radio",
+    ["estandar", "fragil", "extrapesado"],
+    tipoCarga,
+  );
+  const teclasPago = useTecladoGrupo<"stripe" | "efectivo">(
+    "radio",
+    ["stripe", "efectivo"],
+    metodoPago,
+  );
 
   // Alerta en pantalla (componente global AlertaPantalla).
   const mostrarAlertaPantalla = async (
@@ -538,6 +632,8 @@ export default function ServiciosScreen() {
   const handleSolicitar = async () => {
     if (loading) return;
     setLoading(true);
+    // Id cuyo pago se está iniciando, para liberarlo al terminar.
+    let pagoReservado: string | null = null;
 
     try {
       // Sin distancia no hay precio: se vuelve a intentar antes de enviar.
@@ -600,6 +696,8 @@ export default function ServiciosScreen() {
         return;
       }
 
+      if (!reservarPago(String(creado.id))) return;
+      pagoReservado = String(creado.id);
       const pago = await crearPago(String(creado.id), Platform.OS === "web" ? "web" : "movil");
       if (pago.gratis) {
         mostrarAlertaPantalla(
@@ -612,7 +710,9 @@ export default function ServiciosScreen() {
           },
         );
       } else if (Platform.OS === "web") {
-        await pagarServicioStripe({ checkoutUrl: pago.checkoutUrl ?? "" });
+        const resultado = await pagarServicioStripe({ checkoutUrl: pago.checkoutUrl ?? "" });
+        // Mientras el navegador va a la página de pago, la reserva se mantiene.
+        if (resultado.estado !== "error") pagoReservado = null;
       } else if (pago.paymentIntentClientSecret && pago.customerId && pago.ephemeralKeySecret) {
         const resultado = await pagarServicioStripe({
           paymentIntentClientSecret: pago.paymentIntentClientSecret,
@@ -657,8 +757,17 @@ export default function ServiciosScreen() {
         "error",
       );
     } finally {
+      if (pagoReservado) liberarPago(pagoReservado);
       setLoading(false);
     }
+  };
+
+  // Único punto donde se cambia de servicio (toque, clic, Enter y Espacio).
+  const seleccionarTipoServicio = (tipo: typeof tipoServicio) => {
+    setTipoServicio(tipo);
+    setTipoCarga("estandar");
+    setArticulosFragiles(false);
+    setObjetosExtrapesados(false);
   };
 
   const serviciosList = [
@@ -701,38 +810,31 @@ export default function ServiciosScreen() {
             <View>
               <TarjetaCupones cupones={cupones} />
               <Text style={styles.sectionTitle}>1. ¿QUÉ NECESITAS MOVER?</Text>
-              <View style={styles.gridServicios}>
-                {serviciosList.map((item) => {
+              <GrupoOpciones
+                etiqueta="Tipo de servicio"
+                seleccionada={tipoServicio}
+                onSeleccion={seleccionarTipoServicio}
+                opciones={serviciosList.map((item) => {
                   const isSelected = tipoServicio === item.id;
-                  return (
-                    <TouchableOpacity
-                      key={item.id}
-                      onPress={() => {
-                        setTipoServicio(item.id as "Envío" | "Acarreo" | "Trasteo" | "Mudanza");
-                        setTipoCarga("estandar");
-                        setArticulosFragiles(false);
-                        setObjetosExtrapesados(false);
-                      }}
-                      style={[
-                        styles.cardServicio,
-                        isSelected
-                          ? styles.cardServicioSelected
-                          : styles.cardServicioNormal,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.cardTitle,
-                          isSelected && styles.textHighlight,
-                        ]}
-                      >
-                        {item.label}
-                      </Text>
-                      <Text style={styles.cardDesc}>{item.desc}</Text>
-                    </TouchableOpacity>
-                  );
+                  return {
+                    id: item.id as typeof tipoServicio,
+                    etiqueta: `${item.label}: ${item.desc}`,
+                    contenido: (
+                      <>
+                        <Text
+                          style={[
+                            styles.cardTitle,
+                            isSelected && styles.textHighlight,
+                          ]}
+                        >
+                          {item.label}
+                        </Text>
+                        <Text style={styles.cardDesc}>{item.desc}</Text>
+                      </>
+                    ),
+                  };
                 })}
-              </View>
+              />
 
               <TouchableOpacity
                 style={styles.btnNext}
@@ -756,6 +858,7 @@ export default function ServiciosScreen() {
                 </TextoIcono>
 
                 <AccionesMapa
+                  lugar="recogida"
                   disponible={origenDisponible}
                   textoTraer={
                     ubic.origen
@@ -775,6 +878,8 @@ export default function ServiciosScreen() {
 
                 <TextInput
                   style={styles.input}
+                  accessibilityLabel="Dirección de origen"
+                  aria-required
                   placeholder="Dirección (Ej: Calle 45 # 70-20)"
                   placeholderTextColor={p.textoPista}
                   value={origenDireccion}
@@ -782,6 +887,7 @@ export default function ServiciosScreen() {
                 />
                 <TextInput
                   style={styles.input}
+                  accessibilityLabel="Barrio o municipio de origen"
                   placeholder="Barrio o Municipio (Ej: Laureles)"
                   placeholderTextColor={p.textoPista}
                   value={origenBarrio}
@@ -795,6 +901,7 @@ export default function ServiciosScreen() {
                 </TextoIcono>
 
                 <AccionesMapa
+                  lugar="entrega"
                   disponible={ubic.destino}
                   textoTraer="Traer destino del mapa"
                   textoMarcar={
@@ -810,6 +917,8 @@ export default function ServiciosScreen() {
 
                 <TextInput
                   style={styles.input}
+                  accessibilityLabel="Dirección de destino"
+                  aria-required
                   placeholder="Dirección (Ej: Carrera 80 # 30-15)"
                   placeholderTextColor={p.textoPista}
                   value={destinoDireccion}
@@ -817,6 +926,7 @@ export default function ServiciosScreen() {
                 />
                 <TextInput
                   style={styles.input}
+                  accessibilityLabel="Barrio o municipio de destino"
                   placeholder="Barrio o Municipio (Ej: Poblado)"
                   placeholderTextColor={p.textoPista}
                   value={destinoBarrio}
@@ -853,49 +963,53 @@ export default function ServiciosScreen() {
             <View>
               <Text style={styles.sectionTitle}>3. ¿CUÁNDO LO NECESITAS?</Text>
 
-              <View style={styles.gridServicios}>
-                <TouchableOpacity
-                  onPress={() => setTipoProgramacion("inmediato")}
-                  style={[
-                    styles.cardServicio,
-                    tipoProgramacion === "inmediato"
-                      ? styles.cardServicioSelected
-                      : styles.cardServicioNormal,
-                  ]}
-                >
-                  <TextoIcono
-                    icono="flash"
-                    style={[
-                      styles.cardTitle,
-                      tipoProgramacion === "inmediato" && styles.textHighlight,
-                    ]}
-                  >
-                    Inmediato
-                  </TextoIcono>
-                  <Text style={styles.cardDesc}>Recogida lo antes posible</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => setTipoProgramacion("programado")}
-                  style={[
-                    styles.cardServicio,
-                    tipoProgramacion === "programado"
-                      ? styles.cardServicioSelected
-                      : styles.cardServicioNormal,
-                  ]}
-                >
-                  <TextoIcono
-                    icono="calendar"
-                    style={[
-                      styles.cardTitle,
-                      tipoProgramacion === "programado" && styles.textHighlight,
-                    ]}
-                  >
-                    Programado
-                  </TextoIcono>
-                  <Text style={styles.cardDesc}>Elegir fecha y hora</Text>
-                </TouchableOpacity>
-              </View>
+              <GrupoOpciones
+                etiqueta="Momento del servicio"
+                seleccionada={tipoProgramacion}
+                onSeleccion={setTipoProgramacion}
+                opciones={[
+                  {
+                    id: "inmediato",
+                    etiqueta: "Inmediato. Recogida lo antes posible.",
+                    contenido: (
+                      <>
+                        <TextoIcono
+                          icono="flash"
+                          style={[
+                            styles.cardTitle,
+                            tipoProgramacion === "inmediato" &&
+                              styles.textHighlight,
+                          ]}
+                        >
+                          Inmediato
+                        </TextoIcono>
+                        <Text style={styles.cardDesc}>
+                          Recogida lo antes posible
+                        </Text>
+                      </>
+                    ),
+                  },
+                  {
+                    id: "programado",
+                    etiqueta: "Programado. Elegir fecha y hora.",
+                    contenido: (
+                      <>
+                        <TextoIcono
+                          icono="calendar"
+                          style={[
+                            styles.cardTitle,
+                            tipoProgramacion === "programado" &&
+                              styles.textHighlight,
+                          ]}
+                        >
+                          Programado
+                        </TextoIcono>
+                        <Text style={styles.cardDesc}>Elegir fecha y hora</Text>
+                      </>
+                    ),
+                  },
+                ]}
+              />
 
               {tipoProgramacion === "programado" && (
                 <View style={styles.cardSection}>
@@ -903,6 +1017,8 @@ export default function ServiciosScreen() {
                   {Platform.OS === "web" ? (
                     <input
                       type="date"
+                      aria-label="Fecha del servicio"
+                      aria-required="true"
                       onChange={(e) => {
                         if (e.target.value) {
                           const [yyyy, mm, dd] = e.target.value.split("-");
@@ -922,7 +1038,11 @@ export default function ServiciosScreen() {
                         borderRadius: "12px",
                         border: `1px solid ${p.bordeCampo}`,
                         marginBottom: "12px",
-                        fontSize: "14px",
+                        fontSize: `${calcularTamanoFuente(
+                          14,
+                          escalaAncho,
+                          factorPreferencia,
+                        )}px`,
                         width: "100%",
                         boxSizing: "border-box",
                         colorScheme: p.esClaro ? "light" : "dark",
@@ -932,6 +1052,13 @@ export default function ServiciosScreen() {
                     <TouchableOpacity
                       style={styles.pickerSelectorButton}
                       onPress={() => setShowDatePicker(true)}
+                      accessibilityLabel={
+                        fechaEstablecida
+                          ? `Fecha del servicio: ${formatearFecha(fechaSeleccionada)}`
+                          : "Seleccionar fecha del servicio"
+                      }
+                      accessibilityRole="button"
+                      accessibilityHint="Abre el selector de fecha."
                     >
                       <TextoIcono
                         icono="calendar-outline"
@@ -948,6 +1075,8 @@ export default function ServiciosScreen() {
                   {Platform.OS === "web" ? (
                     <input
                       type="time"
+                      aria-label="Hora estimada del servicio"
+                      aria-required="true"
                       onChange={(e) => {
                         if (e.target.value) {
                           const [hrs, mins] = e.target.value.split(":");
@@ -964,7 +1093,11 @@ export default function ServiciosScreen() {
                         borderRadius: "12px",
                         border: `1px solid ${p.bordeCampo}`,
                         marginBottom: "12px",
-                        fontSize: "14px",
+                        fontSize: `${calcularTamanoFuente(
+                          14,
+                          escalaAncho,
+                          factorPreferencia,
+                        )}px`,
                         width: "100%",
                         boxSizing: "border-box",
                         colorScheme: p.esClaro ? "light" : "dark",
@@ -974,6 +1107,13 @@ export default function ServiciosScreen() {
                     <TouchableOpacity
                       style={styles.pickerSelectorButton}
                       onPress={() => setShowTimePicker(true)}
+                      accessibilityLabel={
+                        horaEstablecida
+                          ? `Hora estimada del servicio: ${formatearHora(horaSeleccionada)}`
+                          : "Seleccionar hora estimada del servicio"
+                      }
+                      accessibilityRole="button"
+                      accessibilityHint="Abre el selector de hora."
                     >
                       <TextoIcono
                         icono="time-outline"
@@ -1029,6 +1169,7 @@ export default function ServiciosScreen() {
                 <Text style={styles.inputLabel}>¿Qué vamos a transportar?</Text>
                 <TextInput
                   style={[styles.input, styles.textArea]}
+                  accessibilityLabel="Descripción de los artículos que se transportarán"
                   placeholder="Ej: 1 nevera, 1 cama doble y 5 cajas..."
                   placeholderTextColor={p.textoPista}
                   multiline
@@ -1038,7 +1179,11 @@ export default function ServiciosScreen() {
                 />
 
                 {(tipoServicio === "Envío" || tipoServicio === "Acarreo") && (
-                  <View style={styles.cargaSection}>
+                  <View
+                    style={styles.cargaSection}
+                    accessibilityRole="radiogroup"
+                    accessibilityLabel="Tipo de carga"
+                  >
                     <Text style={styles.cargaTitle}>Tipo de carga</Text>
                     {(tipoServicio === "Envío"
                       ? [
@@ -1054,12 +1199,18 @@ export default function ServiciosScreen() {
                     ).map((opcion) => {
                       const activo = tipoCarga === opcion.id;
                       return (
-                        <TouchableOpacity
+                        <Pressable
                           key={opcion.id}
                           accessibilityRole="radio"
-                          accessibilityState={{ selected: activo }}
+                          accessibilityState={{ checked: activo }}
+                          accessibilityLabel={`${opcion.titulo}. ${opcion.detalle}. Recargo ${opcion.recargo}`}
                           onPress={() => setTipoCarga(opcion.id)}
-                          style={[styles.cargaOpcion, activo && styles.cargaOpcionActiva]}
+                          {...teclasCarga(opcion.id, () => setTipoCarga(opcion.id))}
+                          style={({ pressed }) => [
+                            styles.cargaOpcion,
+                            activo && styles.cargaOpcionActiva,
+                            pressed && styles.cardServicioPresionada,
+                          ]}
                         >
                           <View style={[styles.radioCarga, activo && styles.radioCargaActivo]}>
                             {activo && <View style={styles.radioCargaPunto} />}
@@ -1071,22 +1222,32 @@ export default function ServiciosScreen() {
                           <Text style={[styles.cargaRecargo, activo && { color: p.acento }]}>
                             {opcion.recargo}
                           </Text>
-                        </TouchableOpacity>
+                        </Pressable>
                       );
                     })}
                   </View>
                 )}
 
                 {(tipoServicio === "Trasteo" || tipoServicio === "Mudanza") && (
-                  <View style={styles.cargaSection}>
+                  <View
+                    style={styles.cargaSection}
+                    role="group"
+                    accessibilityLabel="Artículos de cuidado especial"
+                  >
                     <Text style={styles.cargaTitle}>
                       ¿Incluye artículos de cuidado especial?
                     </Text>
-                    <TouchableOpacity
+                    <Pressable
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: articulosFragiles }}
+                      accessibilityLabel="Artículos frágiles o delicados. Vajillas, vidrios, espejos o pantallas grandes. Recargo +15%"
                       onPress={() => setArticulosFragiles((v) => !v)}
-                      style={[styles.cargaOpcion, articulosFragiles && styles.cargaOpcionActiva]}
+                      {...propsCasillaWeb(articulosFragiles, () => setArticulosFragiles((v) => !v))}
+                      style={({ pressed }) => [
+                        styles.cargaOpcion,
+                        articulosFragiles && styles.cargaOpcionActiva,
+                        pressed && styles.cardServicioPresionada,
+                      ]}
                     >
                       <View style={[styles.checkboxCarga, articulosFragiles && styles.checkboxCargaActivo]}>
                         {articulosFragiles && <Text style={styles.checkboxMarca}>✓</Text>}
@@ -1096,12 +1257,18 @@ export default function ServiciosScreen() {
                         <Text style={styles.cargaOpcionDetalle}>Vajillas, vidrios, espejos o pantallas grandes</Text>
                       </View>
                       <Text style={styles.cargaRecargo}>+15%</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </Pressable>
+                    <Pressable
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: objetosExtrapesados }}
+                      accessibilityLabel="Objetos extrapesados. Nevecón, piano, caja fuerte o máquinas de gimnasio. Recargo +20%"
                       onPress={() => setObjetosExtrapesados((v) => !v)}
-                      style={[styles.cargaOpcion, objetosExtrapesados && styles.cargaOpcionActiva]}
+                      {...propsCasillaWeb(objetosExtrapesados, () => setObjetosExtrapesados((v) => !v))}
+                      style={({ pressed }) => [
+                        styles.cargaOpcion,
+                        objetosExtrapesados && styles.cargaOpcionActiva,
+                        pressed && styles.cardServicioPresionada,
+                      ]}
                     >
                       <View style={[styles.checkboxCarga, objetosExtrapesados && styles.checkboxCargaActivo]}>
                         {objetosExtrapesados && <Text style={styles.checkboxMarca}>✓</Text>}
@@ -1111,7 +1278,7 @@ export default function ServiciosScreen() {
                         <Text style={styles.cargaOpcionDetalle}>Nevecón, piano, caja fuerte o máquinas de gimnasio</Text>
                       </View>
                       <Text style={styles.cargaRecargo}>+20%</Text>
-                    </TouchableOpacity>
+                    </Pressable>
                   </View>
                 )}
                 <Text style={styles.cargaAyuda}>
@@ -1130,6 +1297,8 @@ export default function ServiciosScreen() {
                     <TouchableOpacity
                       onPress={() => setAyudantes(Math.max(0, ayudantes - 1))}
                       style={styles.btnCounterMinus}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Reducir ayudantes. Actual: ${ayudantes}`}
                     >
                       <Text style={styles.btnCounterText}>-</Text>
                     </TouchableOpacity>
@@ -1137,6 +1306,8 @@ export default function ServiciosScreen() {
                     <TouchableOpacity
                       onPress={() => setAyudantes(ayudantes + 1)}
                       style={styles.btnCounterPlus}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Aumentar ayudantes. Actual: ${ayudantes}`}
                     >
                       <Text style={[styles.btnCounterText, styles.btnCounterTextPlus]}>+</Text>
                     </TouchableOpacity>
@@ -1155,6 +1326,8 @@ export default function ServiciosScreen() {
                         setPisosEscaleras(Math.max(0, pisosEscaleras - 1))
                       }
                       style={styles.btnCounterMinus}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Reducir pisos por escaleras. Actual: ${pisosEscaleras}`}
                     >
                       <Text style={styles.btnCounterText}>-</Text>
                     </TouchableOpacity>
@@ -1162,6 +1335,8 @@ export default function ServiciosScreen() {
                     <TouchableOpacity
                       onPress={() => setPisosEscaleras(pisosEscaleras + 1)}
                       style={styles.btnCounterPlus}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Aumentar pisos por escaleras. Actual: ${pisosEscaleras}`}
                     >
                       <Text style={[styles.btnCounterText, styles.btnCounterTextPlus]}>+</Text>
                     </TouchableOpacity>
@@ -1175,6 +1350,7 @@ export default function ServiciosScreen() {
                   </Text>
                   <TextInput
                     style={styles.input}
+                    accessibilityLabel="Nombre de la persona de contacto"
                     placeholder="Nombre completo"
                     placeholderTextColor={p.textoPista}
                     value={nombreContacto}
@@ -1182,6 +1358,7 @@ export default function ServiciosScreen() {
                   />
                   <TextInput
                     style={styles.input}
+                    accessibilityLabel="Teléfono de la persona de contacto"
                     placeholder="Teléfono (Ej: 300 000 0000)"
                     placeholderTextColor={p.textoPista}
                     keyboardType="phone-pad"
@@ -1260,12 +1437,22 @@ export default function ServiciosScreen() {
 
               <View style={styles.cardSection}>
                 <Text style={styles.inputLabel}>¿Cómo deseas pagar?</Text>
-                <View style={styles.cargaSection}>
-                  <TouchableOpacity
+                <View
+                  style={styles.cargaSection}
+                  accessibilityRole="radiogroup"
+                  accessibilityLabel="Método de pago"
+                >
+                  <Pressable
                     accessibilityRole="radio"
-                    accessibilityState={{ selected: metodoPago === "stripe" }}
+                    accessibilityState={{ checked: metodoPago === "stripe" }}
+                    accessibilityLabel="Tarjeta con Stripe. Pago seguro al solicitar el servicio"
                     onPress={() => setMetodoPago("stripe")}
-                    style={[styles.cargaOpcion, metodoPago === "stripe" && styles.cargaOpcionActiva]}
+                    {...teclasPago("stripe", () => setMetodoPago("stripe"))}
+                    style={({ pressed }) => [
+                      styles.cargaOpcion,
+                      metodoPago === "stripe" && styles.cargaOpcionActiva,
+                      pressed && styles.cardServicioPresionada,
+                    ]}
                   >
                     <View style={[styles.radioCarga, metodoPago === "stripe" && styles.radioCargaActivo]}>
                       {metodoPago === "stripe" && <View style={styles.radioCargaPunto} />}
@@ -1274,12 +1461,18 @@ export default function ServiciosScreen() {
                       <Text style={styles.cargaOpcionTitulo}>Tarjeta con Stripe</Text>
                       <Text style={styles.cargaOpcionDetalle}>Pago seguro al solicitar el servicio</Text>
                     </View>
-                  </TouchableOpacity>
-                  <TouchableOpacity
+                  </Pressable>
+                  <Pressable
                     accessibilityRole="radio"
-                    accessibilityState={{ selected: metodoPago === "efectivo" }}
+                    accessibilityState={{ checked: metodoPago === "efectivo" }}
+                    accessibilityLabel="Efectivo al transportista. Pagas al finalizar el servicio"
                     onPress={() => setMetodoPago("efectivo")}
-                    style={[styles.cargaOpcion, metodoPago === "efectivo" && styles.cargaOpcionActiva]}
+                    {...teclasPago("efectivo", () => setMetodoPago("efectivo"))}
+                    style={({ pressed }) => [
+                      styles.cargaOpcion,
+                      metodoPago === "efectivo" && styles.cargaOpcionActiva,
+                      pressed && styles.cardServicioPresionada,
+                    ]}
                   >
                     <View style={[styles.radioCarga, metodoPago === "efectivo" && styles.radioCargaActivo]}>
                       {metodoPago === "efectivo" && <View style={styles.radioCargaPunto} />}
@@ -1288,7 +1481,7 @@ export default function ServiciosScreen() {
                       <Text style={styles.cargaOpcionTitulo}>Efectivo al transportista</Text>
                       <Text style={styles.cargaOpcionDetalle}>Pagas al finalizar el servicio</Text>
                     </View>
-                  </TouchableOpacity>
+                  </Pressable>
                 </View>
               </View>
 
@@ -1296,6 +1489,16 @@ export default function ServiciosScreen() {
                 style={styles.btnSubmit}
                 disabled={loading}
                 onPress={handleSolicitar}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  loading
+                    ? "Enviando solicitud"
+                    : metodoPago === "stripe"
+                      ? "Pagar con Stripe y solicitar"
+                      : "Solicitar y pagar en efectivo"
+                }
+                accessibilityState={{ disabled: loading, busy: loading }}
+                aria-busy={loading}
               >
                 {loading ? (
                   <ActivityIndicator color="#fff" />
@@ -1405,6 +1608,8 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     backgroundColor: p.superficieSeleccion,
     borderColor: "#3b82f6",
   },
+  // La misma respuesta visual al tocar que daba TouchableOpacity.
+  cardServicioPresionada: { opacity: 0.2 },
   cardTitle: {
     color: p.texto,
     fontSize: 16,

@@ -63,13 +63,12 @@ function Kpi({
           alFinal
           colorIcono={p.estrella}
           style={styles.kpiValor}
-          numberOfLines={1}
-          adjustsFontSizeToFit
+          numberOfLines={2}
         >
           {valor}
         </TextoIcono>
       ) : (
-        <Text style={styles.kpiValor} numberOfLines={1} adjustsFontSizeToFit>
+        <Text style={styles.kpiValor} numberOfLines={2}>
           {valor}
         </Text>
       )}
@@ -94,7 +93,9 @@ function Barras({ datos }: { datos: { etiqueta: string; valor: number }[] }) {
     <View style={styles.barras}>
       {datos.map((d) => (
         <View key={d.etiqueta} style={styles.barraCol}>
-          <Text style={styles.barraValor}>{d.valor || ""}</Text>
+          <Text escalaCompacta style={styles.barraValor}>
+            {d.valor || ""}
+          </Text>
           <View
             style={[
               styles.barraV,
@@ -105,7 +106,9 @@ function Barras({ datos }: { datos: { etiqueta: string; valor: number }[] }) {
               },
             ]}
           />
-          <Text style={styles.barraEtiqueta}>{d.etiqueta}</Text>
+          <Text style={styles.barraEtiqueta}>
+            {d.etiqueta}
+          </Text>
         </View>
       ))}
     </View>
@@ -213,7 +216,11 @@ export default function PanelAnalisis() {
         Indicadores del negocio, tendencias y horas de mayor demanda.
       </Text>
 
-      <View style={styles.chips}>
+      <View
+        style={styles.chips}
+        accessibilityRole="radiogroup"
+        accessibilityLabel="Periodo del análisis"
+      >
         {PERIODOS.map((p) => {
           const activo = periodo === p.valor;
           return (
@@ -221,6 +228,9 @@ export default function PanelAnalisis() {
               key={p.titulo}
               onPress={() => setPeriodo(p.valor)}
               style={[styles.chip, activo && styles.chipActivo]}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: activo }}
+              accessibilityLabel={p.valor == null ? "Todo el periodo" : `Últimos ${p.titulo}`}
             >
               <Text style={[styles.chipTexto, activo && { color: "#FFF" }]}>
                 {p.titulo}
@@ -230,17 +240,39 @@ export default function PanelAnalisis() {
         })}
       </View>
 
+      {datos && !cargando && (
+        <Text
+          style={styles.nota}
+          role="status"
+          accessibilityLiveRegion="polite"
+          aria-live="polite"
+        >
+          Resultados para {periodo == null ? "todo el periodo" : `los últimos ${periodo} días`}:{" "}
+          {datos.total} pedidos; ingresos completados {formatearPesos(datos.ingresos)}.
+        </Text>
+      )}
+
       {cargando && !datos ? (
         <ActivityIndicator
           color={AZUL}
           size="large"
           style={{ marginTop: 30 }}
+          accessibilityLabel="Cargando análisis del periodo"
         />
       ) : !!error && !datos ? (
         <Text style={styles.error}>{error}</Text>
       ) : datos ? (
         <View style={[styles.raiz, cargando && { opacity: 0.5 }]}>
-          {!!error && <Text style={styles.error}>{error}</Text>}
+          {!!error && (
+            <Text
+              style={styles.error}
+              accessibilityRole="alert"
+              accessibilityLiveRegion="assertive"
+              aria-live="assertive"
+            >
+              {error}
+            </Text>
+          )}
 
           <View style={styles.kpis}>
             <Kpi

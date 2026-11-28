@@ -5,9 +5,16 @@ import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 import AlertaPantalla from '../components/ui/AlertaPantalla';
+import AnuncioPantalla from '../components/ui/AnuncioPantalla';
+import { ProveedorEscalaFuente } from '../components/ui/Texto';
 import { cambiarModo, obtenerModo } from '../services/modoStore';
+import { navegarConProteccionTamanoFuente } from '../services/proteccionTamanoFuente';
 import { escucharToquesNotificacion } from '../services/notificacionesPush';
 import { useSesion } from '../services/sesionStore';
+import {
+  obtenerEstadoTamanoFuente,
+  useClaveCargaTamanoFuente,
+} from '../services/tamanoFuenteStore';
 import { useEstadoTema, usePaleta } from "../services/temaStore";
 import StripePaymentProvider from '../components/stripe-payment-provider';
 
@@ -24,7 +31,7 @@ function AbrirDesdeNotificacion() {
         if (delConductor && obtenerModo().modo !== 'transportista') {
           cambiarModo('transportista');
         }
-        router.push(ruta as Href);
+        void navegarConProteccionTamanoFuente(() => router.push(ruta as Href));
       }),
     [router],
   );
@@ -36,11 +43,16 @@ export default function RootLayout() {
   const p = usePaleta();
   const { cargado: temaCargado } = useEstadoTema();
   const { sesion, cargado, recuperandoClave } = useSesion();
+  const claveCargaTamano = useClaveCargaTamanoFuente();
   const conSesion = !!sesion && !recuperandoClave;
+  const uid = sesion?.user.id ?? null;
+  const tamanoCargado =
+    claveCargaTamano === `${uid ?? ''}:ready` ||
+    claveCargaTamano === `${uid ?? ''}:error`;
 
   // Mientras se lee la sesión guardada, evita mostrar el login por un instante.
   // También espera el tema guardado, para no mostrar un destello del tema equivocado.
-  if (!cargado || !temaCargado) {
+  if (!cargado || !temaCargado || (conSesion && !tamanoCargado)) {
     return (
       <View
         style={{
@@ -56,37 +68,59 @@ export default function RootLayout() {
 
   return (
     <StripePaymentProvider>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: p.fondo },
-        }}>
-        {/* Sin sesión: solo las pantallas de acceso. */}
-        <Stack.Protected guard={!conSesion}>
-          <Stack.Screen name="login" />
-          <Stack.Screen name="registro" />
-          <Stack.Screen name="verificar" />
-          <Stack.Screen name="recuperar" />
-        </Stack.Protected>
+      <ProveedorEscalaFuente>
+        {/* Web: antes de las pantallas, para que la lectura continúe en ellas. */}
+        <AnuncioPantalla />
 
-        {/* Con sesión: la app. */}
-        <Stack.Protected guard={conSesion}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="servicios" />
-          <Stack.Screen name="solicitudes" />
-          <Stack.Screen name="perfil" />
-          <Stack.Screen name="transportista" />
-          <Stack.Screen name="vehiculo" />
-          <Stack.Screen name="admin" />
-          <Stack.Screen name="queja" />
-          <Stack.Screen name="explore" />
-          <Stack.Screen name="ayuda" />
-        </Stack.Protected>
-      </Stack>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: p.fondo },
+          }}>
+          {/* Sin sesión: solo las pantallas de acceso. */}
+          <Stack.Protected guard={!conSesion}>
+            <Stack.Screen name="login" />
+            <Stack.Screen name="registro" />
+            <Stack.Screen name="verificar" />
+            <Stack.Screen name="recuperar" />
+          </Stack.Protected>
 
-      {conSesion && <AbrirDesdeNotificacion />}
+          {/* Con sesión: la app. */}
+          <Stack.Protected guard={conSesion}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="servicios" />
+            <Stack.Screen name="solicitudes" />
+            <Stack.Screen
+              name="perfil"
+              listeners={({ navigation }) => ({
+                beforeRemove: (evento) => {
+                  const estado = obtenerEstadoTamanoFuente();
+                  if (
+                    estado.carga !== 'ready' ||
+                    estado.borrador === estado.guardado
+                  ) {
+                    return;
+                  }
+                  evento.preventDefault();
+                  void navegarConProteccionTamanoFuente(() =>
+                    navigation.dispatch(evento.data.action),
+                  );
+                },
+              })}
+            />
+            <Stack.Screen name="transportista" />
+            <Stack.Screen name="vehiculo" />
+            <Stack.Screen name="admin" />
+            <Stack.Screen name="queja" />
+            <Stack.Screen name="explore" />
+            <Stack.Screen name="ayuda" />
+          </Stack.Protected>
+        </Stack>
 
-      <AlertaPantalla />
+        {conSesion && <AbrirDesdeNotificacion />}
+
+        <AlertaPantalla />
+      </ProveedorEscalaFuente>
     </StripePaymentProvider>
   );
 }

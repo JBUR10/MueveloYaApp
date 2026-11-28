@@ -22,6 +22,7 @@ import {
   StatusBar,
   StyleSheet,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { Text } from "../ui/Texto";
@@ -181,6 +182,10 @@ const llamar = (telefono: string) =>
 export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
   const p = usePaleta();
   const styles = useEstilos(crearEstilos);
+  const { height: altoVentana } = useWindowDimensions();
+  // Alto máximo de la parte desplazable de los paneles del mapa; los botones de
+  // acción quedan debajo, fuera de ella.
+  const altoMaximoPanelMapa = Math.max(120, altoVentana * 0.45);
   const router = useRouter();
   // Mapa: ?ruta=<id> abre la ruta de un servicio; ?ver=<id> abre una solicitud.
   // Lista: ?seccion=aceptadas abre esa sección.
@@ -943,6 +948,13 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
 
     return (
       <View style={styles.panelInferior}>
+        <ScrollView
+          key={item.id}
+          style={{ maxHeight: altoMaximoPanelMapa, flexGrow: 0 }}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={styles.cardHeaderRow}>
           <Text style={styles.cardTypeBadge} numberOfLines={1}>
             {item.tipoServicio}
@@ -1005,10 +1017,11 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
         <DetalleTarifaSolicitud item={item} />
 
         {item.descripcion ? (
-          <Text style={styles.cardDesc} numberOfLines={2}>
+          <Text style={styles.cardDesc}>
             {item.descripcion}
           </Text>
         ) : null}
+        </ScrollView>
 
         <View style={styles.botonesPanel}>
           <TouchableOpacity
@@ -1016,6 +1029,8 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             onPress={() => handleRechazar(item)}
             disabled={procesando}
             activeOpacity={0.8}
+            accessibilityLabel="Rechazar solicitud"
+            accessibilityState={{ disabled: procesando, busy: procesando }}
           >
             <Text style={styles.btnRechazarText}>Rechazar</Text>
           </TouchableOpacity>
@@ -1024,6 +1039,8 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             onPress={() => handleAceptar(item)}
             disabled={procesando}
             activeOpacity={0.8}
+            accessibilityLabel="Aceptar solicitud"
+            accessibilityState={{ disabled: procesando, busy: procesando }}
           >
             {procesando ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
@@ -1045,6 +1062,13 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
 
     return (
       <View style={[styles.panelInferior, styles.panelRuta]}>
+        <ScrollView
+          key={item.id}
+          style={{ maxHeight: altoMaximoPanelMapa, flexGrow: 0 }}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={styles.filaFase}>
           <View style={[styles.faseChip, enCurso && styles.faseChipActiva]}>
             <Text style={styles.faseTexto}>
@@ -1061,7 +1085,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
         <Text style={styles.tituloRuta}>
           {enCurso ? "Lleva la carga al destino" : "Ve al punto de recogida"}
         </Text>
-        <Text style={styles.direccionRuta} numberOfLines={2}>
+        <Text style={styles.direccionRuta}>
           {textoFase}
         </Text>
         {buscandoDireccion ? (
@@ -1074,12 +1098,13 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             </Text>
           )
         )}
+        </ScrollView>
 
         <View style={styles.contactoRuta}>
           <TextoIcono
             icono="person-outline"
             style={[styles.contactName, { flexShrink: 1 }]}
-            numberOfLines={1}
+            numberOfLines={2}
           >
             {item.nombreContacto}
           </TextoIcono>
@@ -1147,7 +1172,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
         >
           {item.tipoServicio} · {inmediato ? "Inmediata" : item.fechaProgramada}
         </TextoIcono>
-        <Text style={styles.avisoRuta} numberOfLines={1}>
+        <Text style={styles.avisoRuta} numberOfLines={2}>
           {item.origen}{"  "}
           <Icono nombre="arrow-forward" tamano={14} color={p.textoSuave} />
           {"  "}{item.destino}
@@ -1444,7 +1469,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
         {item.descripcion ? (
           <View style={styles.descBox}>
             <Text style={styles.descLabel}>DETALLE</Text>
-            <Text style={styles.cardDesc} numberOfLines={3}>
+            <Text style={styles.cardDesc}>
               {item.descripcion}
             </Text>
           </View>
@@ -1566,7 +1591,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
         ? new Date(new Date(e.condicionDesde).getTime() + e.diasRequeridos * 86400000)
         : null;
       const faltanDias = libreEl
-        ? Math.max(0, Math.ceil((libreEl.getTime() - Date.now()) / 86400000))
+        ? Math.max(0, Math.ceil((libreEl.getTime() - ahora.getTime()) / 86400000))
         : e.diasRequeridos;
       const pendientes = [
         faltanDias > 0 ? `${faltanDias} día${faltanDias === 1 ? "" : "s"}` : null,
@@ -1606,6 +1631,8 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
 
     return (
       <ScrollView
+        role="tabpanel"
+        accessibilityLabelledBy={`transportista-tab-${seccion}`}
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
@@ -1678,7 +1705,11 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           </Pressable>
         </View>
 
-        <View style={styles.segmentos}>
+        <View
+          style={styles.segmentos}
+          accessibilityRole="tablist"
+          accessibilityLabel="Secciones de solicitudes del transportista"
+        >
           {SECCIONES.map((s) => {
             const activa = seccion === s.id;
             return (
@@ -1689,8 +1720,13 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
                 activeOpacity={0.8}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: activa }}
+                accessibilityLabel={`${s.titulo}, ${conteos[s.id]} solicitudes`}
+                accessibilityHint={`Muestra las solicitudes ${s.titulo.toLowerCase()}.`}
               >
-                <Text style={[styles.segmentoText, activa && styles.segmentoTextActivo]}>
+                <Text
+                  nativeID={`transportista-tab-${s.id}`}
+                  style={[styles.segmentoText, activa && styles.segmentoTextActivo]}
+                >
                   {s.titulo} ({conteos[s.id]})
                 </Text>
               </TouchableOpacity>
@@ -1737,13 +1773,20 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
         {/* En la ruta se oculta la barra para dar espacio al panel. */}
         {!(vista === "mapa" && servicioRuta) && <BarraNavegacion />}
 
-        <MensajeTemporal mensaje={mensaje} alTerminar={ocultarMensaje} />
+        <MensajeTemporal
+          mensaje={mensaje}
+          alTerminar={ocultarMensaje}
+          tipo="exito"
+        />
 
         {vista === "lista" && !!nuevaSolicitud && (
           <Pressable
             onPress={verNuevaSolicitud}
             accessibilityRole="button"
-            accessibilityLabel="Ver la solicitud nueva"
+            accessibilityLabel={`Nueva solicitud de ${nuevaSolicitud.tipoServicio}: ${nuevaSolicitud.origen} a ${nuevaSolicitud.destino}. Ver solicitud.`}
+            accessibilityHint="Abre los detalles para revisar y decidir si aceptarla."
+            accessibilityLiveRegion="polite"
+            aria-live="polite"
             style={({ pressed }) => [styles.avisoNueva, pressed && { opacity: 0.85 }]}
           >
             <TextoIcono
@@ -1815,13 +1858,13 @@ function Ruta({
       <View style={styles.routeTexts}>
         <View style={styles.routeBlock}>
           <Text style={styles.routeLabel}>RECOGIDA</Text>
-          <Text style={styles.routeValue} numberOfLines={compacta ? 1 : 2}>
+          <Text style={styles.routeValue}>
             {origen}
           </Text>
         </View>
         <View style={styles.routeBlock}>
           <Text style={styles.routeLabel}>ENTREGA</Text>
-          <Text style={styles.routeValue} numberOfLines={compacta ? 1 : 2}>
+          <Text style={styles.routeValue}>
             {destino}
           </Text>
         </View>

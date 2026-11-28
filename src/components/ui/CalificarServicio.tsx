@@ -4,9 +4,11 @@
 //  - Cliente: estrellas al transportista y a la app, ¿lo recomendarías?,
 //    sugerencias y ¿tuviste algún problema? (si sí, se abre el formulario de quejas).
 //  - Transportista: estrellas al cliente y un comentario.
-import { useState } from "react";
+import { useId, useRef, useState, type RefObject } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
+  findNodeHandle,
   Modal,
   Platform,
   Pressable,
@@ -40,24 +42,37 @@ function Estrellas({
   valor,
   onCambiar,
   etiqueta,
+  referenciaInicial,
 }: {
   valor: number;
   onCambiar: (v: number) => void;
   etiqueta: string;
+  referenciaInicial?: RefObject<View | null>;
 }) {
   const p = usePaleta();
   const styles = useEstilos(crearEstilos);
+  const id = useId().replace(/:/g, "");
+  const etiquetaId = `calificacion-etiqueta-${id}`;
   return (
     <View style={styles.bloque}>
-      <Text style={styles.pregunta}>{etiqueta}</Text>
-      <View style={styles.filaEstrellas} accessibilityRole="adjustable">
+      <Text nativeID={etiquetaId} style={styles.pregunta}>
+        {etiqueta}
+      </Text>
+      <View
+        style={styles.filaEstrellas}
+        accessibilityRole="radiogroup"
+        accessibilityLabelledBy={etiquetaId}
+        aria-labelledby={etiquetaId}
+      >
         {[1, 2, 3, 4, 5].map((n) => (
           <Pressable
             key={n}
+            ref={n === 1 ? referenciaInicial : undefined}
             onPress={() => onCambiar(n)}
             hitSlop={6}
-            accessibilityRole="button"
-            accessibilityLabel={`${n} estrella${n > 1 ? "s" : ""}`}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: valor === n }}
+            accessibilityLabel={`${n} de 5 estrellas`}
           >
             <Icono
               nombre={n <= valor ? "star" : "star-outline"}
@@ -81,10 +96,19 @@ function SiNo({
   etiqueta: string;
 }) {
   const styles = useEstilos(crearEstilos);
+  const id = useId().replace(/:/g, "");
+  const etiquetaId = `calificacion-si-no-${id}`;
   return (
     <View style={styles.bloque}>
-      <Text style={styles.pregunta}>{etiqueta}</Text>
-      <View style={styles.filaSiNo}>
+      <Text nativeID={etiquetaId} style={styles.pregunta}>
+        {etiqueta}
+      </Text>
+      <View
+        style={styles.filaSiNo}
+        accessibilityRole="radiogroup"
+        accessibilityLabelledBy={etiquetaId}
+        aria-labelledby={etiquetaId}
+      >
         {[true, false].map((opcion) => {
           const activo = valor === opcion;
           return (
@@ -92,7 +116,8 @@ function SiNo({
               key={String(opcion)}
               onPress={() => onCambiar(opcion)}
               accessibilityRole="radio"
-              accessibilityState={{ selected: activo }}
+              accessibilityState={{ checked: activo }}
+              accessibilityLabel={opcion ? "Sí" : "No"}
               style={[styles.opcion, activo && styles.opcionActiva]}
             >
               <Text style={[styles.textoOpcion, activo && styles.textoOpcionActiva]}>
@@ -124,6 +149,17 @@ export default function CalificarServicio({
   const [enviando, setEnviando] = useState(false);
   // El error se muestra dentro del modal: una alerta aparte quedaría detrás.
   const [error, setError] = useState("");
+  const id = useId().replace(/:/g, "");
+  const tituloId = `calificacion-titulo-${id}`;
+  const subtituloId = `calificacion-descripcion-${id}`;
+  const comentarioId = `calificacion-comentario-${id}`;
+  const primerControl = useRef<View>(null);
+
+  const enfocarPrimerControl = () => {
+    if (Platform.OS === "web" || !primerControl.current) return;
+    const etiqueta = findNodeHandle(primerControl.current);
+    if (etiqueta !== null) AccessibilityInfo.setAccessibilityFocus(etiqueta);
+  };
 
   const limpiar = () => {
     setEstrellas(0);
@@ -173,9 +209,24 @@ export default function CalificarServicio({
       transparent
       animationType="fade"
       statusBarTranslucent
+      accessibilityLabelledBy={tituloId}
+      aria-labelledby={tituloId}
+      {...(Platform.OS === "web"
+        ? { "aria-describedby": subtituloId }
+        : {})}
+      accessibilityHint={
+        esCliente
+          ? "Califica el servicio y responde las preguntas."
+          : "Califica al cliente y, si quieres, escribe un comentario."
+      }
+      onShow={enfocarPrimerControl}
       onRequestClose={cerrar}
     >
-      <View style={styles.overlay}>
+      <View
+        style={styles.overlay}
+        accessibilityViewIsModal
+        aria-modal
+      >
         <View style={styles.contenedor}>
           <ScrollView
             contentContainerStyle={styles.contenido}
@@ -188,10 +239,14 @@ export default function CalificarServicio({
               color={p.texto}
               style={styles.icono}
             />
-            <Text style={styles.titulo}>
+            <Text
+              nativeID={tituloId}
+              accessibilityRole="header"
+              style={styles.titulo}
+            >
               {esCliente ? "¿Qué tal el servicio?" : "Califica al cliente"}
             </Text>
-            <Text style={styles.subtitulo}>
+            <Text nativeID={subtituloId} style={styles.subtitulo}>
               {esCliente
                 ? "Tu opinión nos ayuda a mejorar."
                 : "Cuéntanos cómo fue trabajar con este cliente."}
@@ -201,6 +256,7 @@ export default function CalificarServicio({
               etiqueta={`${esCliente ? "Transportista" : "Cliente"}: ${nombreCalificado || "—"}`}
               valor={estrellas}
               onCambiar={setEstrellas}
+              referenciaInicial={primerControl}
             />
 
             {esCliente && (
@@ -219,10 +275,17 @@ export default function CalificarServicio({
             )}
 
             <View style={styles.bloque}>
-              <Text style={styles.pregunta}>
-                {esCliente ? "¿Alguna sugerencia? (opcional)" : "Comentario (opcional)"}
+              <Text nativeID={comentarioId} style={styles.pregunta}>
+                {esCliente
+                  ? "¿Alguna sugerencia? (opcional)"
+                  : "Comentario (opcional)"}
               </Text>
               <TextInput
+                nativeID={`calificacion-input-${id}`}
+                accessibilityLabelledBy={comentarioId}
+                aria-labelledby={comentarioId}
+                accessibilityHint="Campo opcional."
+                aria-required={false}
                 value={comentario}
                 onChangeText={setComentario}
                 placeholder="Escribe aquí…"
@@ -244,15 +307,32 @@ export default function CalificarServicio({
               />
             )}
 
-            {!!error && <Text style={styles.error}>{error}</Text>}
+            {!!error && (
+              <Text
+                accessibilityRole="alert"
+                accessibilityLiveRegion="assertive"
+                aria-live="assertive"
+                style={styles.error}
+              >
+                {error}
+              </Text>
+            )}
 
             <View style={styles.botones}>
-              <Pressable onPress={cerrar} style={[styles.boton, styles.botonSecundario]}>
+              <Pressable
+                onPress={cerrar}
+                style={[styles.boton, styles.botonSecundario]}
+                accessibilityRole="button"
+                accessibilityLabel="Más tarde"
+              >
                 <Text style={styles.textoBoton}>Más tarde</Text>
               </Pressable>
               <Pressable
                 onPress={enviar}
                 disabled={!completo || enviando}
+                accessibilityRole="button"
+                accessibilityLabel={enviando ? "Enviando calificación" : "Enviar calificación"}
+                accessibilityState={{ disabled: !completo || enviando, busy: enviando }}
                 style={[styles.boton, styles.botonPrincipal, !completo && styles.inactivo]}
               >
                 {enviando ? (

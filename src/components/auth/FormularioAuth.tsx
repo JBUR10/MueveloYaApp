@@ -2,7 +2,15 @@
 //
 // Piezas comunes de las pantallas de acceso (login, registro, verificar,
 // recuperar): contenedor con logo, campos de texto y botones.
-import { ReactNode, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ActivityIndicator,
   Image,
@@ -21,21 +29,64 @@ import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 export const AZUL = "#2969e9";
 
+/**
+ * Solo web: BotonPrincipal y Campo avisan a PantallaAuth de cada intento de
+ * envío, para volver a anunciar los errores aunque sean los mismos.
+ */
+const ContextoEnvio = createContext<(() => void) | null>(null);
+
+// Pausas (ms). El foco espera porque, tras pulsar Enter, react-native-web saca
+// el foco del campo; el anuncio va después para no pisar la lectura del campo.
+const ESPERA_FOCO = 100;
+const ESPERA_ANUNCIO = 300;
+
 export function PantallaAuth({
   etiqueta,
   titulo,
   resaltado,
   descripcion,
+  errores = [],
   children,
 }: {
   etiqueta: string;
   titulo: string;
   resaltado: string;
   descripcion?: string;
+  errores?: readonly string[];
   children: ReactNode;
 }) {
   const p = usePaleta();
   const styles = useEstilos(crearEstilos);
+  const tituloId = `auth-titulo-${useId().replace(/:/g, "")}`;
+  const esWeb = Platform.OS === "web";
+  const formularioRef = useRef<View>(null);
+  const [envios, setEnvios] = useState(0);
+  const [anuncio, setAnuncio] = useState("");
+  const resumen =
+    errores.length === 1
+      ? "Hay un campo con error. Revisa el campo marcado."
+      : `Hay ${errores.length} campos con error. Revisa los campos marcados.`;
+  const claveErrores = errores.join("\n");
+  const avisarEnvio = () => {
+    setAnuncio("");
+    setEnvios((n) => n + 1);
+  };
+
+  // Solo web: tras un envío con errores (o si llega uno del servidor), lleva el
+  // foco al primer campo marcado y anuncia el resumen.
+  useEffect(() => {
+    if (Platform.OS !== "web" || !claveErrores) return;
+    const foco = setTimeout(() => {
+      const formulario = formularioRef.current as unknown as HTMLElement | null;
+      formulario?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+    }, ESPERA_FOCO);
+    const voz = setTimeout(() => setAnuncio(resumen), ESPERA_ANUNCIO);
+    return () => {
+      clearTimeout(foco);
+      clearTimeout(voz);
+    };
+  }, [envios, claveErrores, resumen]);
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
       <StatusBar barStyle={p.barraEstado} backgroundColor={p.fondo} />
@@ -62,14 +113,49 @@ export function PantallaAuth({
           </View>
 
           <Text style={styles.etiqueta}>{etiqueta}</Text>
-          <Text style={styles.titulo}>
+          <Text
+            nativeID={tituloId}
+            accessibilityRole="header"
+            style={styles.titulo}
+          >
             {titulo} <Text style={styles.azul}>{resaltado}</Text>
           </Text>
           {!!descripcion && (
             <Text style={styles.descripcion}>{descripcion}</Text>
           )}
 
-          <View style={styles.tarjeta}>{children}</View>
+          <View
+            ref={formularioRef}
+            style={styles.tarjeta}
+            role="form"
+            accessibilityLabelledBy={tituloId}
+            aria-labelledby={tituloId}
+          >
+            {errores.length > 0 && (
+              <Text
+                // En web este texto es solo visual: lo anuncia la zona de abajo.
+                {...(esWeb
+                  ? { "aria-hidden": true }
+                  : {
+                      role: "status" as const,
+                      accessibilityLiveRegion: "polite" as const,
+                      "aria-live": "polite" as const,
+                    })}
+                style={styles.resumenErrores}
+              >
+                {resumen}
+              </Text>
+            )}
+            {/* Existe siempre (vacía) para que el lector detecte sus cambios. */}
+            {esWeb && (
+              <Text role="status" aria-live="polite" style={styles.soloLector}>
+                {errores.length > 0 ? anuncio : ""}
+              </Text>
+            )}
+            <ContextoEnvio.Provider value={esWeb ? avisarEnvio : null}>
+              {children}
+            </ContextoEnvio.Provider>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -79,17 +165,32 @@ export function PantallaAuth({
 export function Campo({
   etiqueta,
   error,
+  requerido = true,
   clave = false,
   ...props
-}: TextInputProps & { etiqueta: string; error?: string; clave?: boolean }) {
+}: TextInputProps & {
+  etiqueta: string;
+  error?: string;
+  requerido?: boolean;
+  clave?: boolean;
+}) {
   const p = usePaleta();
   const styles = useEstilos(crearEstilos);
   const [visible, setVisible] = useState(false);
   const [enfocado, setEnfocado] = useState(false);
+  const id = useId().replace(/:/g, "");
+  const labelId = `auth-campo-label-${id}`;
+  const errorId = `auth-campo-error-${id}`;
+  const avisarEnvio = useContext(ContextoEnvio);
+  const alEnviar = props.onSubmitEditing;
+  const estadoAlternanciaWeb =
+    Platform.OS === "web" ? { "aria-pressed": visible } : {};
 
   return (
     <View style={styles.campo}>
-      <Text style={styles.etiquetaCampo}>{etiqueta}</Text>
+      <Text nativeID={labelId} style={styles.etiquetaCampo}>
+        {etiqueta} ({requerido ? "obligatorio" : "opcional"})
+      </Text>
       <View
         style={[
           styles.cajaCampo,
@@ -98,6 +199,20 @@ export function Campo({
         ]}
       >
         <TextInput
+          nativeID={`auth-campo-${id}`}
+          accessibilityLabelledBy={labelId}
+          aria-labelledby={labelId}
+          accessibilityHint={
+            props.accessibilityHint ??
+            (error
+              ? `Error: ${error}`
+              : requerido
+                ? "Campo obligatorio."
+                : undefined)
+          }
+          aria-describedby={error ? errorId : undefined}
+          aria-invalid={!!error}
+          aria-required={requerido}
           placeholderTextColor={p.textoAlfa(0.35)}
           secureTextEntry={clave && !visible}
           autoCorrect={false}
@@ -117,19 +232,35 @@ export function Campo({
             setEnfocado(false);
             props.onBlur?.(e);
           }}
+          onSubmitEditing={
+            alEnviar && avisarEnvio
+              ? (e) => {
+                  alEnviar(e);
+                  avisarEnvio();
+                }
+              : alEnviar
+          }
         />
         {clave && (
           <Pressable
             onPress={() => setVisible((v) => !v)}
             hitSlop={10}
-            accessibilityRole="button"
+            accessibilityRole={
+              Platform.OS === "web" ? "button" : "togglebutton"
+            }
+            accessibilityState={{ checked: visible }}
             accessibilityLabel={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+            {...estadoAlternanciaWeb}
           >
             <Text style={styles.verClave}>{visible ? "Ocultar" : "Ver"}</Text>
           </Pressable>
         )}
       </View>
-      {!!error && <Text style={styles.textoError}>{error}</Text>}
+      {!!error && (
+        <Text nativeID={errorId} style={styles.textoError}>
+          {error}
+        </Text>
+      )}
     </View>
   );
 }
@@ -146,13 +277,23 @@ export function BotonPrincipal({
   deshabilitado?: boolean;
 }) {
   const styles = useEstilos(crearEstilos);
+  const avisarEnvio = useContext(ContextoEnvio);
   const inactivo = cargando || deshabilitado;
   return (
     <Pressable
-      onPress={onPress}
+      // Fuera de las pantallas de acceso (queja, vehículo) no cambia nada.
+      onPress={
+        avisarEnvio
+          ? () => {
+              onPress();
+              avisarEnvio();
+            }
+          : onPress
+      }
       disabled={inactivo}
       accessibilityRole="button"
-      accessibilityState={{ disabled: inactivo }}
+      accessibilityLabel={cargando ? `${texto}, procesando` : texto}
+      accessibilityState={{ disabled: inactivo, busy: cargando }}
       style={({ pressed }) => [
         styles.boton,
         inactivo && styles.botonInactivo,
@@ -182,7 +323,8 @@ export function Enlace({
     <Pressable
       onPress={onPress}
       hitSlop={8}
-      accessibilityRole="link"
+      accessibilityRole="button"
+      accessibilityLabel={`${texto ? `${texto} ` : ""}${accion}`}
       style={({ pressed }) => [styles.enlace, pressed && styles.presionado]}
     >
       <Text style={styles.textoEnlace}>
@@ -195,6 +337,10 @@ export function Enlace({
 
 export const esCorreoValido = (correo: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(correo.trim());
+
+export function obtenerErroresAuth(errores: readonly (string | undefined)[]) {
+  return errores.filter((error): error is string => Boolean(error));
+}
 
 const crearEstilos = (p: Paleta) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: p.fondo },
@@ -253,9 +399,22 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     borderColor: p.linea(0.15),
     backgroundColor: p.panel(0.94),
   },
+  // Invisible pero legible por el lector; al ser absoluto no altera el diseño.
+  soloLector: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    overflow: "hidden",
+    opacity: 0,
+  },
   campo: { gap: 6 },
   etiquetaCampo: {
     color: p.textoAlfa(0.7),
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  resumenErrores: {
+    color: p.textoError,
     fontSize: 12,
     fontWeight: "700",
   },

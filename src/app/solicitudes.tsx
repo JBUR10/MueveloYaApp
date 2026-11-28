@@ -1,6 +1,6 @@
 // src/app/solicitudes.tsx
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -33,6 +33,7 @@ import {
   pedirReembolso,
 } from "../services/pagoService";
 import { pagarServicioStripe } from "../services/pagoStripe";
+import { liberarPago, reservarPago } from "../services/pagosEnCurso";
 import { useSesion } from "../services/sesionStore";
 import DetalleTarifaSolicitud from "../components/DetalleTarifaSolicitud";
 import {
@@ -72,6 +73,9 @@ const ESTADOS: Record<
     texto: "Cancelaste este servicio",
   },
 };
+
+/** Lo que se puede estar haciendo con una solicitud. */
+type Operacion = "pagando" | "cancelando" | "eliminando";
 
 /** Colores de cada estado (el texto cambia según el tema; fondo y borde son translúcidos). */
 const coloresEstado = (
@@ -136,8 +140,12 @@ export default function SolicitudesScreen() {
   const [servicios, setServicios] = useState<SolicitudServicioDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
-  const [confirmandoPagoId, setConfirmandoPagoId] = useState<string | null>(null);
+  // Operación en curso de cada solicitud: una no toca los botones de las demás.
+  const [operaciones, setOperaciones] = useState<Record<string, Operacion>>({});
+  // Copia inmediata: impide un segundo toque antes de que la pantalla cambie.
+  const ocupadas = useRef(new Set<string>());
+  // Solicitudes pagadas cuya confirmación de Stripe aún se espera.
+  const [confirmandoPagos, setConfirmandoPagos] = useState<string[]>([]);
   const [calificandoId, setCalificandoId] = useState<string | null>(null);
   // Servicio que se está cancelando (abre el selector de motivo).
   const [cancelandoId, setCancelandoId] = useState<string | null>(null);
@@ -151,10 +159,10 @@ export default function SolicitudesScreen() {
     try {
       const data = await obtenerMisServicios();
       setServicios(data);
-      setConfirmandoPagoId((actual) =>
-        actual && data.some((servicio) => servicio.id === actual && servicio.pagoEstado === "pagado")
-          ? null
-          : actual,
+      setConfirmandoPagos((actuales) =>
+        actuales.filter(
+          (id) => !data.some((s) => s.id === id && s.pagoEstado === "pagado"),
+        ),
       );
     } catch (error) {
       console.error("Error cargando solicitudes:", error);
@@ -206,6 +214,36 @@ export default function SolicitudesScreen() {
     }, [cargarServicios]),
   );
 
+  /** Marca la solicitud como ocupada. Devuelve false si ya lo estaba. */
+  const iniciarOperacion = (id: string, operacion: Operacion) => {
+    if (ocupadas.current.has(id)) return false;
+    ocupadas.current.add(id);
+    setOperaciones((actuales) => ({ ...actuales, [id]: operacion }));
+    return true;
+  };
+
+  const terminarOperacion = (id: string) => {
+    ocupadas.current.delete(id);
+    setOperaciones((actuales) => {
+      const resto = { ...actuales };
+      delete resto[id];
+      return resto;
+    });
+  };
+
+  // Web: al volver con «Atrás» desde la página de pago, el navegador puede
+  // restaurar la pantalla como estaba; se quitan los pagos que quedaron marcados.
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const alRestaurar = (evento: PageTransitionEvent) => {
+      if (!evento.persisted) return;
+      ocupadas.current.clear();
+      setOperaciones({});
+    };
+    window.addEventListener("pageshow", alRestaurar);
+    return () => window.removeEventListener("pageshow", alRestaurar);
+  }, []);
+
   const servicioCalificando =
     servicios.find((s) => s.id === calificandoId) ?? null;
 
@@ -242,7 +280,10 @@ export default function SolicitudesScreen() {
   const confirmarCancelacion = async (motivo: string) => {
     const id = cancelandoId;
     if (!id) return;
-    setEliminandoId(id);
+    // El error lo muestra el selector de motivo.
+    if (!iniciarOperacion(id, "cancelando")) {
+      throw new Error("Esta solicitud ya tiene una operación en curso.");
+    }
     try {
       await cancelarServicioCliente(id, motivo);
       if (servicios.find((s) => s.id === id)?.pagoEstado === "pagado") {
@@ -254,7 +295,7 @@ export default function SolicitudesScreen() {
         }
       }
     } finally {
-      setEliminandoId(null);
+      terminarOperacion(id);
     }
     setCancelandoId(null);
     await cargarServicios();
@@ -288,9 +329,9 @@ export default function SolicitudesScreen() {
       destructivo: true,
     });
     if (!ok) return;
+    if (!iniciarOperacion(id, "eliminando")) return;
 
     try {
-      setEliminandoId(id);
       const item = servicios.find((s) => s.id === id);
       await retirarSolicitudPendiente(id);
       if (item?.pagoEstado === "pagado") {
@@ -301,22 +342,33 @@ export default function SolicitudesScreen() {
       await aviso("Error", error?.message || "No se pudo eliminar", "error");
       cargarServicios();
     } finally {
-      setEliminandoId(null);
+      terminarOperacion(id);
     }
   };
 
   const handlePagar = async (item: SolicitudServicioDTO) => {
-    if (!item.id) return;
-    setEliminandoId(item.id);
+    const id = item.id;
+    if (!id) return;
+    if (!reservarPago(id)) {
+      await aviso("Pago en curso", "Ya se está iniciando el pago de esta solicitud.", "info");
+      return;
+    }
+    if (!iniciarOperacion(id, "pagando")) {
+      liberarPago(id);
+      return;
+    }
+    // Web: mientras el navegador va a la página de pago, sigue bloqueado.
+    let redirigiendo = false;
     try {
       const plataforma = Platform.OS === "web" ? "web" : "movil";
-      const pago = await crearPago(item.id, plataforma);
+      const pago = await crearPago(id, plataforma);
       if (pago.gratis) {
         await cargarServicios();
         return;
       }
       if (plataforma === "web") {
-        await pagarServicioStripe({ checkoutUrl: pago.checkoutUrl ?? "" });
+        const resultado = await pagarServicioStripe({ checkoutUrl: pago.checkoutUrl ?? "" });
+        redirigiendo = resultado.estado !== "error";
       } else if (pago.paymentIntentClientSecret && pago.customerId && pago.ephemeralKeySecret) {
         const resultado = await pagarServicioStripe({
           paymentIntentClientSecret: pago.paymentIntentClientSecret,
@@ -324,10 +376,10 @@ export default function SolicitudesScreen() {
           ephemeralKeySecret: pago.ephemeralKeySecret,
         }, p);
         if (resultado.estado === "pagado") {
-          setConfirmandoPagoId(item.id);
+          setConfirmandoPagos((actuales) => [...actuales, id]);
           let confirmado = false;
           try {
-            confirmado = await esperarConfirmacionPago(item.id);
+            confirmado = await esperarConfirmacionPago(id);
           } catch (error) {
             console.error("No se pudo consultar la confirmación de Stripe:", error);
           }
@@ -350,7 +402,10 @@ export default function SolicitudesScreen() {
     } catch (error: any) {
       await aviso("Pagos no disponibles", error?.message ?? "No se pudo iniciar el pago.", "error");
     } finally {
-      setEliminandoId(null);
+      if (!redirigiendo) {
+        terminarOperacion(id);
+        liberarPago(id);
+      }
     }
   };
 
@@ -403,7 +458,12 @@ export default function SolicitudesScreen() {
               Mis <Text style={styles.titleHighlight}>Solicitudes</Text>
             </Text>
             {!loading && servicios.length > 0 && (
-              <Text style={styles.counterText}>
+              <Text
+                style={styles.counterText}
+                role="status"
+                accessibilityLiveRegion="polite"
+                aria-live="polite"
+              >
                 {servicios.length}{" "}
                 {servicios.length === 1
                   ? "solicitud registrada"
@@ -414,7 +474,11 @@ export default function SolicitudesScreen() {
 
           {loading ? (
             <View style={styles.loaderContainer}>
-              <ActivityIndicator size="large" color={AZUL} />
+              <ActivityIndicator
+                size="large"
+                color={AZUL}
+                accessibilityLabel="Cargando solicitudes"
+              />
             </View>
           ) : servicios.length === 0 ? (
             <View style={styles.emptyContainer}>
@@ -442,7 +506,14 @@ export default function SolicitudesScreen() {
           ) : (
             servicios.map((item, index) => {
               const inmediato = esInmediato(item);
-              const borrando = eliminandoId === item.id;
+              const operacion = item.id ? operaciones[item.id] : undefined;
+              const ocupada = !!operacion;
+              const pagando = operacion === "pagando";
+              const cancelando = operacion === "cancelando";
+              const eliminando = operacion === "eliminando";
+              const confirmandoPago =
+                confirmandoPagos.includes(item.id ?? "") ||
+                (pago === "ok" && servicioIdRetorno === item.id);
               const estadoItem = item.estado ?? "pendiente";
               const estado = {
                 ...ESTADOS[estadoItem],
@@ -456,6 +527,8 @@ export default function SolicitudesScreen() {
                 estadoItem === "completada" &&
                 !!uid &&
                 !item.calificadoPor?.includes(uid);
+              // Completa las etiquetas de los botones: dice de cuál tarjeta son.
+              const nombreSolicitud = `solicitud de ${item.tipoServicio}, desde ${item.origen} hasta ${item.destino}`;
               const pagoVisual = item.pagoEstado === "pagado"
                 ? {
                     color: p.textoExito2,
@@ -477,7 +550,7 @@ export default function SolicitudesScreen() {
               return (
                 <View
                   key={item.id || String(index)}
-                  style={[styles.cardService, borrando && { opacity: 0.5 }]}
+                  style={[styles.cardService, ocupada && { opacity: 0.5 }]}
                 >
                   {/* Encabezado de la tarjeta */}
                   <View style={styles.cardHeaderRow}>
@@ -492,6 +565,11 @@ export default function SolicitudesScreen() {
                     >
                       <TextoIcono
                         icono={inmediato ? "flash" : "calendar-outline"}
+                        accessibilityLabel={
+                          inmediato
+                            ? "Servicio inmediato"
+                            : `Servicio programado para ${item.fechaProgramada}`
+                        }
                         style={[
                           styles.statusChipText,
                           { color: inmediato ? p.textoAviso : p.azulTexto },
@@ -511,6 +589,7 @@ export default function SolicitudesScreen() {
                   >
                     <TextoIcono
                       icono={textoEstado(item).icono}
+                      accessibilityLabel={`Estado de la solicitud: ${textoEstado(item).texto}`}
                       style={[styles.estadoTexto, { color: estado.color }]}
                     >
                       {textoEstado(item).texto}
@@ -536,7 +615,11 @@ export default function SolicitudesScreen() {
                         icono="cash-outline"
                         style={[styles.estadoTexto, { color: pagoVisual.color }]}
                       >
-                        Efectivo pendiente al finalizar el servicio
+                        {estadoItem === "completada"
+                          ? "Servicio finalizado · pago en efectivo"
+                          : estadoItem === "cancelada"
+                            ? "Servicio cancelado · el método elegido era efectivo"
+                            : "Efectivo pendiente al finalizar el servicio"}
                       </TextoIcono>
                     </View>
                   ) : item.pagoEstado !== "no_aplica" ? (
@@ -576,12 +659,12 @@ export default function SolicitudesScreen() {
                         <TextoIcono
                           icono="car-outline"
                           style={styles.contactName}
-                          numberOfLines={1}
+                          numberOfLines={2}
                         >
                           {t.nombre || "Transportista"}
                         </TextoIcono>
                         {t.vehiculo && (
-                          <Text style={styles.vehiculoTexto} numberOfLines={1}>
+                          <Text style={styles.vehiculoTexto} numberOfLines={2}>
                             {t.vehiculo.tipo} · {t.vehiculo.placa}
                             {t.vehiculo.marcaModelo
                               ? ` · ${t.vehiculo.marcaModelo}`
@@ -596,6 +679,8 @@ export default function SolicitudesScreen() {
                       {!!t.telefono && estadoItem !== "completada" && (
                         <TouchableOpacity
                           style={styles.btnLlamar}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Llamar a ${t.nombre || "transportista"}, ${nombreSolicitud}`}
                           onPress={() =>
                             Linking.openURL(`tel:${t.telefono}`).catch(() =>
                               aviso(
@@ -627,13 +712,13 @@ export default function SolicitudesScreen() {
                     <View style={styles.routeTexts}>
                       <View style={styles.routeBlock}>
                         <Text style={styles.routeLabel}>RECOGIDA</Text>
-                        <Text style={styles.routeValue} numberOfLines={2}>
+                        <Text style={styles.routeValue}>
                           {item.origen}
                         </Text>
                       </View>
                       <View style={styles.routeBlock}>
                         <Text style={styles.routeLabel}>ENTREGA</Text>
-                        <Text style={styles.routeValue} numberOfLines={2}>
+                        <Text style={styles.routeValue}>
                           {item.destino}
                         </Text>
                       </View>
@@ -644,7 +729,7 @@ export default function SolicitudesScreen() {
                   {item.descripcion ? (
                     <View style={styles.descBox}>
                       <Text style={styles.descLabel}>DETALLE</Text>
-                      <Text style={styles.cardDesc} numberOfLines={3}>
+                      <Text style={styles.cardDesc}>
                         {item.descripcion}
                       </Text>
                     </View>
@@ -658,7 +743,7 @@ export default function SolicitudesScreen() {
                       <TextoIcono
                         icono="person-outline"
                         style={styles.contactName}
-                        numberOfLines={1}
+                        numberOfLines={2}
                       >
                         {item.nombreContacto}
                       </TextoIcono>
@@ -666,7 +751,7 @@ export default function SolicitudesScreen() {
                         <TextoIcono
                           icono="call-outline"
                           style={styles.contactPhone}
-                          numberOfLines={1}
+                          numberOfLines={2}
                         >
                           {item.telefonoContacto}
                         </TextoIcono>
@@ -680,25 +765,35 @@ export default function SolicitudesScreen() {
 
                     {estadoItem === "pendiente" &&
                       item.metodoPago === "stripe" &&
-                        item.pagoEstado === "pendiente_pago" &&
-                        confirmandoPagoId !== item.id &&
-                        !(pago === "ok" && servicioIdRetorno === item.id) && (
-                      <TouchableOpacity
-                        onPress={() => handlePagar(item)}
-                        style={styles.btnCalificar}
-                        activeOpacity={0.8}
-                        disabled={borrando}
-                      >
-                        <TextoIcono icono="card" style={styles.btnCalificarText}>
-                          Pagar ahora
-                        </TextoIcono>
-                      </TouchableOpacity>
-                    )}
+                      item.pagoEstado === "pendiente_pago" &&
+                      !confirmandoPago && (
+                        <TouchableOpacity
+                          onPress={() => handlePagar(item)}
+                          style={styles.btnCalificar}
+                          activeOpacity={0.8}
+                          disabled={ocupada}
+                          accessibilityRole="button"
+                          accessibilityLabel={
+                            pagando
+                              ? `Pagando ${nombreSolicitud}`
+                              : `Pagar ahora, ${nombreSolicitud}`
+                          }
+                          accessibilityState={{ disabled: ocupada, busy: pagando }}
+                          aria-busy={pagando}
+                        >
+                          {pagando ? (
+                            <ActivityIndicator size="small" color="#1a1300" />
+                          ) : (
+                            <TextoIcono icono="card" style={styles.btnCalificarText}>
+                              Pagar ahora
+                            </TextoIcono>
+                          )}
+                        </TouchableOpacity>
+                      )}
                     {estadoItem === "pendiente" &&
                       item.metodoPago === "stripe" &&
                       item.pagoEstado === "pendiente_pago" &&
-                      (confirmandoPagoId === item.id ||
-                        (pago === "ok" && servicioIdRetorno === item.id)) && (
+                      confirmandoPago && (
                         <Text style={styles.textoBloqueo}>Confirmando pago con Stripe…</Text>
                       )}
 
@@ -711,10 +806,22 @@ export default function SolicitudesScreen() {
                           cancelacionBloqueada && styles.btnBloqueado,
                         ]}
                         activeOpacity={0.7}
-                        disabled={borrando || cancelacionBloqueada}
-                        accessibilityState={{ disabled: cancelacionBloqueada }}
+                        disabled={ocupada || cancelacionBloqueada}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${cancelando ? "Cancelando" : "Cancelar"} ${nombreSolicitud}`}
+                        // En web el motivo se lee en el texto visible de abajo.
+                        accessibilityHint={
+                          cancelacionBloqueada
+                            ? "No se puede cancelar porque faltan menos horas de las permitidas."
+                            : undefined
+                        }
+                        accessibilityState={{
+                          disabled: ocupada || cancelacionBloqueada,
+                          busy: cancelando,
+                        }}
+                        aria-busy={cancelando}
                       >
-                        {borrando ? (
+                        {cancelando ? (
                           <ActivityIndicator size="small" color={p.textoError} />
                         ) : (
                           <TextoIcono
@@ -739,6 +846,8 @@ export default function SolicitudesScreen() {
                         onPress={() => setCalificandoId(item.id ?? null)}
                         style={styles.btnCalificar}
                         activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Calificar ${nombreSolicitud}`}
                       >
                         <TextoIcono icono="star" style={styles.btnCalificarText}>
                           Calificar
@@ -752,10 +861,14 @@ export default function SolicitudesScreen() {
                         onPress={() => handleEliminar(item.id)}
                         style={styles.btnDelete}
                         activeOpacity={0.7}
-                        disabled={borrando}
+                        disabled={ocupada}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${eliminando ? "Eliminando" : "Eliminar"} ${nombreSolicitud}`}
+                        accessibilityState={{ disabled: ocupada, busy: eliminando }}
+                        aria-busy={eliminando}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        {borrando ? (
+                        {eliminando ? (
                           <ActivityIndicator size="small" color={p.textoError} />
                         ) : (
                           <TextoIcono icono="trash-outline" style={styles.btnDeleteText}>

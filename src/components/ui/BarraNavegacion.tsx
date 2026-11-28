@@ -14,6 +14,7 @@ import { Text } from "./Texto";
 
 import { useAvisos } from "../../services/avisosStore";
 import { useModo } from "../../services/modoStore";
+import { navegarConProteccionTamanoFuente } from "../../services/proteccionTamanoFuente";
 import Icono, { type NombreIcono } from "./Icono";
 import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
@@ -87,6 +88,8 @@ export default function BarraNavegacion() {
   // Pestaña que se ve resaltada (sigue al dedo mientras se arrastra).
   const [indiceVista, setIndiceVista] = useState(indiceActivo);
   const [anchoTab, setAnchoTab] = useState(0);
+  // Cuenta las navegaciones que no ocurrieron, para volver a la pestaña actual.
+  const [sinNavegar, setSinNavegar] = useState(0);
 
   // Posición del cristal en "unidades de pestaña" (0 = primera, 3 = última, admite decimales).
   const posicion = useRef(new Animated.Value(indiceActivo)).current;
@@ -107,7 +110,11 @@ export default function BarraNavegacion() {
     const ruta = rutaSegunModo(PESTAÑAS[indice], transportista);
 
     if (ruta !== rutaActual) {
-      router.push(ruta as Href);
+      void navegarConProteccionTamanoFuente(() => router.push(ruta as Href)).then(
+        (navego) => {
+          if (!navego) setSinNavegar((veces) => veces + 1);
+        },
+      );
     }
   };
 
@@ -131,12 +138,14 @@ export default function BarraNavegacion() {
   };
 
   // Si la ruta cambia desde fuera de la barra, el cristal se acomoda a la nueva pestaña.
+  // También vuelve a la actual si la navegación no ocurre ("Seguir editando" o
+  // fallo al guardar).
   useEffect(() => {
     if (arrastrandoRef.current) return;
     marcarVista(indiceActivo);
     animarA(indiceActivo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indiceActivo]);
+  }, [indiceActivo, sinNavegar]);
 
   const alAjustarBarra = (evento: LayoutChangeEvent) => {
     const ancho = (evento.nativeEvent.layout.width - RELLENO_BARRA * 2) / TOTAL;
@@ -235,7 +244,12 @@ export default function BarraNavegacion() {
   );
 
   return (
-    <View style={styles.barraNavegacion}>
+    <View
+      role="navigation"
+      aria-label="Navegación principal"
+      accessibilityRole="none"
+      style={styles.barraNavegacion}
+    >
       <BlurView
         intensity={24}
         tint={p.blur}
@@ -311,6 +325,13 @@ export default function BarraNavegacion() {
 
           {PESTAÑAS.map((pestaña, indice) => {
             const activa = indiceVista === indice;
+            const tieneAvisos =
+              pestaña.id === "Solicitudes" && pendientesPorVer > 0;
+            const etiquetaAccesible = tieneAvisos
+              ? `${pestaña.id}, ${pendientesPorVer} ${
+                  pendientesPorVer === 1 ? "aviso sin ver" : "avisos sin ver"
+                }`
+              : pestaña.id;
 
             return (
               <Pressable
@@ -320,9 +341,19 @@ export default function BarraNavegacion() {
                   pressed && styles.presionado,
                 ]}
                 onPress={() => manejarPestaña(indice)}
-                accessibilityRole="button"
+                accessibilityRole="link"
                 accessibilityState={{ selected: activa }}
-                accessibilityLabel={pestaña.id}
+                accessibilityLabel={etiquetaAccesible}
+                {...({
+                  // Web: indica cuál es la sección actual.
+                  "aria-current": activa ? "page" : undefined,
+                  // react-native-web no activa con Enter un "link" sin href.
+                  onKeyDown: (evento: KeyboardEvent) => {
+                    if (evento.key !== "Enter" || evento.repeat) return;
+                    evento.preventDefault();
+                    manejarPestaña(indice);
+                  },
+                } as object)}
               >
                 <View>
                   <Icono
@@ -332,12 +363,12 @@ export default function BarraNavegacion() {
                     style={styles.simboloNavegacion}
                   />
 
-                  {pestaña.id === "Solicitudes" && pendientesPorVer > 0 && (
+                  {tieneAvisos && (
                     <View
+                      accessible={false}
                       style={styles.insignia}
-                      accessibilityLabel={`${pendientesPorVer} avisos sin ver`}
                     >
-                      <Text style={styles.textoInsignia}>
+                      <Text escalaCompacta style={styles.textoInsignia}>
                         {pendientesPorVer > 9 ? "9+" : pendientesPorVer}
                       </Text>
                     </View>
@@ -345,9 +376,7 @@ export default function BarraNavegacion() {
                 </View>
 
                 <Text
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.85}
+                  numberOfLines={2}
                   style={[
                     styles.textoNavegacion,
                     activa && styles.textoNavegacionActivo,
@@ -371,7 +400,7 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     right: 20,
     bottom: 8,
     zIndex: 5,
-    height: 76,
+    height: 82,
     borderRadius: 27,
     borderWidth: 1,
     borderColor: p.linea(0.25),
@@ -465,6 +494,9 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     color: p.textoSuave2,
     fontSize: 10,
     fontWeight: "600",
+    width: "100%",
+    flexShrink: 1,
+    textAlign: "center",
     textShadowColor: p.sombraTexto(0.45),
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
@@ -493,8 +525,8 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     position: "absolute",
     top: -4,
     right: -12,
-    minWidth: 17,
-    height: 17,
+    minWidth: 20,
+    height: 20,
     paddingHorizontal: 4,
     borderRadius: 9,
     backgroundColor: p.rellenoError,

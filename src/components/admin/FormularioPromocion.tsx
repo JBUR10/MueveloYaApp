@@ -14,6 +14,7 @@ import {
   MOTIVOS,
 } from "../../services/promocionesService";
 import Icono from "../ui/Icono";
+import { useTecladoGrupo } from "../ui/tecladoWeb";
 import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 const AZUL = "#2969e9";
@@ -43,24 +44,39 @@ interface Props {
 }
 
 function Chips<T extends string | number | boolean | null>({
+  etiqueta,
   opciones,
   valor,
   onElegir,
 }: {
+  etiqueta: string;
   opciones: { valor: T; titulo: string }[];
   valor: T;
   onElegir: (v: T) => void;
 }) {
   const styles = useEstilos(crearEstilos);
+  const teclas = useTecladoGrupo(
+    "radio",
+    opciones.map((o) => o.valor),
+    valor,
+  );
   return (
-    <View style={styles.chips}>
+    <View
+      style={styles.chips}
+      accessibilityRole="radiogroup"
+      accessibilityLabel={etiqueta}
+    >
       {opciones.map((o) => {
         const activo = o.valor === valor;
         return (
           <Pressable
             key={o.titulo}
             onPress={() => onElegir(o.valor)}
-            style={[styles.chip, activo && styles.chipActivo]}>
+            accessibilityRole="radio"
+            accessibilityState={{ checked: activo }}
+            {...teclas(o.valor, () => onElegir(o.valor))}
+            style={[styles.chip, activo && styles.chipActivo]}
+          >
             <Text style={[styles.chipTexto, activo && { color: "#FFF" }]}>
               {o.titulo}
             </Text>
@@ -149,7 +165,11 @@ export default function FormularioPromocion({
     return (
       <View style={styles.tarjeta}>
         <Text style={styles.titulo}>Promoción enviada</Text>
-        <Text style={styles.texto}>
+        <Text
+          style={styles.texto}
+          accessibilityLiveRegion="polite"
+          aria-live="polite"
+        >
           {enviados === 1
             ? "1 cliente recibió su cupón"
             : `${enviados} clientes recibieron su cupón`}{" "}
@@ -185,6 +205,7 @@ export default function FormularioPromocion({
 
       <Text style={styles.etiqueta}>¿A quién?</Text>
       <Chips
+        etiqueta="Público destinatario"
         opciones={MOTIVOS.map((m) => ({ valor: m.id, titulo: m.titulo }))}
         valor={motivo}
         onElegir={elegirMotivo}
@@ -192,6 +213,7 @@ export default function FormularioPromocion({
 
       <Text style={styles.etiqueta}>Servicio</Text>
       <Chips<string | null>
+        etiqueta="Servicio de la promoción"
         opciones={[
           ...(motivo === "primera_vez"
             ? []
@@ -204,6 +226,7 @@ export default function FormularioPromocion({
 
       <Text style={styles.etiqueta}>Descuento</Text>
       <Chips
+        etiqueta="Porcentaje de descuento"
         opciones={DESCUENTOS.map((d) => ({ valor: d, titulo: `${d} %` }))}
         valor={porcentaje}
         onElegir={setPorcentaje}
@@ -211,6 +234,7 @@ export default function FormularioPromocion({
 
       <Text style={styles.etiqueta}>Vigencia</Text>
       <Chips
+        etiqueta="Vigencia de la promoción"
         opciones={VIGENCIAS.map((d) => ({ valor: d, titulo: `${d} días` }))}
         valor={dias}
         onElegir={setDias}
@@ -220,6 +244,7 @@ export default function FormularioPromocion({
         <>
           <Text style={styles.etiqueta}>Inactividad para reactivación</Text>
           <Chips
+            etiqueta="Inactividad para reactivación"
             opciones={DIAS_INACTIVIDAD.map((d) => ({
               valor: d,
               titulo: `Más de ${d} días`,
@@ -232,6 +257,7 @@ export default function FormularioPromocion({
 
       <Text style={styles.etiqueta}>Espera entre promociones al mismo cliente</Text>
       <Chips
+        etiqueta="Espera entre promociones al mismo cliente"
         opciones={INTERVALOS_PROMOCION.map((d) => ({
           valor: d,
           titulo: d === 0 ? "Sin espera" : `${d} días`,
@@ -247,7 +273,11 @@ export default function FormularioPromocion({
         {audiencia == null && tipoValido && !error ? (
           <ActivityIndicator color={AZUL} style={{ alignSelf: "flex-start" }} />
         ) : audiencia != null ? (
-          <Text style={styles.audiencia}>
+          <Text
+            style={styles.audiencia}
+            accessibilityLiveRegion="polite"
+            aria-live="polite"
+          >
             {sinPublico
               ? diasEntrePromociones === 0
                 ? "Ahora mismo no hay clientes que cumplan los criterios de esta promoción."
@@ -263,7 +293,16 @@ export default function FormularioPromocion({
         </Text>
       </View>
 
-      {!!error && <Text style={styles.error}>{error}</Text>}
+      {!!error && (
+        <Text
+          style={styles.error}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="assertive"
+          aria-live="assertive"
+        >
+          {error}
+        </Text>
+      )}
 
       {fase === "confirmar" ? (
         <View style={styles.fila}>

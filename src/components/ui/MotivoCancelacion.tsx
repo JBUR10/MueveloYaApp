@@ -3,9 +3,11 @@
 // Al cancelar un servicio aceptado o programado hay que dar un motivo:
 // se elige de la lista o se escribe en "Otro". El motivo le llega a la otra
 // persona en la notificación y queda en el historial.
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
+  findNodeHandle,
   Modal,
   Platform,
   Pressable,
@@ -57,6 +59,11 @@ export default function MotivoCancelacion({
   const [enviando, setEnviando] = useState(false);
   // El error se muestra dentro del modal: una alerta aparte quedaría detrás.
   const [error, setError] = useState("");
+  const id = useId().replace(/:/g, "");
+  const tituloId = `motivo-cancelacion-titulo-${id}`;
+  const subtituloId = `motivo-cancelacion-descripcion-${id}`;
+  const otroId = `motivo-cancelacion-otro-${id}`;
+  const primerMotivo = useRef<View>(null);
 
   const motivo = elegido === OTRO ? otro.trim() : elegido;
   const valido =
@@ -88,66 +95,117 @@ export default function MotivoCancelacion({
     }
   };
 
+  const enfocarPrimerMotivo = () => {
+    if (Platform.OS === "web" || !primerMotivo.current) return;
+    const etiqueta = findNodeHandle(primerMotivo.current);
+    if (etiqueta !== null) AccessibilityInfo.setAccessibilityFocus(etiqueta);
+  };
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
       statusBarTranslucent
+      accessibilityLabelledBy={tituloId}
+      aria-labelledby={tituloId}
+      {...(Platform.OS === "web"
+        ? { "aria-describedby": subtituloId }
+        : {})}
+      accessibilityHint="Elige un motivo y confirma la cancelación."
+      onShow={enfocarPrimerMotivo}
       onRequestClose={cerrar}
     >
-      <View style={styles.overlay}>
+      <View
+        style={styles.overlay}
+        accessibilityViewIsModal
+        aria-modal
+      >
         <View style={styles.contenedor}>
           <ScrollView
             contentContainerStyle={styles.contenido}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.titulo}>¿Por qué cancelas?</Text>
-            <Text style={styles.subtitulo}>
+            <Text
+              nativeID={tituloId}
+              accessibilityRole="header"
+              style={styles.titulo}
+            >
+              ¿Por qué cancelas?
+            </Text>
+            <Text nativeID={subtituloId} style={styles.subtitulo}>
               {rol === "conductor"
                 ? "Le contaremos el motivo al usuario y su solicitud volverá a estar disponible para otros transportistas."
                 : "Le contaremos el motivo al transportista."}
             </Text>
 
-            {[...MOTIVOS[rol], OTRO].map((opcion) => {
-              const activo = elegido === opcion;
-              return (
-                <Pressable
-                  key={opcion}
-                  onPress={() => {
-                    setElegido(opcion);
-                    setError("");
-                  }}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: activo }}
-                  style={[styles.opcion, activo && styles.opcionActiva]}
-                >
-                  <View style={[styles.radio, activo && styles.radioActivo]}>
-                    {activo && <View style={styles.radioPunto} />}
-                  </View>
-                  <Text style={styles.textoOpcion}>{opcion}</Text>
-                </Pressable>
-              );
-            })}
+            <View
+              style={styles.grupoMotivos}
+              accessibilityRole="radiogroup"
+              accessibilityLabelledBy={tituloId}
+              aria-labelledby={tituloId}
+            >
+              {[...MOTIVOS[rol], OTRO].map((opcion, indice) => {
+                const activo = elegido === opcion;
+                return (
+                  <Pressable
+                    key={opcion}
+                    ref={indice === 0 ? primerMotivo : undefined}
+                    onPress={() => {
+                      setElegido(opcion);
+                      setError("");
+                    }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: activo }}
+                    accessibilityLabel={opcion}
+                    style={[styles.opcion, activo && styles.opcionActiva]}
+                  >
+                    <View style={[styles.radio, activo && styles.radioActivo]}>
+                      {activo && <View style={styles.radioPunto} />}
+                    </View>
+                    <Text style={styles.textoOpcion}>{opcion}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
 
             {elegido === OTRO && (
-              <TextInput
-                value={otro}
-                onChangeText={setOtro}
-                placeholder="Escribe el motivo…"
-                placeholderTextColor={p.textoAlfa(0.35)}
-                multiline
-                maxLength={200}
-                autoFocus
-                style={[
-                  styles.input,
-                  Platform.OS === "web" && ({ outlineStyle: "none" } as any),
-                ]}
-              />
+              <>
+                <Text nativeID={otroId} style={styles.textoOpcion}>
+                  Motivo adicional (obligatorio)
+                </Text>
+                <TextInput
+                  nativeID={`motivo-cancelacion-input-${id}`}
+                  accessibilityLabelledBy={otroId}
+                  aria-labelledby={otroId}
+                  accessibilityHint="Escribe al menos cinco caracteres."
+                  aria-required
+                  value={otro}
+                  onChangeText={setOtro}
+                  placeholder="Escribe el motivo…"
+                  placeholderTextColor={p.textoAlfa(0.35)}
+                  multiline
+                  maxLength={200}
+                  autoFocus
+                  style={[
+                    styles.input,
+                    Platform.OS === "web" && ({ outlineStyle: "none" } as any),
+                  ]}
+                />
+              </>
             )}
 
-            {!!error && <Text style={styles.error}>{error}</Text>}
+            {!!error && (
+              <Text
+                accessibilityRole="alert"
+                accessibilityLiveRegion="assertive"
+                aria-live="assertive"
+                style={styles.error}
+              >
+                {error}
+              </Text>
+            )}
 
             <View style={styles.botones}>
               <Pressable
@@ -162,7 +220,8 @@ export default function MotivoCancelacion({
                 disabled={!valido || enviando}
                 style={[styles.boton, styles.botonCancelar, !valido && styles.inactivo]}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: !valido || enviando }}
+                accessibilityLabel={enviando ? "Cancelando servicio" : "Cancelar servicio"}
+                accessibilityState={{ disabled: !valido || enviando, busy: enviando }}
               >
                 {enviando ? (
                   <ActivityIndicator color="#FFFFFF" />
@@ -206,6 +265,7 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     textAlign: "center",
     marginBottom: 6,
   },
+  grupoMotivos: { gap: 10 },
   opcion: {
     flexDirection: "row",
     alignItems: "center",

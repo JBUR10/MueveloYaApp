@@ -89,16 +89,32 @@ function formatearValor(valor: unknown, formato: Columna["formato"]) {
   }
 }
 
-function Tabla({ columnas, filas }: { columnas: Columna[]; filas: FilaConsulta[] }) {
+function Tabla({
+  columnas,
+  filas,
+  titulo,
+}: {
+  columnas: Columna[];
+  filas: FilaConsulta[];
+  titulo: string;
+}) {
   const p = usePaleta();
   const styles = useEstilos(crearEstilos);
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator>
-      <View>
-        <View style={[styles.fila, styles.filaEncabezado]}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator
+      accessibilityHint="Desliza horizontalmente para consultar todas las columnas."
+    >
+      <View role="table" accessibilityLabel={`Tabla ${titulo}`}>
+        <View
+          role="row"
+          style={[styles.fila, styles.filaEncabezado]}
+        >
           {columnas.map((c) => (
             <Text
               key={c.clave}
+              role="columnheader"
               style={[styles.celda, styles.celdaEncabezado, { width: ANCHO[c.clave] ?? 120 }]}
             >
               {c.titulo}
@@ -106,13 +122,18 @@ function Tabla({ columnas, filas }: { columnas: Columna[]; filas: FilaConsulta[]
           ))}
         </View>
         {filas.map((fila, i) => (
-          <View key={i} style={[styles.fila, i % 2 === 1 && styles.filaPar]}>
+          <View
+            key={i}
+            role="row"
+            style={[styles.fila, i % 2 === 1 && styles.filaPar]}
+          >
             {columnas.map((c) => {
               const colorEstado =
                 c.formato === "estado" ? colorDeEstado(String(fila[c.clave]), p) : undefined;
               return (
                 <Text
                   key={c.clave}
+                  role="cell"
                   numberOfLines={2}
                   style={[
                     styles.celda,
@@ -191,13 +212,17 @@ export default function Reportes() {
             <View key={m.codigo} style={styles.metrica}>
               <Text style={styles.metricaEtiqueta}>{m.titulo.toUpperCase()}</Text>
               {r?.estado === "cargando" ? (
-                <ActivityIndicator color={AZUL} style={{ marginVertical: 8 }} />
+                <ActivityIndicator
+                  color={AZUL}
+                  style={{ marginVertical: 8 }}
+                  accessibilityLabel={`Cargando ${m.titulo.toLowerCase()}`}
+                />
               ) : r?.estado === "error" ? (
                 <Pressable onPress={() => cargarMetrica(m.codigo)}>
                   <Text style={styles.metricaError}>No se pudo cargar · Reintentar</Text>
                 </Pressable>
               ) : (
-                <Text style={styles.metricaValor} numberOfLines={1} adjustsFontSizeToFit>
+                <Text style={styles.metricaValor} numberOfLines={2}>
                   {formatearPesos(valor == null ? null : Number(valor))}
                 </Text>
               )}
@@ -209,7 +234,11 @@ export default function Reportes() {
 
       {/* Listados */}
       <Text style={styles.seccion}>Listados</Text>
-      <View style={styles.rejilla}>
+      <View
+        style={styles.rejilla}
+        accessibilityRole="radiogroup"
+        accessibilityLabel="Seleccionar listado de reportes"
+      >
         {LISTADOS.map((c) => {
           const activo = listado === c.codigo;
           const cargando = resultados[c.codigo]?.estado === "cargando";
@@ -218,8 +247,9 @@ export default function Reportes() {
               key={c.codigo}
               onPress={() => verListado(c.codigo)}
               disabled={cargando}
-              accessibilityRole="button"
-              accessibilityState={{ selected: activo }}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: activo, disabled: cargando }}
+              accessibilityHint="Muestra este listado de servicios."
               style={({ pressed }) => [
                 styles.boton,
                 activo && styles.botonActivo,
@@ -242,7 +272,12 @@ export default function Reportes() {
           <View style={styles.resultadoEncabezado}>
             <Text style={styles.resultadoTitulo}>{consulta.titulo}</Text>
             {resultado.estado === "listo" && (
-              <Text style={styles.contador}>
+              <Text
+                style={styles.contador}
+                role="status"
+                accessibilityLiveRegion="polite"
+                aria-live="polite"
+              >
                 {resultado.filas.length} servicio{resultado.filas.length === 1 ? "" : "s"}
               </Text>
             )}
@@ -250,18 +285,40 @@ export default function Reportes() {
           <Text style={styles.descripcion}>{consulta.descripcion}</Text>
 
           {resultado.estado === "cargando" ? (
-            <ActivityIndicator color={AZUL} style={{ marginVertical: 24 }} />
+            <ActivityIndicator
+              color={AZUL}
+              style={{ marginVertical: 24 }}
+              accessibilityLabel={`Cargando el listado ${consulta.titulo}`}
+            />
           ) : resultado.estado === "error" ? (
             <View style={styles.error}>
-              <Text style={styles.errorTexto}>{resultado.mensaje}</Text>
+              <Text
+                style={styles.errorTexto}
+                accessibilityRole="alert"
+                accessibilityLiveRegion="assertive"
+                aria-live="assertive"
+              >
+                {resultado.mensaje}
+              </Text>
               <Pressable onPress={() => verListado(consulta.codigo)} style={styles.reintentar}>
                 <Text style={styles.reintentarTexto}>Reintentar</Text>
               </Pressable>
             </View>
           ) : resultado.filas.length === 0 ? (
-            <Text style={styles.vacio}>No hay servicios en este listado.</Text>
+            <Text
+              style={styles.vacio}
+              role="status"
+              accessibilityLiveRegion="polite"
+              aria-live="polite"
+            >
+              No hay servicios en este listado.
+            </Text>
           ) : (
-            <Tabla columnas={consulta.columnas ?? []} filas={resultado.filas} />
+            <Tabla
+              titulo={consulta.titulo}
+              columnas={consulta.columnas ?? []}
+              filas={resultado.filas}
+            />
           )}
         </View>
       )}
@@ -273,7 +330,7 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
   contenedor: { gap: 12 },
   titulo: { color: p.texto, fontSize: 18, fontWeight: "900" },
   subtitulo: { color: p.textoTenue, fontSize: 13, marginTop: -6 },
-  filaMetricas: { flexDirection: "row", gap: 10 },
+  filaMetricas: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   metrica: {
     flex: 1,
     padding: 14,
@@ -284,7 +341,12 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     backgroundColor: "rgba(41,105,233,0.12)",
   },
   metricaEtiqueta: { color: p.acento, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
-  metricaValor: { color: p.texto, fontSize: 22, fontWeight: "900" },
+  metricaValor: {
+    color: p.texto,
+    fontSize: 22,
+    fontWeight: "900",
+    flexShrink: 1,
+  },
   metricaDescripcion: { color: p.textoTenue, fontSize: 11 },
   metricaError: { color: p.textoError, fontSize: 12, fontWeight: "700", marginVertical: 6 },
   seccion: { color: p.textoFuerte2, fontSize: 15, fontWeight: "800", marginTop: 4 },

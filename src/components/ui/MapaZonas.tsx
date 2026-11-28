@@ -3,13 +3,18 @@
 // Mapa pequeño del panel de administrador con las zonas donde más pedidos se
 // hacen: amarillo = demanda media, rojo = demanda alta. Usa Leaflet (igual que
 // MapaPrincipal): iframe en web y WebView en móvil, sin librerías nuevas.
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 
 import type { ZonaPedidos } from "../../services/estadisticasService";
 import { useEstilos, usePaleta, type Paleta } from "../../services/temaStore";
 import type { NombreTema } from "../../constants/paleta";
+import {
+  calcularTamanoFuente,
+  useEscala,
+  useFactorPreferenciaFuente,
+} from "./Texto";
 
 export const COLOR_ZONA_MEDIA = "#facc15";
 export const COLOR_ZONA_ALTA = "#ef4444";
@@ -59,6 +64,27 @@ const crearHTML = (zonas: ZonaPedidos[], tema: NombreTema) => {
   <script>
     const ZONAS = ${json};
     const CENTRO = [${CENTRO.lat}, ${CENTRO.lng}];
+    window.recibir = function (d) {
+      if (!d || d.tipo !== 'TAMANO_FUENTE') return;
+      var estilo = document.getElementById('escala-fuente');
+      if (!estilo) {
+        estilo = document.createElement('style');
+        estilo.id = 'escala-fuente';
+        document.head.appendChild(estilo);
+      }
+      estilo.textContent =
+        '.leaflet-popup-content{font-size:' + d.popup + 'px!important;}' +
+        '.leaflet-control-attribution{font-size:' + d.atribucion + 'px!important;}';
+    };
+    window.addEventListener('message', function (evento) {
+      if (evento.source !== window.parent) return;
+      try {
+        const dato = typeof evento.data === 'string' ? JSON.parse(evento.data) : evento.data;
+        window.recibir(dato);
+      } catch (error) {
+        console.error('No se pudo aplicar la escala tipográfica del mapa:', error);
+      }
+    });
     const mapa = L.map('mapa', { zoomControl: true, maxZoom: 17 }).setView(CENTRO, 12);
 
     L.tileLayer(
@@ -103,23 +129,61 @@ const crearHTML = (zonas: ZonaPedidos[], tema: NombreTema) => {
 export default function MapaZonas({ zonas }: { zonas: ZonaPedidos[] }) {
   const styles = useEstilos(crearEstilos);
   const { tema } = usePaleta();
+  const escalaAncho = useEscala();
+  const factorPreferencia = useFactorPreferenciaFuente();
+  const webViewRef = useRef<WebView>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [cargaMapa, setCargaMapa] = useState(0);
   const html = useMemo(() => crearHTML(zonas, tema), [zonas, tema]);
+  const enviarEscalaFuente = useCallback((mensaje: object) => {
+    if (Platform.OS === "web") {
+      iframeRef.current?.contentWindow?.postMessage(JSON.stringify(mensaje), "*");
+    } else {
+      webViewRef.current?.injectJavaScript(`
+        window.recibir && window.recibir(${JSON.stringify(mensaje)});
+        true;
+      `);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (cargaMapa === 0) return;
+    enviarEscalaFuente({
+      tipo: "TAMANO_FUENTE",
+      popup: calcularTamanoFuente(13, escalaAncho, factorPreferencia),
+      atribucion: calcularTamanoFuente(
+        9,
+        escalaAncho,
+        factorPreferencia,
+        true,
+      ),
+    });
+  }, [
+    cargaMapa,
+    escalaAncho,
+    factorPreferencia,
+    enviarEscalaFuente,
+  ]);
 
   return (
     <View style={styles.contenedor}>
       {Platform.OS === "web" ? (
         <iframe
+          ref={iframeRef}
           title="Mapa de zonas con más pedidos"
           srcDoc={html}
+          onLoad={() => setCargaMapa((actual) => actual + 1)}
           style={{ width: "100%", height: "100%", border: "none" }}
         />
       ) : (
         <WebView
+          ref={webViewRef}
           originWhitelist={["*"]}
           source={{ html }}
           javaScriptEnabled
           domStorageEnabled
           nestedScrollEnabled
+          onLoadEnd={() => setCargaMapa((actual) => actual + 1)}
           style={styles.mapa}
         />
       )}

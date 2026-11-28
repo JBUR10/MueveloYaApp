@@ -27,3 +27,64 @@ html[data-tema='claro'] input:-webkit-autofill:focus {
   -webkit-text-fill-color: #0f1b2d !important;
   caret-color: #0f1b2d;
 }
+
+/* Foco visible para navegación por teclado en React Native Web. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[role='button']:focus-visible,
+[role='link']:focus-visible,
+[role='tab']:focus-visible,
+[role='switch']:focus-visible,
+[role='radio']:focus-visible,
+[role='checkbox']:focus-visible,
+[tabindex]:not([tabindex='-1']):focus-visible {
+  outline: 3px solid #2969e9 !important;
+  outline-offset: 3px !important;
+}
+
+html[data-tema='claro'] :is(
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  [role='button'],
+  [role='link'],
+  [role='tab'],
+  [role='switch'],
+  [role='radio'],
+  [role='checkbox'],
+  [tabindex]:not([tabindex='-1'])
+):focus-visible {
+  outline-color: #2969e9 !important;
+  box-shadow: 0 0 0 5px rgba(41, 105, 233, 0.22) !important;
+}
+
+html[data-tema='oscuro'] :is(
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  [role='button'],
+  [role='link'],
+  [role='tab'],
+  [role='switch'],
+  [role='radio'],
+  [role='checkbox'],
+  [tabindex]:not([tabindex='-1'])
+):focus-visible {
+  outline-color: #8db2ff !important;
+  box-shadow: 0 0 0 5px rgba(141, 178, 255, 0.20) !important;
+}
+
+/* La barra de navegación recorta lo que sobresale: el foco de sus enlaces se
+   dibuja hacia dentro y redondeado, para que siga sus esquinas. Debe quedar
+   después de las reglas generales. */
+[role='navigation'] [role='link']:focus-visible {
+  border-radius: 24px;
+  outline-offset: -6px !important;
+}

@@ -4,9 +4,14 @@
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
-import { Text } from "./Texto";
+import {
+  calcularTamanoFuente,
+  Text,
+  useEscala,
+  useFactorPreferenciaFuente,
+} from "./Texto";
 
 import {
   estadoDocumento,
@@ -57,6 +62,12 @@ export default function CampoFecha({
 }) {
   const p = usePaleta();
   const styles = useEstilos(crearEstilos);
+  const escalaAncho = useEscala();
+  const factorPreferencia = useFactorPreferenciaFuente();
+  const id = useId().replace(/:/g, "");
+  const etiquetaId = `campo-fecha-etiqueta-${id}`;
+  const errorId = `campo-fecha-error-${id}`;
+  const ayudaId = `campo-fecha-ayuda-${id}`;
   const [abierto, setAbierto] = useState(false);
   const claveEstado = estadoDocumento(valor);
   const estado = {
@@ -72,9 +83,9 @@ export default function CampoFecha({
   return (
     <View style={styles.campo}>
       <View style={styles.filaEtiqueta}>
-        <Text style={styles.etiqueta}>
+        <Text nativeID={etiquetaId} style={styles.etiqueta}>
           {etiqueta}
-          {opcional ? " (opcional)" : ""}
+          {opcional ? " (opcional)" : " (obligatorio)"}
         </Text>
         {!!valor && (
           <Text style={[styles.estado, { color: estado.color }]}>
@@ -86,6 +97,11 @@ export default function CampoFecha({
       {Platform.OS === "web" ? (
         <input
           type="date"
+          id={`campo-fecha-${id}`}
+          aria-labelledby={etiquetaId}
+          aria-describedby={error ? errorId : ayuda ? ayudaId : undefined}
+          aria-invalid={!!error}
+          aria-required={!opcional}
           value={valor ?? ""}
           max={maximo ? textoDeFecha(maximo) : undefined}
           onChange={(e) => onCambiar(e.target.value || null)}
@@ -95,36 +111,72 @@ export default function CampoFecha({
             padding: "12px",
             borderRadius: "12px",
             border: `1px solid ${error ? "rgba(239,68,68,0.7)" : p.bordeCampo}`,
-            fontSize: "14px",
+            fontSize: `${calcularTamanoFuente(
+              14,
+              escalaAncho,
+              factorPreferencia,
+            )}px`,
             width: "100%",
             boxSizing: "border-box",
             colorScheme: p.esClaro ? "light" : "dark",
           }}
         />
       ) : (
-        <Pressable
-          onPress={() => setAbierto(true)}
-          accessibilityRole="button"
+        <View
           style={[styles.selector, !!error && styles.selectorError]}
         >
-          <TextoIcono
-            icono="calendar-outline"
-            style={[styles.textoSelector, !valor && styles.placeholder]}
+          <Pressable
+            onPress={() => setAbierto(true)}
+            accessibilityRole="button"
+            accessibilityLabelledBy={etiquetaId}
+            accessibilityHint={
+              error
+                ? `Error: ${error}`
+                : ayuda ?? "Abre el selector de fecha."
+            }
+            accessibilityState={{ expanded: abierto }}
+            accessibilityValue={{
+              text: valor ? formatearFechaCorta(valor) : "Sin seleccionar",
+            }}
+            style={styles.selectorFecha}
           >
-            {valor ? formatearFechaCorta(valor) : "Seleccionar fecha"}
-          </TextoIcono>
+            <TextoIcono
+              icono="calendar-outline"
+              style={[styles.textoSelector, !valor && styles.placeholder]}
+            >
+              {valor ? formatearFechaCorta(valor) : "Seleccionar fecha"}
+            </TextoIcono>
+          </Pressable>
           {opcional && !!valor && (
-            <Pressable onPress={() => onCambiar(null)} hitSlop={10}>
+            <Pressable
+              onPress={() => onCambiar(null)}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={`Quitar ${etiqueta}`}
+              accessibilityHint="Borra la fecha seleccionada."
+            >
               <Text style={styles.quitar}>Quitar</Text>
             </Pressable>
           )}
-        </Pressable>
+        </View>
       )}
 
       {!!error ? (
-        <Text style={styles.error}>{error}</Text>
+        <Text
+          nativeID={errorId}
+          role="status"
+          accessibilityLiveRegion="polite"
+          aria-live="polite"
+          style={styles.error}
+        >
+          {error}
+        </Text>
       ) : (
-        !!ayuda && <Text style={styles.ayuda}>{ayuda}</Text>
+        !!ayuda && (
+          <Text nativeID={ayudaId} style={styles.ayuda}>
+            {ayuda}
+          </Text>
+        )
       )}
 
       {abierto && Platform.OS !== "web" && (
@@ -162,6 +214,12 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     backgroundColor: p.fondoProfundo,
   },
   selectorError: { borderColor: "rgba(239,68,68,0.7)" },
+  selectorFecha: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+  },
   textoSelector: { color: p.texto, fontSize: 14 },
   placeholder: { color: p.textoAlfa(0.45) },
   quitar: { color: p.textoError, fontSize: 12, fontWeight: "700" },

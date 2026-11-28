@@ -140,39 +140,70 @@ export default function ResultadosPromociones({ version }: { version: number }) 
       )}
 
       <Text style={styles.seccion}>Resultados de promociones</Text>
-      {!!error && <Text style={styles.error}>{error}</Text>}
+      {!!error && (
+        <Text
+          style={styles.error}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="assertive"
+          aria-live="assertive"
+        >
+          {error}
+        </Text>
+      )}
       {filas == null && !error ? (
-        <ActivityIndicator color="#2969e9" />
+        <ActivityIndicator
+          color="#2969e9"
+          accessibilityLabel="Cargando resultados de promociones"
+        />
       ) : filas && filas.length === 0 ? (
-        <Text style={styles.detalle}>
+        <Text
+          style={styles.detalle}
+          role="status"
+          accessibilityLiveRegion="polite"
+          aria-live="polite"
+        >
           Todavía no has enviado promociones. Usa «Enviar promoción» en una oportunidad.
         </Text>
       ) : (
-        filas?.map((c) => {
-          const v = veredicto(c, p);
-          return (
-            <View key={c.id} style={styles.campana}>
-              <View style={styles.fila}>
-                <Text style={styles.nombre}>
-                  {c.porcentaje} % · {c.tipo ?? "cualquier servicio"}
+        <>
+          {filas && filas.length > 0 && (
+            <Text
+              style={styles.detalle}
+              role="status"
+              accessibilityLiveRegion="polite"
+              aria-live="polite"
+            >
+              {filas.length} campaña{filas.length === 1 ? "" : "s"} de promoción.
+            </Text>
+          )}
+          {filas?.map((c) => {
+            const v = veredicto(c, p);
+            return (
+              <View key={c.id} style={styles.campana}>
+                <View style={styles.fila}>
+                  <Text style={styles.nombre}>
+                    {c.porcentaje} % · {c.tipo ?? "cualquier servicio"}
+                  </Text>
+                  <Text style={[styles.veredicto, { color: v.color }]}>
+                    {v.texto}
+                  </Text>
+                </View>
+                <Text style={styles.detalle}>
+                  {NOMBRE_MOTIVO[c.motivo] ?? c.motivo} · enviada{" "}
+                  {fecha(c.creadaEl)} · vence {fecha(c.venceEl)}
                 </Text>
-                <Text style={[styles.veredicto, { color: v.color }]}>{v.texto}</Text>
+                <Text style={styles.detalle}>
+                  Enviados {c.enviados} · Usados {c.usados} (
+                  {pct(c.usados, c.enviados)} %) · Completados {c.completados}
+                </Text>
+                <Text style={styles.detalle}>
+                  Ingresos {formatearPesos(c.ingresos)} · Descuento dado{" "}
+                  {formatearPesos(c.descuento)}
+                </Text>
               </View>
-              <Text style={styles.detalle}>
-                {NOMBRE_MOTIVO[c.motivo] ?? c.motivo} · enviada {fecha(c.creadaEl)} · vence{" "}
-                {fecha(c.venceEl)}
-              </Text>
-              <Text style={styles.detalle}>
-                Enviados {c.enviados} · Usados {c.usados} ({pct(c.usados, c.enviados)} %) ·
-                Completados {c.completados}
-              </Text>
-              <Text style={styles.detalle}>
-                Ingresos {formatearPesos(c.ingresos)} · Descuento dado{" "}
-                {formatearPesos(c.descuento)}
-              </Text>
-            </View>
-          );
-        })
+            );
+          })}
+        </>
       )}
     </View>
   );
