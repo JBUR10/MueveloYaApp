@@ -69,6 +69,14 @@ import {
 } from "../services/proteccionTamanoFuente";
 import { obtenerMisPagos, type PagoRegistrado } from "../services/pagoService";
 import { formatearPesos } from "../services/tarifa";
+import {
+  formatearSaldo,
+  obtenerMiSaldo,
+  obtenerMisMovimientos,
+  textoMetodoPago,
+  type MovimientoSaldo,
+  type ResumenSaldo,
+} from "../services/saldoService";
 import * as ImagePicker from "expo-image-picker";
 
 const AZUL = "#2969e9";
@@ -145,6 +153,29 @@ export default function PerfilScreen() {
         setErrorPagos(true);
       });
   }, []);
+
+  // Saldo del transportista (solo se carga en modo transportista).
+  const [saldo, setSaldo] = useState<ResumenSaldo | null>(null);
+  const [movimientos, setMovimientos] = useState<MovimientoSaldo[]>([]);
+  const [errorSaldo, setErrorSaldo] = useState<string | null>(null);
+  const cargarSaldo = useCallback(() => {
+    setErrorSaldo(null);
+    Promise.all([obtenerMiSaldo(), obtenerMisMovimientos(10)])
+      .then(([resumen, lista]) => {
+        setSaldo(resumen);
+        setMovimientos(lista);
+      })
+      .catch((error: any) => {
+        console.error("No se pudo cargar el saldo:", error);
+        setErrorSaldo(error?.message || "No se pudo cargar tu saldo.");
+      });
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (modoTransportista) cargarSaldo();
+    }, [modoTransportista, cargarSaldo]),
+  );
 
   // Formulario
   const [nombreForm, setNombreForm] = useState("");
@@ -596,6 +627,136 @@ export default function PerfilScreen() {
                 {guardando ? "Guardando..." : "Guardar"}
               </Text>
             </Pressable>
+
+            {/* Saldo del transportista */}
+            {modoTransportista && (
+              <>
+                <Text style={styles.tituloSeccion}>Mi saldo</Text>
+                <View style={styles.tarjetaSaldo}>
+                  {errorSaldo ? (
+                    <View style={{ gap: 8 }}>
+                      <Text
+                        style={styles.textoErrorTamanoFuente}
+                        accessibilityRole="alert"
+                      >
+                        {errorSaldo}
+                      </Text>
+                      <Pressable
+                        onPress={cargarSaldo}
+                        accessibilityRole="button"
+                        accessibilityLabel="Reintentar la carga de mi saldo"
+                        style={styles.botonReintentarTamano}
+                      >
+                        <Text style={styles.tituloOpcion}>Reintentar</Text>
+                      </Pressable>
+                    </View>
+                  ) : saldo === null ? (
+                    <Text style={styles.tituloOpcion} role="status">
+                      Cargando tu saldo…
+                    </Text>
+                  ) : (
+                    <>
+                      <Text style={styles.etiquetaSaldo}>Saldo actualizado</Text>
+                      <Text
+                        style={[
+                          styles.montoSaldo,
+                          saldo.saldo < 0 && styles.montoSaldoNegativo,
+                        ]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                      >
+                        {formatearSaldo(saldo.saldo)}
+                      </Text>
+                      <Text style={styles.descripcionOpcion}>
+                        Se actualiza cuando finalizas cada servicio. La app
+                        retiene el {saldo.porcentaje}% de cada pedido como
+                        comisión.
+                      </Text>
+
+                      <View style={styles.divisorSaldo} />
+
+                      <View style={styles.filaSaldo}>
+                        <Text style={styles.textoFilaSaldo}>
+                          Servicios finalizados
+                        </Text>
+                        <Text style={styles.valorFilaSaldo}>{saldo.servicios}</Text>
+                      </View>
+                      <View style={styles.filaSaldo}>
+                        <Text style={styles.textoFilaSaldo}>
+                          Ganancias netas (sin comisión)
+                        </Text>
+                        <Text style={styles.valorFilaSaldo}>
+                          {formatearSaldo(saldo.gananciasNetas)}
+                        </Text>
+                      </View>
+                      <View style={styles.filaSaldo}>
+                        <Text style={styles.textoFilaSaldo}>
+                          Comisiones de la app
+                        </Text>
+                        <Text style={styles.valorFilaSaldo}>
+                          {formatearSaldo(saldo.comisiones)}
+                        </Text>
+                      </View>
+                      <View style={styles.filaSaldo}>
+                        <Text style={styles.textoFilaSaldo}>
+                          A tu favor por pagos con tarjeta
+                        </Text>
+                        <Text style={styles.valorFilaSaldo}>
+                          {formatearSaldo(saldo.saldoTarjeta)}
+                        </Text>
+                      </View>
+                      <View style={styles.filaSaldo}>
+                        <Text style={styles.textoFilaSaldo}>
+                          Comisión por servicios en efectivo
+                        </Text>
+                        <Text style={styles.valorFilaSaldo}>
+                          {formatearSaldo(saldo.saldoEfectivo)}
+                        </Text>
+                      </View>
+
+                      <View style={styles.divisorSaldo} />
+                      <Text style={styles.etiquetaSaldo}>Últimos movimientos</Text>
+                      {movimientos.length === 0 ? (
+                        <Text style={styles.descripcionOpcion}>
+                          Aún no tienes movimientos. Aparecerán cuando finalices
+                          un servicio.
+                        </Text>
+                      ) : (
+                        movimientos.map((m) => (
+                          <View key={m.id} style={styles.filaSaldo}>
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <Text style={styles.textoFilaSaldo} numberOfLines={1}>
+                                {m.tipo === "reversion" ? "Reembolso · " : ""}
+                                {m.tipoServicio || "Servicio"}
+                              </Text>
+                              <Text style={styles.descripcionOpcion}>
+                                {textoMetodoPago(m.metodoPago)} ·{" "}
+                                {new Date(m.creadoEl).toLocaleDateString("es-CO", {
+                                  day: "numeric",
+                                  month: "short",
+                                  timeZone: "America/Bogota",
+                                })}
+                              </Text>
+                            </View>
+                            <Text
+                              style={[
+                                styles.valorFilaSaldo,
+                                m.saldoDelta < 0
+                                  ? styles.montoSaldoNegativo
+                                  : styles.montoSaldoPositivo,
+                              ]}
+                            >
+                              {m.saldoDelta > 0 ? "+" : ""}
+                              {formatearSaldo(m.saldoDelta)}
+                            </Text>
+                          </View>
+                        ))
+                      )}
+                    </>
+                  )}
+                </View>
+              </>
+            )}
 
             {/* Pagos */}
             <Text style={styles.tituloSeccion}>Mis pagos</Text>
@@ -1231,6 +1392,59 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     borderWidth: 1,
     borderColor: p.linea(0.13),
     backgroundColor: p.velo(0.045),
+  },
+
+  tarjetaSaldo: {
+    gap: 8,
+    padding: 15,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: p.linea(0.13),
+    backgroundColor: p.velo(0.045),
+  },
+
+  etiquetaSaldo: {
+    color: p.textoTenue,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+
+  montoSaldo: {
+    color: p.textoExito,
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+  },
+
+  montoSaldoNegativo: { color: p.textoError },
+  montoSaldoPositivo: { color: p.textoExito },
+
+  divisorSaldo: {
+    height: 1,
+    backgroundColor: p.linea(0.1),
+    marginVertical: 4,
+  },
+
+  filaSaldo: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+
+  textoFilaSaldo: {
+    color: p.textoFuerte2,
+    fontSize: 12,
+    fontWeight: "600",
+    flexShrink: 1,
+  },
+
+  valorFilaSaldo: {
+    color: p.textoFuerte2,
+    fontSize: 12,
+    fontWeight: "800",
+    flexShrink: 0,
   },
 
   preferenciaTexto: {
