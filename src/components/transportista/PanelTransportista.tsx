@@ -82,6 +82,11 @@ import {
 } from "../../services/transportistaService";
 import { formatearPesos } from "../../services/tarifa";
 import DetalleTarifaSolicitud from "../DetalleTarifaSolicitud";
+import ResumenPagoTransportista from "./ResumenPagoTransportista";
+import {
+  textoAvisoComision,
+  textoAvisoFinalizar,
+} from "../../services/saldoService";
 import { obtenerMiVehiculo, revisarDocumentos } from "../../services/vehiculoService";
 import Icono, { type NombreIcono } from "../ui/Icono";
 import TextoIcono from "../ui/TextoIcono";
@@ -683,11 +688,11 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
     const sinCancelacion = !puedeCancelar(item);
     const ok = await confirmar({
       titulo: "Aceptar solicitud",
-      mensaje: !programado
+      mensaje: textoAvisoComision(item) + "\n\n" + (!programado
         ? "Es un servicio inmediato: al aceptarlo verás la ruta al punto de recogida y no podrás cancelarlo."
         : sinCancelacion
           ? `Faltan menos de ${HORAS_MINIMAS_CANCELACION} horas para este servicio. Si lo aceptas no podrás cancelarlo.`
-          : `Lo iniciarás desde «Aceptadas» cuando vayas a salir. Podrás cancelarlo hasta ${HORAS_MINIMAS_CANCELACION} horas antes.`,
+          : `Lo iniciarás desde «Aceptadas» cuando vayas a salir. Podrás cancelarlo hasta ${HORAS_MINIMAS_CANCELACION} horas antes.`),
       textoAceptar: "Aceptar",
       tipo: "info",
     });
@@ -908,7 +913,9 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
     if (!item.id) return;
     const ok = await confirmar({
       titulo: "Finalizar servicio",
-      mensaje: "¿Confirmas que entregaste la carga en el destino?",
+      mensaje:
+        "¿Confirmas que entregaste la carga en el destino?" +
+        textoAvisoFinalizar(item),
       textoAceptar: "Finalizar",
       textoCancelar: "Volver",
       tipo: "info",
@@ -922,7 +929,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
       await cargarDatos();
       await aviso(
         "¡Servicio finalizado!",
-        "Buen trabajo. Ahora cuéntanos cómo te fue con el cliente.",
+        "Buen trabajo. Tu saldo ya se actualizó (míralo en tu perfil). Ahora cuéntanos cómo te fue con el cliente.",
         "exito",
       );
       setCalificandoId(item.id);
@@ -1015,6 +1022,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
         )}
 
         <DetalleTarifaSolicitud item={item} />
+        <ResumenPagoTransportista item={item} />
 
         {item.descripcion ? (
           <Text style={styles.cardDesc}>
@@ -1476,6 +1484,7 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
         ) : null}
 
         <DetalleTarifaSolicitud item={item} />
+        <ResumenPagoTransportista item={item} />
         {miUbicacion && item.origenCoords && seccion === "disponibles" ? (
           <Text style={styles.distanciaSolicitud}>
             A {textoKm(distanciaKm(miUbicacion, item.origenCoords))} de ti
