@@ -45,6 +45,7 @@ Pegar y ejecutar cada archivo en el SQL Editor. Todos se pueden volver a correr 
 21. [`021_retirar_trigger_pago_legacy.sql`](migraciones/021_retirar_trigger_pago_legacy.sql): elimina el trigger heredado que rechazaba Stripe al crear un servicio.
 22. [`022_control_limite_promociones.sql`](migraciones/022_control_limite_promociones.sql): permite al administrador omitir el límite de una promoción por cliente en los últimos 7 días.
 23. [`023_control_periodos_promociones.sql`](migraciones/023_control_periodos_promociones.sql): permite elegir los días de inactividad para reactivación y el intervalo entre promociones (incluido cero para permitir repetir).
+24. [`024_fotos_perfil.sql`](migraciones/024_fotos_perfil.sql): agrega la ruta de la foto al perfil y políticas para que cada usuario gestione solo sus fotos del bucket `perfil`.
 
 El detalle de lo que crea la 001 está abajo.
 

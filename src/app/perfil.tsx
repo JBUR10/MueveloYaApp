@@ -3,7 +3,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   BackHandler,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -33,7 +35,11 @@ import {
   quitarDispositivoPush,
   usePush,
 } from "../services/notificacionesPush";
-import { obtenerMiPerfil, Perfil } from "../services/perfilService";
+import {
+  obtenerMiPerfil,
+  Perfil,
+  subirFotoPerfil,
+} from "../services/perfilService";
 import {
   obtenerMiVehiculo,
   revisarDocumentos,
@@ -63,6 +69,7 @@ import {
 } from "../services/proteccionTamanoFuente";
 import { obtenerMisPagos, type PagoRegistrado } from "../services/pagoService";
 import { formatearPesos } from "../services/tarifa";
+import * as ImagePicker from "expo-image-picker";
 
 const AZUL = "#2969e9";
 
@@ -145,6 +152,7 @@ export default function PerfilScreen() {
   const [ciudadForm, setCiudadForm] = useState("");
   const [telefonoForm, setTelefonoForm] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [cambiandoFoto, setCambiandoFoto] = useState(false);
 
   const hayCambiosTamano =
     tamanoFuente.carga === "ready" &&
@@ -305,12 +313,32 @@ export default function PerfilScreen() {
     }
   };
 
-  const cambiarFoto = () => {
-    aviso(
-      "Foto de perfil",
-      "Esta opción estará disponible próximamente.",
-      "info",
-    );
+  const cambiarFoto = async () => {
+    if (cambiandoFoto) return;
+    setCambiandoFoto(true);
+    try {
+      const resultado = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+      });
+      if (resultado.canceled) return;
+      const uri = resultado.assets[0]?.uri;
+      if (!uri) throw new Error("No se pudo leer la imagen seleccionada.");
+
+      const fotoUrl = await subirFotoPerfil(uri);
+      setPerfil((actual) => (actual ? { ...actual, fotoUrl } : actual));
+    } catch (error) {
+      console.error("Error al seleccionar la foto de perfil:", error);
+      await aviso(
+        "No se pudo cambiar la foto",
+        error instanceof Error
+          ? error.message
+          : "Inténtalo de nuevo más tarde.",
+        "error",
+      );
+    } finally {
+      setCambiandoFoto(false);
+    }
   };
 
   const alternarModo = async () => {
@@ -486,18 +514,37 @@ export default function PerfilScreen() {
                 <LinearGradient
                   colors={["#528BFF", "#1744A4", "#14254A"]}
                   style={styles.avatar}>
-                  <Text style={styles.avatarTexto}>{inicial}</Text>
+                  {perfil?.fotoUrl ? (
+                    <Image
+                      source={{ uri: perfil.fotoUrl }}
+                      style={styles.avatarImagen}
+                      resizeMode="cover"
+                      onError={() =>
+                        setPerfil((actual) =>
+                          actual ? { ...actual, fotoUrl: null } : actual,
+                        )
+                      }
+                    />
+                  ) : (
+                    <Text style={styles.avatarTexto}>{inicial}</Text>
+                  )}
                 </LinearGradient>
 
                 <Pressable
                   onPress={cambiarFoto}
+                  disabled={cambiandoFoto}
                   accessibilityRole="button"
                   accessibilityLabel="Cambiar foto de perfil"
                   style={({ pressed }) => [
                     styles.botonFoto,
+                    cambiandoFoto && styles.botonFotoCargando,
                     pressed && styles.presionado,
                   ]}>
-                  <Icono nombre="pencil" tamano={16} color={p.texto} />
+                  {cambiandoFoto ? (
+                    <ActivityIndicator size="small" color={p.texto} />
+                  ) : (
+                    <Icono nombre="pencil" tamano={16} color={p.texto} />
+                  )}
                 </Pressable>
               </View>
             </View>
@@ -1008,6 +1055,11 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     fontWeight: "800",
   },
 
+  avatarImagen: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 49,
+  },
+
   botonFoto: {
     position: "absolute",
     right: -6,
@@ -1020,6 +1072,10 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     backgroundColor: p.superficieAlta,
     borderWidth: 3,
     borderColor: p.fondo,
+  },
+
+  botonFotoCargando: {
+    opacity: 0.72,
   },
 
 
