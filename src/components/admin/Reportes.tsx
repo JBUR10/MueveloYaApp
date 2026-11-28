@@ -57,6 +57,9 @@ const ANCHO: Record<string, number> = {
   destino: 190,
   distancia_km: 80,
   tarifa_acordada: 110,
+  tarifa_base: 110,
+  descuento: 110,
+  recargo_carga: 110,
   estado: 110,
 };
 

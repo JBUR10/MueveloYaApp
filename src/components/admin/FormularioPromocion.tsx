@@ -4,12 +4,7 @@
 // descuento y la vigencia. Antes de enviar muestra a cuántos clientes les
 // llegará y pide una confirmación (el envío no se puede deshacer).
 import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  View,
-} from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "../ui/Texto";
 
 import {
@@ -19,18 +14,24 @@ import {
   MOTIVOS,
 } from "../../services/promocionesService";
 import Icono from "../ui/Icono";
+import { useTecladoGrupo } from "../ui/tecladoWeb";
 import { usePaleta, useEstilos, type Paleta } from "../../services/temaStore";
 
 const AZUL = "#2969e9";
 const TIPOS = ["Envío", "Acarreo", "Trasteo", "Mudanza"];
 const DESCUENTOS = [10, 15, 20, 30];
 const VIGENCIAS = [7, 14, 30];
+const DIAS_INACTIVIDAD = [7, 14, 30, 60, 90];
+const INTERVALOS_PROMOCION = [0, 7, 14, 30];
 
-const QUIEN: Record<MotivoPromocion, (tipo: string | null) => string> = {
+const QUIEN: Record<
+  MotivoPromocion,
+  (tipo: string | null, diasInactivo: number) => string
+> = {
   primera_vez: (t) =>
     `Clientes que nunca han pedido ${t ? t.toLowerCase() : "ese servicio"}`,
   segundo_pedido: () => "Clientes que solo han hecho un pedido",
-  reactivacion: () => "Clientes que no piden hace más de 30 días",
+  reactivacion: (_, dias) => `Clientes que no piden hace más de ${dias} días`,
   todos: () => "Todos los clientes",
 };
 
@@ -42,7 +43,7 @@ interface Props {
   onEnviada: () => void;
 }
 
-function Chips<T extends string | number | null>({
+function Chips<T extends string | number | boolean | null>({
   etiqueta,
   opciones,
   valor,
@@ -54,6 +55,11 @@ function Chips<T extends string | number | null>({
   onElegir: (v: T) => void;
 }) {
   const styles = useEstilos(crearEstilos);
+  const teclas = useTecladoGrupo(
+    "radio",
+    opciones.map((o) => o.valor),
+    valor,
+  );
   return (
     <View
       style={styles.chips}
@@ -68,6 +74,7 @@ function Chips<T extends string | number | null>({
             onPress={() => onElegir(o.valor)}
             accessibilityRole="radio"
             accessibilityState={{ checked: activo }}
+            {...teclas(o.valor, () => onElegir(o.valor))}
             style={[styles.chip, activo && styles.chipActivo]}
           >
             <Text style={[styles.chipTexto, activo && { color: "#FFF" }]}>
@@ -92,6 +99,8 @@ export default function FormularioPromocion({
   const [tipo, setTipo] = useState<string | null>(tipoInicial);
   const [porcentaje, setPorcentaje] = useState(15);
   const [dias, setDias] = useState(14);
+  const [diasInactivo, setDiasInactivo] = useState(30);
+  const [diasEntrePromociones, setDiasEntrePromociones] = useState(7);
   const [audiencia, setAudiencia] = useState<number | null>(null);
   const [fase, setFase] = useState<
     "editar" | "confirmar" | "enviando" | "listo"
@@ -111,7 +120,7 @@ export default function FormularioPromocion({
     let vigente = true;
     setAudiencia(null);
     setError("");
-    contarAudiencia(motivo, tipo)
+    contarAudiencia(motivo, tipo, diasInactivo, diasEntrePromociones)
       .then((n) => vigente && setAudiencia(n))
       .catch(
         (e) =>
@@ -120,7 +129,7 @@ export default function FormularioPromocion({
     return () => {
       vigente = false;
     };
-  }, [motivo, tipo, tipoValido]);
+  }, [motivo, tipo, tipoValido, diasInactivo, diasEntrePromociones]);
 
   useEffect(() => {
     setFase((f) => (f === "confirmar" ? "editar" : f));
@@ -135,7 +144,14 @@ export default function FormularioPromocion({
     setFase("enviando");
     setError("");
     try {
-      const r = await crearCampana({ motivo, tipo, porcentaje, dias });
+      const r = await crearCampana({
+        motivo,
+        tipo,
+        porcentaje,
+        dias,
+        diasInactivo,
+        diasEntrePromociones,
+      });
       setEnviados(r.destinatarios);
       setFase("listo");
       onEnviada();
@@ -162,8 +178,7 @@ export default function FormularioPromocion({
         </Text>
         <Pressable
           onPress={onCerrar}
-          style={[styles.boton, styles.botonSecundario]}
-        >
+          style={[styles.boton, styles.botonSecundario]}>
           <Text style={styles.botonTexto}>Cerrar</Text>
         </Pressable>
       </View>
@@ -183,8 +198,7 @@ export default function FormularioPromocion({
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel="Cerrar"
-          style={styles.cerrar}
-        >
+          style={styles.cerrar}>
           <Icono nombre="close" tamano={22} color={p.textoTenue} />
         </Pressable>
       </View>
@@ -226,8 +240,36 @@ export default function FormularioPromocion({
         onElegir={setDias}
       />
 
+      {motivo === "reactivacion" && (
+        <>
+          <Text style={styles.etiqueta}>Inactividad para reactivación</Text>
+          <Chips
+            etiqueta="Inactividad para reactivación"
+            opciones={DIAS_INACTIVIDAD.map((d) => ({
+              valor: d,
+              titulo: `Más de ${d} días`,
+            }))}
+            valor={diasInactivo}
+            onElegir={setDiasInactivo}
+          />
+        </>
+      )}
+
+      <Text style={styles.etiqueta}>Espera entre promociones al mismo cliente</Text>
+      <Chips
+        etiqueta="Espera entre promociones al mismo cliente"
+        opciones={INTERVALOS_PROMOCION.map((d) => ({
+          valor: d,
+          titulo: d === 0 ? "Sin espera" : `${d} días`,
+        }))}
+        valor={diasEntrePromociones}
+        onElegir={setDiasEntrePromociones}
+      />
+
       <View style={styles.resumen}>
-        <Text style={styles.texto}>{QUIEN[motivo](tipo)}.</Text>
+        <Text style={styles.texto}>
+          {QUIEN[motivo](tipo, diasInactivo)}.
+        </Text>
         {audiencia == null && tipoValido && !error ? (
           <ActivityIndicator color={AZUL} style={{ alignSelf: "flex-start" }} />
         ) : audiencia != null ? (
@@ -237,13 +279,17 @@ export default function FormularioPromocion({
             aria-live="polite"
           >
             {sinPublico
-              ? "Ahora mismo no hay clientes que cumplan (o ya recibieron un cupón en los últimos 7 días)."
+              ? diasEntrePromociones === 0
+                ? "Ahora mismo no hay clientes que cumplan los criterios de esta promoción."
+                : `Ahora mismo no hay clientes que cumplan (o ya recibieron un cupón en los últimos ${diasEntrePromociones} días).`
               : `Les llegará a ${audiencia} ${audiencia === 1 ? "cliente" : "clientes"}.`}
           </Text>
         ) : null}
         <Text style={styles.nota}>
-          Cada cliente recibe un cupón y una notificación push. No se envía a
-          quien ya recibió una promoción en los últimos 7 días.
+          Cada cliente recibe un cupón y una notificación push.{" "}
+          {diasEntrePromociones === 0
+            ? "Sin espera: también pueden recibir otra promoción quienes ya recibieron un cupón."
+            : `No se envía a quien ya recibió una promoción en los últimos ${diasEntrePromociones} días.`}
         </Text>
       </View>
 
@@ -262,8 +308,7 @@ export default function FormularioPromocion({
         <View style={styles.fila}>
           <Pressable
             onPress={() => setFase("editar")}
-            style={[styles.boton, styles.botonSecundario]}
-          >
+            style={[styles.boton, styles.botonSecundario]}>
             <Text style={styles.botonTexto}>Volver</Text>
           </Pressable>
           <Pressable onPress={enviar} style={[styles.boton, { flex: 1 }]}>
@@ -280,8 +325,7 @@ export default function FormularioPromocion({
           style={[
             styles.boton,
             (bloqueado || !tipoValido || !audiencia) && { opacity: 0.4 },
-          ]}
-        >
+          ]}>
           {bloqueado ? (
             <ActivityIndicator color="#FFF" />
           ) : (
@@ -295,53 +339,59 @@ export default function FormularioPromocion({
   );
 }
 
-const crearEstilos = (p: Paleta) => StyleSheet.create({
-  tarjeta: {
-    padding: 16,
-    gap: 10,
-    borderRadius: 19,
-    borderWidth: 1,
-    borderColor: "rgba(41,105,233,0.6)",
-    backgroundColor: p.panel(0.94),
-  },
-  encabezado: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  titulo: { color: p.texto, fontSize: 16, fontWeight: "800" },
-  cerrar: { paddingHorizontal: 6 },
-  etiqueta: { color: p.textoTenue, fontSize: 12, fontWeight: "700", marginTop: 4 },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: p.linea(0.15),
-    backgroundColor: p.velo(0.04),
-  },
-  chipActivo: { backgroundColor: AZUL, borderColor: AZUL },
-  chipTexto: {
-    color: p.textoAlfa(0.75),
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  resumen: { gap: 6, marginTop: 4 },
-  texto: { color: p.textoDato, fontSize: 13, lineHeight: 19 },
-  audiencia: { color: p.texto, fontSize: 14, fontWeight: "800" },
-  nota: { color: p.textoTenue, fontSize: 11, lineHeight: 16 },
-  error: { color: p.textoError2, fontSize: 13 },
-  fila: { flexDirection: "row", gap: 10 },
-  boton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    backgroundColor: AZUL,
-  },
-  botonSecundario: { backgroundColor: p.velo(0.1) },
-  botonTexto: { color: p.texto, fontSize: 14, fontWeight: "800" },
-  // Sobre el botón azul sólido el texto va siempre blanco.
-  botonTextoAcento: { color: "#FFFFFF" },
-});
+const crearEstilos = (p: Paleta) =>
+  StyleSheet.create({
+    tarjeta: {
+      padding: 16,
+      gap: 10,
+      borderRadius: 19,
+      borderWidth: 1,
+      borderColor: "rgba(41,105,233,0.6)",
+      backgroundColor: p.panel(0.94),
+    },
+    encabezado: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    titulo: { color: p.texto, fontSize: 16, fontWeight: "800" },
+    cerrar: { paddingHorizontal: 6 },
+    etiqueta: {
+      color: p.textoTenue,
+      fontSize: 12,
+      fontWeight: "700",
+      marginTop: 4,
+    },
+    chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    chip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: p.linea(0.15),
+      backgroundColor: p.velo(0.04),
+    },
+    chipActivo: { backgroundColor: AZUL, borderColor: AZUL },
+    chipTexto: {
+      color: p.textoAlfa(0.75),
+      fontSize: 13,
+      fontWeight: "700",
+    },
+    resumen: { gap: 6, marginTop: 4 },
+    texto: { color: p.textoDato, fontSize: 13, lineHeight: 19 },
+    audiencia: { color: p.texto, fontSize: 14, fontWeight: "800" },
+    nota: { color: p.textoTenue, fontSize: 11, lineHeight: 16 },
+    error: { color: p.textoError2, fontSize: 13 },
+    fila: { flexDirection: "row", gap: 10 },
+    boton: {
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      alignItems: "center",
+      backgroundColor: AZUL,
+    },
+    botonSecundario: { backgroundColor: p.velo(0.1) },
+    botonTexto: { color: p.texto, fontSize: 14, fontWeight: "800" },
+    // Sobre el botón azul sólido el texto va siempre blanco.
+    botonTextoAcento: { color: "#FFFFFF" },
+  });

@@ -16,6 +16,7 @@ import {
   useClaveCargaTamanoFuente,
 } from '../services/tamanoFuenteStore';
 import { useEstadoTema, usePaleta } from "../services/temaStore";
+import StripePaymentProvider from '../components/stripe-payment-provider';
 
 /** Al tocar una notificación push, abre la pantalla que corresponde. */
 function AbrirDesdeNotificacion() {
@@ -66,58 +67,60 @@ export default function RootLayout() {
   }
 
   return (
-    <ProveedorEscalaFuente>
-      {/* Web: antes de las pantallas, para que la lectura continúe en ellas. */}
-      <AnuncioPantalla />
+    <StripePaymentProvider>
+      <ProveedorEscalaFuente>
+        {/* Web: antes de las pantallas, para que la lectura continúe en ellas. */}
+        <AnuncioPantalla />
 
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: p.fondo },
-        }}>
-        {/* Sin sesión: solo las pantallas de acceso. */}
-        <Stack.Protected guard={!conSesion}>
-          <Stack.Screen name="login" />
-          <Stack.Screen name="registro" />
-          <Stack.Screen name="verificar" />
-          <Stack.Screen name="recuperar" />
-        </Stack.Protected>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: p.fondo },
+          }}>
+          {/* Sin sesión: solo las pantallas de acceso. */}
+          <Stack.Protected guard={!conSesion}>
+            <Stack.Screen name="login" />
+            <Stack.Screen name="registro" />
+            <Stack.Screen name="verificar" />
+            <Stack.Screen name="recuperar" />
+          </Stack.Protected>
 
-        {/* Con sesión: la app. */}
-        <Stack.Protected guard={conSesion}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="servicios" />
-          <Stack.Screen name="solicitudes" />
-          <Stack.Screen
-            name="perfil"
-            listeners={({ navigation }) => ({
-              beforeRemove: (evento) => {
-                const estado = obtenerEstadoTamanoFuente();
-                if (
-                  estado.carga !== 'ready' ||
-                  estado.borrador === estado.guardado
-                ) {
-                  return;
-                }
-                evento.preventDefault();
-                void navegarConProteccionTamanoFuente(() =>
-                  navigation.dispatch(evento.data.action),
-                );
-              },
-            })}
-          />
-          <Stack.Screen name="transportista" />
-          <Stack.Screen name="vehiculo" />
-          <Stack.Screen name="admin" />
-          <Stack.Screen name="queja" />
-          <Stack.Screen name="explore" />
-          <Stack.Screen name="ayuda" />
-        </Stack.Protected>
-      </Stack>
+          {/* Con sesión: la app. */}
+          <Stack.Protected guard={conSesion}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="servicios" />
+            <Stack.Screen name="solicitudes" />
+            <Stack.Screen
+              name="perfil"
+              listeners={({ navigation }) => ({
+                beforeRemove: (evento) => {
+                  const estado = obtenerEstadoTamanoFuente();
+                  if (
+                    estado.carga !== 'ready' ||
+                    estado.borrador === estado.guardado
+                  ) {
+                    return;
+                  }
+                  evento.preventDefault();
+                  void navegarConProteccionTamanoFuente(() =>
+                    navigation.dispatch(evento.data.action),
+                  );
+                },
+              })}
+            />
+            <Stack.Screen name="transportista" />
+            <Stack.Screen name="vehiculo" />
+            <Stack.Screen name="admin" />
+            <Stack.Screen name="queja" />
+            <Stack.Screen name="explore" />
+            <Stack.Screen name="ayuda" />
+          </Stack.Protected>
+        </Stack>
 
-      {conSesion && <AbrirDesdeNotificacion />}
+        {conSesion && <AbrirDesdeNotificacion />}
 
-      <AlertaPantalla />
-    </ProveedorEscalaFuente>
+        <AlertaPantalla />
+      </ProveedorEscalaFuente>
+    </StripePaymentProvider>
   );
 }

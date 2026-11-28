@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -17,6 +18,7 @@ import { Text, TextInput } from "../components/ui/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import PanelAnalisis from "../components/admin/PanelAnalisis";
+import PanelQuejas from "../components/admin/PanelQuejas";
 import Reportes from "../components/admin/Reportes";
 import { aviso, confirmar } from "../components/ui/AlertaPantalla";
 import {
@@ -31,6 +33,7 @@ import {
   formatearFechaCorta,
 } from "../services/vehiculoService";
 import TextoIcono from "../components/ui/TextoIcono";
+import { useTecladoGrupo } from "../components/ui/tecladoWeb";
 import { usePaleta, useEstilos, type Paleta } from "../services/temaStore";
 
 const AZUL = "#2969e9";
@@ -41,10 +44,11 @@ const FILTROS: { id: EstadoVerificacion; titulo: string }[] = [
   { id: "rechazado", titulo: "Rechazados" },
 ];
 
-type Seccion = "transportistas" | "analisis" | "reportes";
+type Seccion = "transportistas" | "quejas" | "analisis" | "reportes";
 
 const SECCIONES: { id: Seccion; titulo: string }[] = [
   { id: "transportistas", titulo: "Transportistas" },
+  { id: "quejas", titulo: "Quejas" },
   { id: "analisis", titulo: "Análisis" },
   { id: "reportes", titulo: "Reportes" },
 ];
@@ -102,6 +106,16 @@ export default function AdminScreen() {
   const [rechazandoId, setRechazandoId] = useState<string | null>(null);
   const [motivo, setMotivo] = useState("");
   const [procesando, setProcesando] = useState<string | null>(null);
+  const teclasSeccion = useTecladoGrupo(
+    "tab",
+    SECCIONES.map((s) => s.id),
+    seccion,
+  );
+  const teclasFiltro = useTecladoGrupo(
+    "tab",
+    FILTROS.map((f) => f.id),
+    filtro,
+  );
 
   const volver = useCallback(
     () => (router.canGoBack() ? router.back() : router.replace("/perfil")),
@@ -208,8 +222,10 @@ export default function AdminScreen() {
         contentContainerStyle={styles.contenido}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        // En web no hace nada y, al ponerlo y quitarlo, reconstruiría la
+        // pantalla: las pestañas perderían el foco.
         refreshControl={
-          seccion === "transportistas" ? (
+          Platform.OS !== "web" && seccion === "transportistas" ? (
             <RefreshControl
               refreshing={refrescando}
               tintColor={p.texto}
@@ -243,10 +259,14 @@ export default function AdminScreen() {
                 nativeID={`admin-tab-${s.id}`}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: activa }}
+                {...teclasSeccion(s.id, () => setSeccion(s.id))}
                 accessibilityHint={`Muestra la sección ${s.titulo.toLowerCase()}.`}
                 style={[styles.seccion, activa && styles.seccionActiva]}
               >
                 <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
                   style={[
                     styles.seccionTexto,
                     activa && styles.seccionTextoActivo,
@@ -264,7 +284,9 @@ export default function AdminScreen() {
           role="tabpanel"
           accessibilityLabelledBy={`admin-tab-${seccion}`}
         >
-          {seccion === "analisis" ? (
+          {seccion === "quejas" ? (
+            <PanelQuejas />
+          ) : seccion === "analisis" ? (
             <PanelAnalisis />
           ) : seccion === "reportes" ? (
             <Reportes />
@@ -293,6 +315,7 @@ export default function AdminScreen() {
                     nativeID={`admin-filtro-${f.id}`}
                     accessibilityRole="tab"
                     accessibilityState={{ selected: activo }}
+                    {...teclasFiltro(f.id, () => setFiltro(f.id))}
                     accessibilityHint={`Muestra transportistas ${f.titulo.toLowerCase()}.`}
                     style={[styles.chip, activo && styles.chipActivo]}
                   >

@@ -36,8 +36,19 @@ Pegar y ejecutar cada archivo en el SQL Editor. Todos se pueden volver a correr 
 12. [`012_analisis_negocio_admin.sql`](migraciones/012_analisis_negocio_admin.sql): análisis de negocio: mezcla de servicios y clientes (nuevos, recurrentes, inactivos).
 13. [`013_cupones_y_promociones.sql`](migraciones/013_cupones_y_promociones.sql): cupones de descuento y campañas de promoción por push; el descuento se aplica sobre la tarifa.
 14. [`014_ayudantes_conductor.sql`](migraciones/014_ayudantes_conductor.sql): el conductor indica si cuenta con ayudantes; sin ayudantes no le aparecen, no le llegan por push y no puede aceptar solicitudes que los piden.
+15. [`015_subtotal_descuento_reportes.sql`](migraciones/015_subtotal_descuento_reportes.sql): reportes de descuentos y tarifas.
+16. [`016_tipo_carga_y_recargo.sql`](migraciones/016_tipo_carga_y_recargo.sql): tipo de carga y recargos.
+17. [`017_promociones_multiples_y_baja.sql`](migraciones/017_promociones_multiples_y_baja.sql): permite tener campañas simultáneas, consultar las vigentes y darlas de baja; invalida inmediatamente los cupones no usados de una campaña dada de baja.
+18. [`018_pagos_stripe.sql`](migraciones/018_pagos_stripe.sql): pagos con Stripe, reembolsos, visibilidad pagada y limpieza.
+19. [`019_evidencias_y_sanciones.sql`](migraciones/019_evidencias_y_sanciones.sql): fotos de evidencia (bucket privado `evidencias` en Storage). El cliente adjunta fotos a sus quejas y el transportista toma fotos de los artículos al recoger; sin ellas no puede marcar «Recogido». También crea la revisión de quejas del administrador y las sanciones: advertencia (3 = 5 días), 1 semana, 2 semanas o definitiva, más la cuenta condicionada (30 días y 15 viajes sin quejas). Requiere un APK nuevo, porque agrega `expo-image-picker`.
+20. [`020_efectivo_y_webhook_stripe.sql`](migraciones/020_efectivo_y_webhook_stripe.sql): método efectivo, permisos/reintentos del webhook y retiro definitivo de Wompi. **Elimina los registros de pago sin un PaymentIntent de Stripe y las columnas heredadas de Wompi; conserva los servicios antiguos, pero deja sin método de pago los que tenían un método desconocido.**
+21. [`021_retirar_trigger_pago_legacy.sql`](migraciones/021_retirar_trigger_pago_legacy.sql): elimina el trigger heredado que rechazaba Stripe al crear un servicio.
+22. [`022_control_limite_promociones.sql`](migraciones/022_control_limite_promociones.sql): permite al administrador omitir el límite de una promoción por cliente en los últimos 7 días.
+23. [`023_control_periodos_promociones.sql`](migraciones/023_control_periodos_promociones.sql): permite elegir los días de inactividad para reactivación y el intervalo entre promociones (incluido cero para permitir repetir).
 
 El detalle de lo que crea la 001 está abajo.
+
+Si ya ejecutaste hasta la 016, ejecuta la 017 y después la 022 en el SQL Editor. Si ya ejecutaste esas dos y quieres controlar los plazos, ejecuta solo la 023; no edites ni vuelvas a ejecutar las migraciones anteriores.
 
 Crea lo siguiente:
 
@@ -115,3 +126,50 @@ Android entrega las push a través de Firebase. Es gratis.
 4. Prueba real: con el celular bloqueado, desde otra cuenta en otro dispositivo, aceptar o cancelar un servicio de ese usuario.
 
 Si en el paso 2 no aparece ninguna fila, casi siempre es porque falta `google-services.json` o la clave de Firebase en Expo, o porque el APK se compiló antes de agregarlos.
+
+## 7. Pagos con Stripe
+
+### Supabase
+
+1. Ejecuta [`018_pagos_stripe.sql`](migraciones/018_pagos_stripe.sql), [`020_efectivo_y_webhook_stripe.sql`](migraciones/020_efectivo_y_webhook_stripe.sql) y [`021_retirar_trigger_pago_legacy.sql`](migraciones/021_retirar_trigger_pago_legacy.sql) en el SQL Editor.
+2. Configura los secretos:
+   ```sh
+   supabase secrets set STRIPE_SECRET_KEY=sk_test_... STRIPE_WEBHOOK_SECRET=whsec_... APP_WEB_URL=https://tu-dominio.expo.app
+   ```
+3. En Supabase, elimina los secretos antiguos de Wompi desde **Project Settings → Edge Functions → Secrets**. La migración no puede borrar secretos ni funciones desplegadas. Elimina también desde **Edge Functions** las funciones antiguas de esa pasarela.
+4. Implementa y despliega las funciones:
+   ```sh
+   supabase functions deploy crear-pago reembolsar-servicio
+   supabase functions deploy stripe-webhook --no-verify-jwt
+   ```
+
+### Webhook de Stripe
+
+En Stripe Dashboard, Developers → Webhooks, crea el endpoint:
+
+```text
+https://<ref>.supabase.co/functions/v1/stripe-webhook
+```
+
+Suscríbete a:
+
+- `payment_intent.succeeded`
+- `payment_intent.payment_failed`
+- `charge.refunded`
+- `refund.updated`
+- `charge.dispute.created`
+
+Copia el `whsec_...` generado al secreto `STRIPE_WEBHOOK_SECRET`.
+
+### App y compilación
+
+1. Copia `.env.example` a `.env` y agrega `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...`.
+2. Agrega el mismo secreto público a GitHub Actions y a los entornos EAS `preview`/`production`.
+3. Compila un desarrollo o preview nuevo:
+   ```sh
+   npx eas-cli@latest build -p android --profile preview
+   ```
+4. Los pagos nativos requieren development build; Expo Go no incluye el módulo nativo configurado.
+5. Stripe debe tener habilitado el cobro en COP. Si el Dashboard no permite COP, no cambies la moneda desde el código: reporta la cuenta como pendiente de configuración.
+
+Los montos se leen de `servicios.tarifa_acordada`. Las tarifas en COP se convierten a la unidad mínima multiplicando por 100. Stripe cobra COP desde una cuenta habilitada y el mínimo de prueba usado por esta integración es 500 COP.

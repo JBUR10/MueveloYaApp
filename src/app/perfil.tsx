@@ -1,5 +1,6 @@
 import { Href, useFocusEffect, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useState } from "react";
 import {
   BackHandler,
@@ -40,6 +41,7 @@ import {
 } from "../services/vehiculoService";
 import Icono from "../components/ui/Icono";
 import TextoIcono from "../components/ui/TextoIcono";
+import { propsEnlaceWeb } from "../components/ui/tecladoWeb";
 import {
   cambiarTema,
   useEstilos,
@@ -59,6 +61,8 @@ import {
   navegarConProteccionTamanoFuente,
   registrarProteccionTamanoFuente,
 } from "../services/proteccionTamanoFuente";
+import { obtenerMisPagos, type PagoRegistrado } from "../services/pagoService";
+import { formatearPesos } from "../services/tarifa";
 
 const AZUL = "#2969e9";
 
@@ -122,6 +126,18 @@ export default function PerfilScreen() {
   const [perfil, setPerfil] = useState<PerfilExtendido | null>(null);
   const [vehiculo, setVehiculo] = useState<Vehiculo | null>(null);
   const [esAdmin, setEsAdmin] = useState(false);
+  // null mientras no se han cargado: no es lo mismo que no tener pagos.
+  const [misPagos, setMisPagos] = useState<PagoRegistrado[] | null>(null);
+  const [errorPagos, setErrorPagos] = useState(false);
+  const cargarPagos = useCallback(() => {
+    setErrorPagos(false);
+    obtenerMisPagos()
+      .then(setMisPagos)
+      .catch((error) => {
+        console.error("No se pudieron cargar los pagos:", error);
+        setErrorPagos(true);
+      });
+  }, []);
 
   // Formulario
   const [nombreForm, setNombreForm] = useState("");
@@ -232,7 +248,8 @@ export default function PerfilScreen() {
         .then(setVehiculo)
         .catch(() => setVehiculo(null));
       soyAdmin().then(setEsAdmin);
-    }, []),
+      cargarPagos();
+    }, [cargarPagos]),
   );
 
   const nombre = nombreForm || perfil?.nombre || "Mi usuario";
@@ -533,7 +550,63 @@ export default function PerfilScreen() {
               </Text>
             </Pressable>
 
-            {/* Preferencias */}
+            {/* Pagos */}
+            <Text style={styles.tituloSeccion}>Mis pagos</Text>
+            <View style={styles.tarjetaPreferencias}>
+              {errorPagos ? (
+                <View style={{ flex: 1, gap: 8 }}>
+                  <Text
+                    style={styles.textoErrorTamanoFuente}
+                    accessibilityRole="alert"
+                    accessibilityLiveRegion="assertive"
+                    aria-live="assertive"
+                  >
+                    No pudimos cargar tus pagos. Revisa tu conexión.
+                  </Text>
+                  <Pressable
+                    onPress={cargarPagos}
+                    accessibilityRole="button"
+                    accessibilityLabel="Reintentar la carga de mis pagos"
+                    style={styles.botonReintentarTamano}
+                  >
+                    <Text style={styles.tituloOpcion}>Reintentar</Text>
+                  </Pressable>
+                </View>
+              ) : misPagos === null ? (
+                <Text style={styles.tituloOpcion} role="status">
+                  Cargando tus pagos…
+                </Text>
+              ) : misPagos.length === 0 ? (
+                <Text style={styles.tituloOpcion}>Aún no tienes pagos registrados.</Text>
+              ) : (
+                <View style={{ flex: 1 }}>
+                  {misPagos.map((pago) => {
+                    const url = pago.recibo_url;
+                    const abrirRecibo = () => {
+                      if (url) void WebBrowser.openBrowserAsync(url);
+                    };
+                    return (
+                      <View key={pago.id} style={{ marginBottom: 10 }}>
+                        <Text style={styles.tituloOpcion}>
+                          {formatearPesos(pago.monto)} · {pago.estado}
+                        </Text>
+                        {url ? (
+                          <Pressable
+                            onPress={abrirRecibo}
+                            accessibilityRole="link"
+                            accessibilityLabel={`Ver recibo del pago de ${formatearPesos(pago.monto)}`}
+                            {...propsEnlaceWeb(abrirRecibo)}
+                          >
+                            <Text style={styles.tituloOpcion}>Ver recibo</Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+
             <Text style={styles.tituloSeccion}>Preferencias</Text>
 
             <View style={styles.tarjetaTamanoFuente}>

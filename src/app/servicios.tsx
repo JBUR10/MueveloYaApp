@@ -42,13 +42,20 @@ import {
 } from "../services/cuponesService";
 import { registrarServicio } from "../services/servicioService";
 import {
+  crearPago,
+  esperarConfirmacionPago,
+} from "../services/pagoService";
+import { pagarServicioStripe } from "../services/pagoStripe";
+import {
   calcularTarifa,
+  calcularRecargoCarga,
   distanciaRutaKm,
   formatearPesos,
   KM_INCLUIDOS,
   PRECIO_AYUDANTE,
   PRECIO_KM_ADICIONAL,
   PRECIO_PISO,
+  TipoCarga,
 } from "../services/tarifa";
 import {
   obtenerUbicaciones,
@@ -56,6 +63,8 @@ import {
   type PuntoMapa,
 } from "../services/ubicacionStore";
 import TextoIcono from "../components/ui/TextoIcono";
+import { propsCasillaWeb, useTecladoGrupo } from "../components/ui/tecladoWeb";
+import { liberarPago, reservarPago } from "../services/pagosEnCurso";
 import { usePaleta, useEstilos, type Paleta } from "../services/temaStore";
 
 type Rol = "origen" | "destino";
@@ -155,37 +164,6 @@ function FilaPrecio({ texto, valor }: { texto: string; valor: number }) {
   );
 }
 
-/** Cuánto avanza el foco con cada flecha dentro de un grupo de opciones. */
-const PASO_FLECHA: Record<string, number> = {
-  ArrowDown: 1,
-  ArrowRight: 1,
-  ArrowUp: -1,
-  ArrowLeft: -1,
-};
-
-/**
- * Solo web: las flechas mueven el foco y Espacio elige. Enter no se maneja
- * aquí porque react-native-web ya llama a onPress.
- */
-function alPulsarTecla(evento: KeyboardEvent, elegir: () => void) {
-  if (evento.altKey || evento.ctrlKey || evento.metaKey) return;
-  if (evento.key === " ") {
-    evento.preventDefault();
-    if (!evento.repeat) elegir();
-    return;
-  }
-
-  const paso = PASO_FLECHA[evento.key];
-  if (!paso) return;
-  evento.preventDefault();
-  const actual = evento.currentTarget as HTMLElement;
-  const radios = Array.from(
-    actual.parentElement?.querySelectorAll<HTMLElement>('[role="radio"]') ?? [],
-  );
-  const destino = (radios.indexOf(actual) + paso + radios.length) % radios.length;
-  radios[destino]?.focus();
-}
-
 /**
  * Tarjetas de elección única. En web el grupo tiene una sola parada de Tab:
  * entra por la opción elegida y dentro se recorre con las flechas.
@@ -202,8 +180,11 @@ function GrupoOpciones<T extends string>({
   onSeleccion: (id: T) => void;
 }) {
   const styles = useEstilos(crearEstilos);
-  const [enfocada, setEnfocada] = useState<T | null>(null);
-  const paradaTab = enfocada ?? seleccionada;
+  const teclas = useTecladoGrupo(
+    "radio",
+    opciones.map((o) => o.id),
+    seleccionada,
+  );
 
   return (
     <View
@@ -213,19 +194,6 @@ function GrupoOpciones<T extends string>({
     >
       {opciones.map((opcion) => {
         const marcada = opcion.id === seleccionada;
-        // En Android/iOS no se añade nada: basta con accessibilityState.
-        const propsWeb =
-          Platform.OS === "web"
-            ? {
-                "aria-checked": marcada,
-                tabIndex: opcion.id === paradaTab ? 0 : -1,
-                onFocus: () => setEnfocada(opcion.id),
-                onBlur: () => setEnfocada(null),
-                onKeyDown: (evento: KeyboardEvent) =>
-                  alPulsarTecla(evento, () => onSeleccion(opcion.id)),
-              }
-            : {};
-
         return (
           <Pressable
             key={opcion.id}
@@ -233,7 +201,7 @@ function GrupoOpciones<T extends string>({
             accessibilityRole="radio"
             accessibilityState={{ checked: marcada }}
             accessibilityLabel={opcion.etiqueta}
-            {...(propsWeb as object)}
+            {...teclas(opcion.id, () => onSeleccion(opcion.id))}
             style={({ pressed }) => [
               styles.cardServicio,
               marcada ? styles.cardServicioSelected : styles.cardServicioNormal,
@@ -265,6 +233,9 @@ export default function ServiciosScreen() {
   const [tipoServicio, setTipoServicio] = useState<
     "Envío" | "Acarreo" | "Trasteo" | "Mudanza"
   >("Acarreo");
+  const [tipoCarga, setTipoCarga] = useState<TipoCarga>("estandar");
+  const [articulosFragiles, setArticulosFragiles] = useState(false);
+  const [objetosExtrapesados, setObjetosExtrapesados] = useState(false);
   const [origenDireccion, setOrigenDireccion] = useState("");
   const [origenBarrio, setOrigenBarrio] = useState("");
   const [destinoDireccion, setDestinoDireccion] = useState("");
@@ -294,8 +265,19 @@ export default function ServiciosScreen() {
   const [pisosEscaleras, setPisosEscaleras] = useState(0);
   const [nombreContacto, setNombreContacto] = useState("");
   const [telefonoContacto, setTelefonoContacto] = useState("");
+  const [metodoPago, setMetodoPago] = useState<"stripe" | "efectivo">("stripe");
 
   const [loading, setLoading] = useState(false);
+  const teclasCarga = useTecladoGrupo<TipoCarga>(
+    "radio",
+    ["estandar", "fragil", "extrapesado"],
+    tipoCarga,
+  );
+  const teclasPago = useTecladoGrupo<"stripe" | "efectivo">(
+    "radio",
+    ["stripe", "efectivo"],
+    metodoPago,
+  );
 
   // Alerta en pantalla (componente global AlertaPantalla).
   const mostrarAlertaPantalla = async (
@@ -342,6 +324,13 @@ export default function ServiciosScreen() {
 
   const tarifa =
     distanciaKm != null ? calcularTarifa(distanciaKm, ayudantes, pisosEscaleras) : null;
+  const recargoCarga = calcularRecargoCarga(
+    tipoServicio,
+    tipoCarga,
+    articulosFragiles,
+    objetosExtrapesados,
+  );
+  const subtotalConCarga = tarifa ? tarifa.total + recargoCarga : null;
 
   // Cupones del cliente. La base de datos aplica el mejor al crear la solicitud;
   // aquí solo se calcula lo mismo para mostrarle el precio con descuento.
@@ -356,7 +345,10 @@ export default function ServiciosScreen() {
     }, []),
   );
   const cupon = mejorCupon(cupones, tipoServicio);
-  const descuento = tarifa && cupon ? descuentoDe(tarifa.total, cupon.porcentaje) : 0;
+  const descuento =
+    subtotalConCarga != null && cupon
+      ? descuentoDe(subtotalConCarga, cupon.porcentaje)
+      : 0;
 
   // El contacto se llena con los datos de la cuenta (se pueden cambiar).
   const contactoPerfil = useRef({ nombre: "", telefono: "" });
@@ -376,6 +368,9 @@ export default function ServiciosScreen() {
   const resetFormulario = () => {
     setPaso(1);
     setTipoServicio("Acarreo");
+    setTipoCarga("estandar");
+    setArticulosFragiles(false);
+    setObjetosExtrapesados(false);
     setOrigenDireccion("");
     setOrigenBarrio("");
     setDestinoDireccion("");
@@ -392,6 +387,7 @@ export default function ServiciosScreen() {
     setPisosEscaleras(0);
     setNombreContacto(contactoPerfil.current.nombre);
     setTelefonoContacto(contactoPerfil.current.telefono);
+    setMetodoPago("stripe");
     setRutaGuardada(null);
     setPuntosConfirmados("");
   };
@@ -636,6 +632,8 @@ export default function ServiciosScreen() {
   const handleSolicitar = async () => {
     if (loading) return;
     setLoading(true);
+    // Id cuyo pago se está iniciando, para liberarlo al terminar.
+    let pagoReservado: string | null = null;
 
     try {
       // Sin distancia no hay precio: se vuelve a intentar antes de enviar.
@@ -661,23 +659,97 @@ export default function ServiciosScreen() {
         descripcion,
         ayudantes,
         pisosEscaleras,
+        tipoCarga,
+        articulosFragiles,
+        objetosExtrapesados,
+        recargoCarga,
         nombreContacto,
         telefonoContacto,
+        metodoPago,
         fecha: new Date().toISOString(),
         distanciaKm,
       };
 
-      await registrarServicio(payload);
+      const registrado = await registrarServicio(payload);
+      const creado = registrado.data;
+      const base = creado.tarifaBase ?? creado.tarifaAcordada ?? 0;
+      const recargo = creado.recargoCarga ?? 0;
+      const descuento = creado.descuento ?? 0;
+      const total = creado.tarifaAcordada ?? 0;
 
-      mostrarAlertaPantalla(
-        "¡Servicio solicitado!",
-        "Tu servicio ha sido registrado con éxito. Puedes consultarlo en tus solicitudes.",
-        "exito",
-        () => {
-          resetFormulario();
-          router.push("/solicitudes" as any);
-        },
+      await aviso(
+        "Resumen del pago",
+        `Base: ${formatearPesos(base)}\nRecargo por carga: ${formatearPesos(recargo)}\nDescuento: -${formatearPesos(descuento)}\nTotal: ${formatearPesos(total)}`,
+        "info",
       );
+
+      if (creado.metodoPago === "efectivo") {
+        mostrarAlertaPantalla(
+          "Solicitud enviada",
+          "Pagarás en efectivo al transportista al finalizar el servicio.",
+          "exito",
+          () => {
+            resetFormulario();
+            router.push("/solicitudes" as any);
+          },
+        );
+        return;
+      }
+
+      if (!reservarPago(String(creado.id))) return;
+      pagoReservado = String(creado.id);
+      const pago = await crearPago(String(creado.id), Platform.OS === "web" ? "web" : "movil");
+      if (pago.gratis) {
+        mostrarAlertaPantalla(
+          "¡Servicio solicitado!",
+          "El cupón cubrió el total. Tu solicitud ya está disponible.",
+          "exito",
+          () => {
+            resetFormulario();
+            router.push("/solicitudes" as any);
+          },
+        );
+      } else if (Platform.OS === "web") {
+        const resultado = await pagarServicioStripe({ checkoutUrl: pago.checkoutUrl ?? "" });
+        // Mientras el navegador va a la página de pago, la reserva se mantiene.
+        if (resultado.estado !== "error") pagoReservado = null;
+      } else if (pago.paymentIntentClientSecret && pago.customerId && pago.ephemeralKeySecret) {
+        const resultado = await pagarServicioStripe({
+          paymentIntentClientSecret: pago.paymentIntentClientSecret,
+          customerId: pago.customerId,
+          ephemeralKeySecret: pago.ephemeralKeySecret,
+        }, p);
+        if (resultado.estado === "pagado") {
+          let confirmado = false;
+          try {
+            confirmado = await esperarConfirmacionPago(String(creado.id));
+          } catch (error) {
+            console.error("No se pudo consultar la confirmación de Stripe:", error);
+          }
+          mostrarAlertaPantalla(
+            confirmado ? "Pago confirmado" : "Confirmación pendiente",
+            confirmado
+              ? "Tu solicitud ya está disponible para los transportistas."
+              : "Stripe todavía está notificando el pago. No vuelvas a pagarlo; revisa tus solicitudes en unos segundos.",
+            confirmado ? "exito" : "advertencia",
+            () => {
+              resetFormulario();
+              router.push("/solicitudes" as any);
+            },
+          );
+        } else if (resultado.estado === "cancelado") {
+          mostrarAlertaPantalla(
+            "Pago pendiente",
+            "Puedes pagar la solicitud más tarde desde «Mis solicitudes».",
+            "advertencia",
+            () => router.push("/solicitudes" as any),
+          );
+        } else {
+          mostrarAlertaPantalla("No se pudo completar el pago", resultado.mensaje ?? "Inténtalo nuevamente.", "error");
+        }
+      } else {
+        throw new Error("Pagos no disponibles por ahora.");
+      }
     } catch (error: any) {
       mostrarAlertaPantalla(
         "Error",
@@ -685,6 +757,7 @@ export default function ServiciosScreen() {
         "error",
       );
     } finally {
+      if (pagoReservado) liberarPago(pagoReservado);
       setLoading(false);
     }
   };
@@ -692,6 +765,9 @@ export default function ServiciosScreen() {
   // Único punto donde se cambia de servicio (toque, clic, Enter y Espacio).
   const seleccionarTipoServicio = (tipo: typeof tipoServicio) => {
     setTipoServicio(tipo);
+    setTipoCarga("estandar");
+    setArticulosFragiles(false);
+    setObjetosExtrapesados(false);
   };
 
   const serviciosList = [
@@ -1102,6 +1178,113 @@ export default function ServiciosScreen() {
                   onChangeText={setDescripcion}
                 />
 
+                {(tipoServicio === "Envío" || tipoServicio === "Acarreo") && (
+                  <View
+                    style={styles.cargaSection}
+                    accessibilityRole="radiogroup"
+                    accessibilityLabel="Tipo de carga"
+                  >
+                    <Text style={styles.cargaTitle}>Tipo de carga</Text>
+                    {(tipoServicio === "Envío"
+                      ? [
+                          { id: "estandar" as TipoCarga, titulo: "Estándar", detalle: "Cajas y paquetes comunes", recargo: "+0%" },
+                          { id: "fragil" as TipoCarga, titulo: "Frágil", detalle: "Artículos delicados que requieren manipulación especial", recargo: "+15%" },
+                          { id: "extrapesado" as TipoCarga, titulo: "Pesada (más de 25 kg)", detalle: "Paquetes de alto peso", recargo: "+20%" },
+                        ]
+                      : [
+                          { id: "estandar" as TipoCarga, titulo: "Estándar", detalle: "Objetos o muebles convencionales", recargo: "+0%" },
+                          { id: "fragil" as TipoCarga, titulo: "Frágil / Delicado", detalle: "Espejos, mesas de vidrio, televisores o electrónicos", recargo: "+15%" },
+                          { id: "extrapesado" as TipoCarga, titulo: "Extrapesado", detalle: "Neveras grandes, lavadoras o carga extraordinaria", recargo: "+20%" },
+                        ]
+                    ).map((opcion) => {
+                      const activo = tipoCarga === opcion.id;
+                      return (
+                        <Pressable
+                          key={opcion.id}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked: activo }}
+                          accessibilityLabel={`${opcion.titulo}. ${opcion.detalle}. Recargo ${opcion.recargo}`}
+                          onPress={() => setTipoCarga(opcion.id)}
+                          {...teclasCarga(opcion.id, () => setTipoCarga(opcion.id))}
+                          style={({ pressed }) => [
+                            styles.cargaOpcion,
+                            activo && styles.cargaOpcionActiva,
+                            pressed && styles.cardServicioPresionada,
+                          ]}
+                        >
+                          <View style={[styles.radioCarga, activo && styles.radioCargaActivo]}>
+                            {activo && <View style={styles.radioCargaPunto} />}
+                          </View>
+                          <View style={styles.cargaOpcionTexto}>
+                            <Text style={styles.cargaOpcionTitulo}>{opcion.titulo}</Text>
+                            <Text style={styles.cargaOpcionDetalle}>{opcion.detalle}</Text>
+                          </View>
+                          <Text style={[styles.cargaRecargo, activo && { color: p.acento }]}>
+                            {opcion.recargo}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {(tipoServicio === "Trasteo" || tipoServicio === "Mudanza") && (
+                  <View
+                    style={styles.cargaSection}
+                    role="group"
+                    accessibilityLabel="Artículos de cuidado especial"
+                  >
+                    <Text style={styles.cargaTitle}>
+                      ¿Incluye artículos de cuidado especial?
+                    </Text>
+                    <Pressable
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: articulosFragiles }}
+                      accessibilityLabel="Artículos frágiles o delicados. Vajillas, vidrios, espejos o pantallas grandes. Recargo +15%"
+                      onPress={() => setArticulosFragiles((v) => !v)}
+                      {...propsCasillaWeb(articulosFragiles, () => setArticulosFragiles((v) => !v))}
+                      style={({ pressed }) => [
+                        styles.cargaOpcion,
+                        articulosFragiles && styles.cargaOpcionActiva,
+                        pressed && styles.cardServicioPresionada,
+                      ]}
+                    >
+                      <View style={[styles.checkboxCarga, articulosFragiles && styles.checkboxCargaActivo]}>
+                        {articulosFragiles && <Text style={styles.checkboxMarca}>✓</Text>}
+                      </View>
+                      <View style={styles.cargaOpcionTexto}>
+                        <Text style={styles.cargaOpcionTitulo}>Artículos frágiles o delicados</Text>
+                        <Text style={styles.cargaOpcionDetalle}>Vajillas, vidrios, espejos o pantallas grandes</Text>
+                      </View>
+                      <Text style={styles.cargaRecargo}>+15%</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: objetosExtrapesados }}
+                      accessibilityLabel="Objetos extrapesados. Nevecón, piano, caja fuerte o máquinas de gimnasio. Recargo +20%"
+                      onPress={() => setObjetosExtrapesados((v) => !v)}
+                      {...propsCasillaWeb(objetosExtrapesados, () => setObjetosExtrapesados((v) => !v))}
+                      style={({ pressed }) => [
+                        styles.cargaOpcion,
+                        objetosExtrapesados && styles.cargaOpcionActiva,
+                        pressed && styles.cardServicioPresionada,
+                      ]}
+                    >
+                      <View style={[styles.checkboxCarga, objetosExtrapesados && styles.checkboxCargaActivo]}>
+                        {objetosExtrapesados && <Text style={styles.checkboxMarca}>✓</Text>}
+                      </View>
+                      <View style={styles.cargaOpcionTexto}>
+                        <Text style={styles.cargaOpcionTitulo}>Objetos extrapesados</Text>
+                        <Text style={styles.cargaOpcionDetalle}>Nevecón, piano, caja fuerte o máquinas de gimnasio</Text>
+                      </View>
+                      <Text style={styles.cargaRecargo}>+20%</Text>
+                    </Pressable>
+                  </View>
+                )}
+                <Text style={styles.cargaAyuda}>
+                  Las opciones frágiles incluyen protección y cuidado adicional.
+                </Text>
+
                 {/* Contador Ayudantes */}
                 <View style={styles.counterRow}>
                   <View>
@@ -1212,25 +1395,36 @@ export default function ServiciosScreen() {
                         valor={tarifa.valorPisos}
                       />
                     )}
+                    {recargoCarga > 0 && (
+                      <FilaPrecio
+                        texto="Cuidado especial / Carga"
+                        valor={recargoCarga}
+                      />
+                    )}
                     {cupon && descuento > 0 && (
-                      <View style={styles.filaPrecio}>
-                        <TextoIcono
-                          icono="gift-outline"
-                          style={[styles.textoPrecio, { color: p.textoExito }]}
-                        >
-                          Cupón {cupon.porcentaje} %
-                        </TextoIcono>
-                        <Text style={[styles.valorPrecio, { color: p.textoExito }]}>
-                          - {formatearPesos(descuento)}
-                        </Text>
-                      </View>
+                      <>
+                        {subtotalConCarga != null && (
+                          <FilaPrecio texto="Subtotal" valor={subtotalConCarga} />
+                        )}
+                        <View style={styles.filaPrecio}>
+                          <TextoIcono
+                            icono="gift-outline"
+                            style={[styles.textoPrecio, { color: p.textoExito }]}
+                          >
+                            Cupón {cupon.porcentaje} %
+                          </TextoIcono>
+                          <Text style={[styles.valorPrecio, { color: p.textoExito }]}>
+                            - {formatearPesos(descuento)}
+                          </Text>
+                        </View>
+                      </>
                     )}
                     <View style={styles.filaTotal}>
                       <Text style={styles.textoTotal}>
                         Total · {distanciaKm?.toFixed(1).replace(".", ",")} km de ruta
                       </Text>
                       <Text style={styles.valorTotal}>
-                        {formatearPesos(tarifa.total - descuento)}
+                        {formatearPesos((subtotalConCarga ?? tarifa.total) - descuento)}
                       </Text>
                     </View>
                   </>
@@ -1241,16 +1435,76 @@ export default function ServiciosScreen() {
                 )}
               </View>
 
+              <View style={styles.cardSection}>
+                <Text style={styles.inputLabel}>¿Cómo deseas pagar?</Text>
+                <View
+                  style={styles.cargaSection}
+                  accessibilityRole="radiogroup"
+                  accessibilityLabel="Método de pago"
+                >
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: metodoPago === "stripe" }}
+                    accessibilityLabel="Tarjeta con Stripe. Pago seguro al solicitar el servicio"
+                    onPress={() => setMetodoPago("stripe")}
+                    {...teclasPago("stripe", () => setMetodoPago("stripe"))}
+                    style={({ pressed }) => [
+                      styles.cargaOpcion,
+                      metodoPago === "stripe" && styles.cargaOpcionActiva,
+                      pressed && styles.cardServicioPresionada,
+                    ]}
+                  >
+                    <View style={[styles.radioCarga, metodoPago === "stripe" && styles.radioCargaActivo]}>
+                      {metodoPago === "stripe" && <View style={styles.radioCargaPunto} />}
+                    </View>
+                    <View style={styles.cargaOpcionTexto}>
+                      <Text style={styles.cargaOpcionTitulo}>Tarjeta con Stripe</Text>
+                      <Text style={styles.cargaOpcionDetalle}>Pago seguro al solicitar el servicio</Text>
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: metodoPago === "efectivo" }}
+                    accessibilityLabel="Efectivo al transportista. Pagas al finalizar el servicio"
+                    onPress={() => setMetodoPago("efectivo")}
+                    {...teclasPago("efectivo", () => setMetodoPago("efectivo"))}
+                    style={({ pressed }) => [
+                      styles.cargaOpcion,
+                      metodoPago === "efectivo" && styles.cargaOpcionActiva,
+                      pressed && styles.cardServicioPresionada,
+                    ]}
+                  >
+                    <View style={[styles.radioCarga, metodoPago === "efectivo" && styles.radioCargaActivo]}>
+                      {metodoPago === "efectivo" && <View style={styles.radioCargaPunto} />}
+                    </View>
+                    <View style={styles.cargaOpcionTexto}>
+                      <Text style={styles.cargaOpcionTitulo}>Efectivo al transportista</Text>
+                      <Text style={styles.cargaOpcionDetalle}>Pagas al finalizar el servicio</Text>
+                    </View>
+                  </Pressable>
+                </View>
+              </View>
+
               <TouchableOpacity
                 style={styles.btnSubmit}
                 disabled={loading}
                 onPress={handleSolicitar}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  loading
+                    ? "Enviando solicitud"
+                    : metodoPago === "stripe"
+                      ? "Pagar con Stripe y solicitar"
+                      : "Solicitar y pagar en efectivo"
+                }
+                accessibilityState={{ disabled: loading, busy: loading }}
+                aria-busy={loading}
               >
                 {loading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.btnSubmitText}>
-                    CONFIRMAR Y SOLICITAR
+                    {metodoPago === "stripe" ? "PAGAR CON STRIPE Y SOLICITAR" : "SOLICITAR Y PAGAR EN EFECTIVO"}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -1530,6 +1784,48 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     fontWeight: "700",
     paddingHorizontal: 12,
   },
+  cargaSection: { gap: 8, paddingTop: 12 },
+  cargaTitle: { color: p.texto, fontSize: 14, fontWeight: "800", marginBottom: 2 },
+  cargaAyuda: { color: p.textoTenue2, fontSize: 12, lineHeight: 17, marginTop: 4 },
+  cargaOpcion: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderColor: p.bordeCampo,
+    borderRadius: 12,
+    padding: 12,
+  },
+  cargaOpcionActiva: {
+    borderColor: p.acento,
+    backgroundColor: p.superficieSeleccion,
+  },
+  radioCarga: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: p.bordeFuerte,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioCargaActivo: { borderColor: p.acento },
+  radioCargaPunto: { width: 10, height: 10, borderRadius: 5, backgroundColor: p.acento },
+  checkboxCarga: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: p.bordeFuerte,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxCargaActivo: { borderColor: p.acento, backgroundColor: p.acento },
+  checkboxMarca: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" },
+  cargaOpcionTexto: { flex: 1 },
+  cargaOpcionTitulo: { color: p.texto, fontSize: 13, fontWeight: "800" },
+  cargaOpcionDetalle: { color: p.textoTenue2, fontSize: 11, lineHeight: 15, marginTop: 2 },
+  cargaRecargo: { color: p.textoSuave, fontSize: 12, fontWeight: "900" },
   contactDivider: {
     paddingTop: 12,
     borderTopWidth: 1,

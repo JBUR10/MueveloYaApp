@@ -33,6 +33,8 @@ import BarraNavegacion from "../ui/BarraNavegacion";
 import { buscarLugares } from "../ui/BuscadorDestino";
 import CalificarServicio from "../ui/CalificarServicio";
 import MotivoCancelacion from "../ui/MotivoCancelacion";
+import EvidenciaRecogida from "./EvidenciaRecogida";
+import { tomarFoto } from "../../services/evidenciasService";
 import MapaPrincipal, {
   Coordenadas,
   InfoRuta,
@@ -66,16 +68,20 @@ import {
   cancelarSolicitud,
   completarServicio,
   DatosTransportista,
+  type EstadoConductor,
   esInmediato,
   estaIniciado,
   HORAS_MINIMAS_CANCELACION,
   iniciarServicio,
   marcarRecogido,
+  formatearFechaHora,
   obtenerDatosTransportista,
+  obtenerEstadoConductor,
   puedeCancelar,
   rechazarSolicitud,
 } from "../../services/transportistaService";
 import { formatearPesos } from "../../services/tarifa";
+import DetalleTarifaSolicitud from "../DetalleTarifaSolicitud";
 import { obtenerMiVehiculo, revisarDocumentos } from "../../services/vehiculoService";
 import Icono, { type NombreIcono } from "../ui/Icono";
 import TextoIcono from "../ui/TextoIcono";
@@ -193,6 +199,13 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
   const [calificandoId, setCalificandoId] = useState<string | null>(null);
   // Servicio que se está cancelando (abre el selector de motivo).
   const [cancelando, setCancelando] = useState<SolicitudServicioDTO | null>(null);
+  // Servicio que se está recogiendo y sus fotos (abre la evidencia).
+  const [recogiendo, setRecogiendo] = useState<{
+    item: SolicitudServicioDTO;
+    fotos: string[];
+  } | null>(null);
+  // Advertencias, suspensión y condición por quejas confirmadas (019).
+  const [estadoConductor, setEstadoConductor] = useState<EstadoConductor | null>(null);
   const { disponible } = useDisponibilidad();
   const push = usePush();
   const [cambiandoDisponible, setCambiandoDisponible] = useState(false);
@@ -313,6 +326,23 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
               "error",
             );
             router.replace("/vehiculo");
+            return;
+          }
+          // Suspendido por una queja confirmada: solo puede usar la app
+          // como cliente.
+          const estado = await obtenerEstadoConductor();
+          if (!activo) return;
+          setEstadoConductor(estado);
+          if (estado?.suspendido) {
+            await cambiarModo("usuario");
+            await aviso(
+              "Cuenta de conductor suspendida",
+              estado.definitiva || !estado.suspendidoHasta
+                ? "Tu modo conductor fue suspendido de forma definitiva por una queja de daño confirmada. Puedes seguir usando la app como cliente."
+                : `Tu modo conductor está suspendido hasta el ${formatearFechaHora(estado.suspendidoHasta)} por una queja de daño confirmada. Mientras tanto puedes usar la app como cliente.`,
+              "error",
+            );
+            router.replace("/perfil");
             return;
           }
         } catch (error) {
@@ -837,27 +867,41 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
     </Pressable>
   );
 
+  // Antes de marcar recogido hay que tomar fotos del estado de los
+  // artículos: primero se avisa, luego se abre la cámara.
   const handleRecogido = async (item: SolicitudServicioDTO) => {
     if (!item.id) return;
     const ok = await confirmar({
-      titulo: "¿Ya recogiste la carga?",
-      mensaje: "Se mostrará la ruta hasta el punto de entrega y el cliente verá que vas en camino.",
-      textoAceptar: "Sí, ya recogí",
+      titulo: "Evidencia de los artículos",
+      mensaje:
+        "Para iniciar debes adjuntar evidencia del estado de los artículos. Toma fotos claras, sobre todo de golpes, rayones o daños que ya tengan: te sirven de soporte si el cliente reporta un daño.",
+      textoAceptar: "Tomar fotos",
       textoCancelar: "Aún no",
-      tipo: "info",
+      tipo: "advertencia",
     });
     if (!ok) return;
 
     try {
-      setProcesandoId(item.id);
-      await marcarRecogido(item.id);
-      await cargarDatos();
-      setMensaje("Rumbo al punto de entrega");
+      const foto = await tomarFoto();
+      if (!foto) return;
+      setRecogiendo({ item, fotos: [foto] });
     } catch (error: any) {
-      await aviso("Error", error?.message || "No se pudo actualizar.", "error");
+      await aviso("Cámara", error?.message || "No se pudo abrir la cámara.", "error");
+    }
+  };
+
+  const confirmarRecogida = async (fotos: string[]) => {
+    const item = recogiendo?.item;
+    if (!item?.id) return;
+    setProcesandoId(item.id);
+    try {
+      await marcarRecogido(item.id, fotos);
     } finally {
       setProcesandoId(null);
     }
+    setRecogiendo(null);
+    await cargarDatos();
+    setMensaje("Rumbo al punto de entrega");
   };
 
   const handleFinalizar = async (item: SolicitudServicioDTO) => {
@@ -960,17 +1004,17 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
 
         <Ruta origen={item.origen} destino={item.destino} compacta />
 
-        <View style={styles.metricsRow}>
-          <Metrica valor={item.ayudantes} etiqueta="Ayudantes" />
-          <View style={styles.metricDivider} />
-          <Metrica valor={item.pisosEscaleras} etiqueta="Pisos" />
-          {item.tarifaAcordada != null && (
-            <>
-              <View style={styles.metricDivider} />
-              <Metrica valor={formatearPesos(item.tarifaAcordada)} etiqueta="Tarifa" />
-            </>
-          )}
-        </View>
+        {etiquetasCarga(item).length > 0 && (
+          <View style={styles.cargaBadges}>
+            {etiquetasCarga(item).map((etiqueta) => (
+              <View key={etiqueta} style={styles.cargaBadge}>
+                <Text style={styles.cargaBadgeText}>{etiqueta}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <DetalleTarifaSolicitud item={item} />
 
         {item.descripcion ? (
           <Text style={styles.cardDesc}>
@@ -1138,6 +1182,18 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           <Text style={styles.avisoDatos}>
             {[
               item.distanciaKm != null ? textoKm(item.distanciaKm) : null,
+              etiquetasCarga(item).length > 0
+                ? etiquetasCarga(item).join(" · ")
+                : null,
+              (item.recargoCarga ?? 0) > 0
+                ? `Carga especial ${formatearPesos(item.recargoCarga)}`
+                : null,
+              (item.descuento ?? 0) > 0 && item.tarifaBase != null
+                ? `Subtotal ${formatearPesos(item.tarifaBase)}`
+                : null,
+              (item.descuento ?? 0) > 0
+                ? `Descuento - ${formatearPesos(item.descuento)}`
+                : null,
               item.tarifaAcordada != null ? formatearPesos(item.tarifaAcordada) : null,
             ]
               .filter(Boolean)
@@ -1400,6 +1456,16 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
 
         <Ruta origen={item.origen} destino={item.destino} />
 
+        {etiquetasCarga(item).length > 0 && (
+          <View style={styles.cargaBadges}>
+            {etiquetasCarga(item).map((etiqueta) => (
+              <View key={etiqueta} style={styles.cargaBadge}>
+                <Text style={styles.cargaBadgeText}>{etiqueta}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         {item.descripcion ? (
           <View style={styles.descBox}>
             <Text style={styles.descLabel}>DETALLE</Text>
@@ -1409,26 +1475,12 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           </View>
         ) : null}
 
-        <View style={styles.metricsRow}>
-          <Metrica valor={item.ayudantes} etiqueta="Ayudantes" />
-          <View style={styles.metricDivider} />
-          <Metrica valor={item.pisosEscaleras} etiqueta="Pisos" />
-          {item.tarifaAcordada != null && (
-            <>
-              <View style={styles.metricDivider} />
-              <Metrica valor={formatearPesos(item.tarifaAcordada)} etiqueta="Tarifa" />
-            </>
-          )}
-          {miUbicacion && item.origenCoords && seccion === "disponibles" ? (
-            <>
-              <View style={styles.metricDivider} />
-              <Metrica
-                valor={textoKm(distanciaKm(miUbicacion, item.origenCoords))}
-                etiqueta="De ti"
-              />
-            </>
-          ) : null}
-        </View>
+        <DetalleTarifaSolicitud item={item} />
+        {miUbicacion && item.origenCoords && seccion === "disponibles" ? (
+          <Text style={styles.distanciaSolicitud}>
+            A {textoKm(distanciaKm(miUbicacion, item.origenCoords))} de ti
+          </Text>
+        ) : null}
 
         <View style={styles.cardFooter}>
           <View style={styles.contactInfo}>
@@ -1528,6 +1580,44 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
     );
   };
 
+  // Cuenta condicionada o con advertencias: aviso fijo arriba de la lista.
+  const renderAvisoDisciplina = () => {
+    const e = estadoConductor;
+    if (!e || (!e.condicionado && e.advertencias === 0)) return null;
+    let texto: string;
+    if (e.condicionado) {
+      const faltanViajes = Math.max(0, e.viajesRequeridos - e.viajesCondicion);
+      const libreEl = e.condicionDesde
+        ? new Date(new Date(e.condicionDesde).getTime() + e.diasRequeridos * 86400000)
+        : null;
+      const faltanDias = libreEl
+        ? Math.max(0, Math.ceil((libreEl.getTime() - ahora.getTime()) / 86400000))
+        : e.diasRequeridos;
+      const pendientes = [
+        faltanDias > 0 ? `${faltanDias} día${faltanDias === 1 ? "" : "s"}` : null,
+        faltanViajes > 0 ? `${faltanViajes} viaje${faltanViajes === 1 ? "" : "s"}` : null,
+      ].filter(Boolean);
+      texto =
+        "Si recibes otra queja de daño confirmada, la sanción será más fuerte." +
+        (pendientes.length
+          ? ` La condición se quita en ${pendientes.join(" y ")} sin quejas.`
+          : "");
+    } else {
+      texto = `Llevas ${e.advertencias} de 3 advertencias por daños mínimos. Al llegar a 3, tu cuenta se suspende 5 días.`;
+    }
+    return (
+      <View style={styles.avisoDisciplina}>
+        <Icono nombre="alert-circle" tamano={20} color="#fbbf24" />
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={styles.avisoDisciplinaTitulo}>
+            {e.condicionado ? "Cuenta condicionada" : "Advertencias"}
+          </Text>
+          <Text style={styles.avisoDisciplinaTexto}>{texto}</Text>
+        </View>
+      </View>
+    );
+  };
+
   const renderVistaLista = () => {
     const vacio = VACIOS[seccion];
     const elementos =
@@ -1584,6 +1674,8 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
             Solicitudes de <Text style={styles.titleHighlight}>servicio</Text>
           </Text>
         </View>
+
+        {renderAvisoDisciplina()}
 
         {renderInterruptorDisponible(false)}
 
@@ -1713,6 +1805,13 @@ export default function PanelTransportista({ vista }: { vista: VistaPanel }) {
           </Pressable>
         )}
 
+        <EvidenciaRecogida
+          key={recogiendo?.item.id ?? "cerrado"}
+          fotosIniciales={recogiendo?.fotos ?? null}
+          onCerrar={() => setRecogiendo(null)}
+          onConfirmar={confirmarRecogida}
+        />
+
         <MotivoCancelacion
           visible={!!cancelando}
           rol="conductor"
@@ -1774,17 +1873,31 @@ function Ruta({
   );
 }
 
-function Metrica({ valor, etiqueta }: { valor: number | string; etiqueta: string }) {
-  const styles = useEstilos(crearEstilos);
-  return (
-    <View style={styles.metricBox}>
-      <Text style={styles.metricValue}>{valor}</Text>
-      <Text style={styles.metricLabel}>{etiqueta}</Text>
-    </View>
-  );
+function etiquetasCarga(item: SolicitudServicioDTO): string[] {
+  if (item.tipoServicio === "Trasteo" || item.tipoServicio === "Mudanza") {
+    return [
+      item.articulosFragiles ? "Carga Frágil" : null,
+      item.objetosExtrapesados ? "Extrapesado" : null,
+    ].filter((v): v is string => !!v);
+  }
+  if (item.tipoCarga === "fragil") return ["Carga Frágil"];
+  if (item.tipoCarga === "extrapesado") return ["Extrapesado"];
+  return [];
 }
 
 const crearEstilos = (p: Paleta) => StyleSheet.create({
+  avisoDisciplina: {
+    flexDirection: "row",
+    gap: 10,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(251,191,36,0.45)",
+    backgroundColor: "rgba(251,191,36,0.10)",
+    marginBottom: 12,
+  },
+  avisoDisciplinaTitulo: { color: p.textoAviso, fontWeight: "800", fontSize: 14 },
+  avisoDisciplinaTexto: { color: p.textoSuave, fontSize: 12, lineHeight: 17 },
   safeArea: { flex: 1, backgroundColor: p.fondo },
   mainContainer: { flex: 1, backgroundColor: p.fondo },
   container: { flex: 1, backgroundColor: p.fondo },
@@ -2288,21 +2401,23 @@ const crearEstilos = (p: Paleta) => StyleSheet.create({
     marginBottom: 3,
   },
   cardDesc: { color: p.textoSuave, fontSize: 13, lineHeight: 18 },
-
-  // Métricas
-  metricsRow: {
-    flexDirection: "row",
-    backgroundColor: p.velo(0.03),
-    borderRadius: 14,
+  cargaBadges: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
+  cargaBadge: {
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: p.linea(0.08),
-    paddingVertical: 10,
+    borderColor: p.acento,
+    backgroundColor: p.velo(0.05),
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  cargaBadgeText: { color: p.acento, fontSize: 11, fontWeight: "800" },
+
+  distanciaSolicitud: {
+    color: p.textoAlfa(0.6),
+    fontSize: 11,
+    marginTop: -8,
     marginBottom: 14,
   },
-  metricBox: { flex: 1, alignItems: "center" },
-  metricValue: { color: p.texto, fontSize: 18, fontWeight: "800" },
-  metricLabel: { color: p.textoAlfa(0.6), fontSize: 11, marginTop: 1 },
-  metricDivider: { width: 1, backgroundColor: p.velo(0.15) },
 
   // Pie
   cardFooter: {
